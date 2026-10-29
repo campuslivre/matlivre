@@ -548,7 +548,10 @@ fn cubic_pp(method: Method, x: &[f64], ys: &[Vec<f64>], dim: Vec<usize>) -> Pp {
 
 /// Validates and sorts sample points as `spline`, `pchip` and `makima` do; returns the sorted
 /// sites and, per component, the values in the same order.
-fn chckxy(x: &Matrix, y: &Matrix, allow_ends: bool) -> R<(Vec<f64>, Vec<Vec<f64>>, Vec<usize>)> {
+/// Sorted sites, the values per component, and the value dims.
+type Sites = (Vec<f64>, Vec<Vec<f64>>, Vec<usize>);
+
+fn chckxy(x: &Matrix, y: &Matrix, allow_ends: bool) -> R<Sites> {
     let n = x.numel();
     if n < 2 {
         return rt("The first two inputs must have at least two elements.");
@@ -948,14 +951,14 @@ fn interpft_slice(x: &[C], n: f64) -> Vec<C> {
     let m = x.len();
     let (incr, ny) = if n > m as f64 { (1, n as usize) } else { let i = (m as f64 / n).floor() as usize + 1; (i, (i as f64 * n) as usize) };
     let a = dft(x, -1.0);
-    let nyq = m.div_ceil(2) + usize::from(m % 2 == 0);
+    let nyq = m.div_ceil(2) + usize::from(m.is_multiple_of(2));
     let nyq = nyq.min(m);
     let mut b = vec![C::new(0.0, 0.0); ny.max(m)];
     b[..nyq].copy_from_slice(&a[..nyq]);
     let tail = m - nyq;
     let base = b.len() - tail;
     b[base..].copy_from_slice(&a[nyq..]);
-    if m % 2 == 0 && ny > m {
+    if m.is_multiple_of(2) && ny > m {
         let half = C::new(b[nyq - 1].re / 2.0, b[nyq - 1].im / 2.0);
         b[nyq - 1] = half;
         b[nyq - 1 + ny - m] = half;

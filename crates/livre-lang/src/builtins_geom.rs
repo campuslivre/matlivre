@@ -12,7 +12,6 @@
 use std::collections::HashMap;
 
 use crate::builtins::{m_arg, one, Ret};
-use crate::cplx::C;
 use crate::error::{rt, LangError};
 use crate::interp::{Interpreter, OutputKind};
 use crate::value::*;
@@ -41,8 +40,9 @@ fn det(mut a: Vec<Vec<f64>>) -> f64 {
         d *= a[c][c];
         for r in c + 1..n {
             let f = a[r][c] / a[c][c];
-            for k in c..n {
-                a[r][k] -= f * a[c][k];
+            let (top, bottom) = a.split_at_mut(r);
+            for (x, &y) in bottom[0][c..].iter_mut().zip(&top[c][c..]) {
+                *x -= f * y;
             }
         }
     }
@@ -61,8 +61,9 @@ fn solve(mut a: Vec<Vec<f64>>, mut b: Vec<f64>) -> Option<Vec<f64>> {
         b.swap(p, c);
         for r in c + 1..n {
             let f = a[r][c] / a[c][c];
-            for k in c..n {
-                a[r][k] -= f * a[c][k];
+            let (top, bottom) = a.split_at_mut(r);
+            for (x, &y) in bottom[0][c..].iter_mut().zip(&top[c][c..]) {
+                *x -= f * y;
             }
             b[r] -= f * b[c];
         }
@@ -418,7 +419,7 @@ fn num_args(a: &[Value], name: &str) -> R<(Vec<Matrix>, Vec<Value>)> {
     Ok(((0..n).map(|i| m_arg(a, i, name)).collect::<R<_>>()?, a[n..].to_vec()))
 }
 
-fn convhull(it: &mut Interpreter, a: &[Value], name: &str) -> Ret {
+fn convhull(a: &[Value], name: &str) -> Ret {
     let (m, _opts) = num_args(a, name)?;
     if m.is_empty() {
         return rt("Not enough input arguments.");
@@ -462,7 +463,6 @@ fn convhull(it: &mut Interpreter, a: &[Value], name: &str) -> Ret {
         }
         facets.sort_by(|a, b| a[a.len() - 1].cmp(&b[b.len() - 1]).then(a.cmp(b)));
     }
-    let _ = it;
     Ok(Some(vec![Value::Num(index_matrix(&facets, d)), Value::num(volume)]))
 }
 
@@ -516,8 +516,7 @@ fn voronoin(it: &mut Interpreter, a: &[Value]) -> Ret {
     let mut vdata: Vec<Vec<f64>> = vec![vec![f64::INFINITY; d]];
     vdata.extend(cc.iter().cloned());
     let mut cells = Vec::with_capacity(pts.len());
-    for (u, &o) in orig.iter().enumerate() {
-        let _ = o;
+    for u in 0..orig.len() {
         let fan: Vec<usize> = (0..tri.len()).filter(|&k| tri[k].contains(&u)).collect();
         let mut around: Vec<usize> = if d == 2 {
             // Walk the fan clockwise: triangle [u, a, b] (counterclockwise) is followed by
@@ -665,7 +664,7 @@ pub(crate) fn nearest(pts: &[Vec<f64>], q: &[f64]) -> (usize, f64) {
     (best.0, best.1.sqrt())
 }
 
-fn dsearchn(a: &[Value], nargout: usize) -> Ret {
+fn dsearchn(a: &[Value]) -> Ret {
     let x = m_arg(a, 0, "dsearchn")?;
     let pts = rows(&x);
     // dsearchn(X, XI), dsearchn(X, T, XI), dsearchn(X, T, XI, outval).
@@ -696,7 +695,6 @@ fn dsearchn(a: &[Value], nargout: usize) -> Ret {
         k.push((i + 1) as f64);
         d.push(dist);
     }
-    let _ = nargout;
     Ok(Some(vec![Value::Num(Matrix::col(k)), Value::Num(Matrix::col(d))]))
 }
 
@@ -887,9 +885,9 @@ fn griddata(it: &mut Interpreter, a: &[Value], name: &str) -> Ret {
             let (xs, ys) = (&qcoords[0].data, &qcoords[1].data);
             let (nx, ny) = (xs.len(), ys.len());
             let mut pts = Vec::with_capacity(nx * ny);
-            for i in 0..nx {
-                for j in 0..ny {
-                    pts.push(vec![xs[i], ys[j]]);
+            for &x in xs {
+                for &y in ys {
+                    pts.push(vec![x, y]);
                 }
             }
             let gx = Matrix::new(ny, nx, pts.iter().map(|p| p[0]).collect());
@@ -957,7 +955,6 @@ fn griddata(it: &mut Interpreter, a: &[Value], name: &str) -> Ret {
         out.im = Some(eval(&ims)?);
         out.narrow();
     }
-    let _ = C::new(0.0, 0.0);
     match grids {
         Some((gx, gy)) => Ok(Some(vec![Value::Num(gx), Value::Num(gy), Value::Num(out)])),
         None => one(Value::Num(out)),
@@ -970,10 +967,10 @@ pub fn call(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
     }
     match name {
         "delaunay" | "delaunayn" => delaunay(it, a, name),
-        "convhull" | "convhulln" => convhull(it, a, name),
+        "convhull" | "convhulln" => convhull(a, name),
         "voronoi" => voronoi(it, a),
         "voronoin" => voronoin(it, a),
-        "dsearchn" => dsearchn(a, nargout),
+        "dsearchn" => dsearchn(a),
         "tsearchn" => tsearchn(a),
         "griddata" | "griddatan" => {
             let r = griddata(it, a, name)?;

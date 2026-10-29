@@ -195,9 +195,8 @@ fn new_gridded(a: &[Value]) -> Ret {
     // Values of a 1-D interpolant may be a row or a column.
     let check = if vecs.len() == 1 { Matrix::col(values.data.clone()) } else { values.clone() };
     let check = Matrix { im: values.im.clone(), ..check };
-    let grid = gridded::make_grid(vecs.clone(), &check)?;
+    let grid = gridded::make_grid(vecs, &check)?;
     let gv = CellArray::row(grid.vecs.iter().map(|g| Value::Num(Matrix::row(g.clone()))).collect());
-    let _ = grid;
     one(make("griddedInterpolant", vec![Value::Cell(gv), Value::Num(values), Value::chars(method_text(method)), Value::chars(&extrap)]))
 }
 
@@ -1144,8 +1143,11 @@ fn new_alpha(a: &[Value]) -> Ret {
     one(make("alphaShape", vec![Value::Num(points_matrix(&pts)), Value::num(alpha), Value::num(hole), Value::num(region)]))
 }
 
-/// Region IDs for queries: (shp, P), (shp, x, y[, z]), optionally followed by region IDs.
-fn alpha_queries(a: &[Value], d: usize) -> R<(Vec<Vec<f64>>, Option<Value>, Vec<usize>)> {
+/// Query points, region IDs and the shape of the result.
+type Queries = (Vec<Vec<f64>>, Option<Value>, Vec<usize>);
+
+/// Queries as (shp, P) or (shp, x, y[, z]), optionally followed by region IDs.
+fn alpha_queries(a: &[Value], d: usize) -> R<Queries> {
     let ms: Vec<Matrix> = a.iter().map(|v| v.to_matrix()).collect::<R<_>>()?;
     let coordinate_form = ms.len() >= d && ms[..d].iter().all(|m| m.dims == ms[0].dims);
     let (coords, ids) = if !coordinate_form {
@@ -1347,13 +1349,12 @@ fn boundary(a: &[Value]) -> Ret {
 
 /// `matlivre_polyfun_method('Class.method', nargout, obj, args...)`: returns the outputs as a
 /// cell row (the class methods assign it to varargout).
-fn method_call(it: &mut Interpreter, a: &[Value]) -> Ret {
+fn method_call(a: &[Value]) -> Ret {
     let which = crate::builtins::arg(a, 0, "matlivre_polyfun_method")?.text()?;
     let nargout = crate::builtins::arg(a, 1, "matlivre_polyfun_method")?.scalar()? as usize;
     let Some(Value::Object(o)) = a.get(2) else { return rt("Invalid object.") };
     let (class, m) = which.split_once('.').unwrap_or(("", ""));
     let rest = &a[3..];
-    let _ = it;
     let out = match class {
         "alphaShape" => alpha_method(m, o, rest, nargout)?,
         _ => tri_method(m, o, rest, nargout)?,
@@ -1370,7 +1371,7 @@ pub fn call(it: &mut Interpreter, name: &str, a: &[Value], _nargout: usize) -> R
         "delaunayTriangulation" => new_triangulation(it, a, true),
         "alphaShape" => new_alpha(a),
         "boundary" => boundary(a),
-        "matlivre_polyfun_method" => method_call(it, a),
+        "matlivre_polyfun_method" => method_call(a),
         _ => Ok(None),
     }
 }
