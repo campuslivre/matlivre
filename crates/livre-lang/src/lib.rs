@@ -5,6 +5,8 @@ pub mod ast;
 pub mod builtins;
 pub mod builtins_elfun;
 pub mod builtins_plot;
+pub mod builtins_interpn;
+pub mod builtins_polyfun;
 pub mod builtins_text;
 pub mod class;
 pub mod cplx;
