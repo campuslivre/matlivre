@@ -48,7 +48,7 @@ fn methods_of(class: &str) -> Vec<&'static str> {
         "triangulation" => TRI_METHODS.to_vec(),
         "delaunayTriangulation" => TRI_METHODS.iter().chain(DT_METHODS).copied().collect(),
         "alphaShape" => ALPHA_METHODS.to_vec(),
-        _ => Vec::new(),
+        _ => vec!["subsref"],
     }
 }
 
@@ -364,12 +364,19 @@ fn eval_scattered(it: &mut Interpreter, o: &Object, args: &[Value]) -> Ret {
     one(Value::Num(out))
 }
 
-/// `F(args)` for the interpolant classes (MATLAB's parenthesis call on the object).
-pub(crate) fn call_object(it: &mut Interpreter, o: &Object, args: &[Value]) -> Option<Ret> {
+/// `subsref(F, S)` of the interpolant classes: `F(args)` evaluates the interpolant.
+fn subsref(it: &mut Interpreter, o: &Object, a: &[Value]) -> Ret {
+    let Some(Value::Struct(s)) = a.first() else { return rt("Invalid subscript structure.") };
+    if s.get("type").map(|t| t.text().ok()) != Some(Some("()".into())) {
+        return rt("Only parenthesis indexing is supported for this object.");
+    }
+    let args = match s.get("subs") {
+        Some(Value::Cell(c)) => c.data.clone(),
+        _ => Vec::new(),
+    };
     match o.class.name.as_str() {
-        "griddedInterpolant" => Some(eval_gridded(it, o, args)),
-        "scatteredInterpolant" => Some(eval_scattered(it, o, args)),
-        _ => None,
+        "griddedInterpolant" => eval_gridded(it, o, &args),
+        _ => eval_scattered(it, o, &args),
     }
 }
 
@@ -1349,13 +1356,14 @@ fn boundary(a: &[Value]) -> Ret {
 
 /// `matlivre_polyfun_method('Class.method', nargout, obj, args...)`: returns the outputs as a
 /// cell row (the class methods assign it to varargout).
-fn method_call(a: &[Value]) -> Ret {
+fn method_call(it: &mut Interpreter, a: &[Value]) -> Ret {
     let which = crate::builtins::arg(a, 0, "matlivre_polyfun_method")?.text()?;
     let nargout = crate::builtins::arg(a, 1, "matlivre_polyfun_method")?.scalar()? as usize;
     let Some(Value::Object(o)) = a.get(2) else { return rt("Invalid object.") };
     let (class, m) = which.split_once('.').unwrap_or(("", ""));
     let rest = &a[3..];
     let out = match class {
+        _ if m == "subsref" => subsref(it, o, rest)?,
         "alphaShape" => alpha_method(m, o, rest, nargout)?,
         _ => tri_method(m, o, rest, nargout)?,
     }
@@ -1371,7 +1379,7 @@ pub fn call(it: &mut Interpreter, name: &str, a: &[Value], _nargout: usize) -> R
         "delaunayTriangulation" => new_triangulation(it, a, true),
         "alphaShape" => new_alpha(a),
         "boundary" => boundary(a),
-        "matlivre_polyfun_method" => method_call(a),
+        "matlivre_polyfun_method" => method_call(it, a),
         _ => Ok(None),
     }
 }
