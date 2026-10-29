@@ -4,6 +4,7 @@
 
 use livre_lang::{Interpreter, OutputKind, Value};
 
+#[allow(dead_code)]
 const INF: f64 = f64::INFINITY;
 #[allow(dead_code)]
 const NAN: f64 = f64::NAN;

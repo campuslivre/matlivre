@@ -103,10 +103,6 @@ impl M {
         M { r, c, d }
     }
 
-    fn from_real(r: usize, c: usize, v: &[f64]) -> M {
-        M { r, c, d: v.iter().map(|&x| re(x)).collect() }
-    }
-
     fn col_vec(v: &[Z]) -> M {
         M { r: v.len(), c: 1, d: v.to_vec() }
     }
@@ -915,15 +911,6 @@ fn lstsq(it: Option<&mut Interpreter>, a: &M, b: &M) -> (M, usize) {
         }
     }
     (x, rank)
-}
-
-/// MATLAB's `A\B`.
-fn mldivide(it: &mut Interpreter, a: &M, b: &M) -> M {
-    if a.is_square() {
-        solve_square(it, a, b)
-    } else {
-        lstsq(Some(it), a, b).0
-    }
 }
 
 // ---- Cholesky ----------------------------------------------------------------------------
