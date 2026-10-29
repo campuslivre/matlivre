@@ -10,6 +10,8 @@ pub enum ButtonStyle {
     Standard,
     Accent,
     Subtle,
+    /// Subtle, drawn pressed in: a command that is switched on.
+    Toggled,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -29,6 +31,10 @@ pub enum Icon {
     Delete,
     Up,
     Down,
+    SaveAs,
+    ClearOutput,
+    Workspace,
+    Help,
 }
 
 /// Paints the Win11 elevation stroke: a faint all-round border and a stronger bottom edge.
@@ -108,16 +114,51 @@ pub fn paint_icon(p: &egui::Painter, icon: Icon, c: Pos2, color: Color32) {
         Icon::Down => {
             p.add(Shape::line(vec![r(-4.5, -2.5), r(0.0, 2.5), r(4.5, -2.5)], s));
         }
+        Icon::SaveAs => {
+            p.add(Shape::line(vec![r(0.5, 6.5), r(-6.5, 6.5), r(-6.5, -6.5), r(4.0, -6.5), r(6.5, -4.0), r(6.5, -1.0)], s));
+            p.rect_stroke(Rect::from_min_max(r(-3.5, -6.5), r(2.5, -2.5)), Rounding::ZERO, s);
+            // Pencil.
+            p.line_segment([r(2.5, 7.5), r(8.0, 2.0)], Stroke::new(2.4_f32, color));
+        }
+        Icon::ClearOutput => {
+            for (i, w) in [12.0, 8.0, 5.0].iter().enumerate() {
+                let y = -5.5 + i as f32 * 4.0;
+                p.line_segment([r(-7.0, y), r(-7.0 + w, y)], s);
+            }
+            p.line_segment([r(1.5, 1.5), r(7.0, 7.0)], s);
+            p.line_segment([r(7.0, 1.5), r(1.5, 7.0)], s);
+        }
+        Icon::Workspace => {
+            p.rect_stroke(Rect::from_min_max(r(-7.0, -6.0), r(7.0, 6.0)), Rounding::same(1.5), s);
+            p.line_segment([r(2.0, -6.0), r(2.0, 6.0)], s);
+            for y in [-2.5, 0.5, 3.5] {
+                p.line_segment([r(3.8, y), r(5.3, y)], s);
+            }
+        }
+        Icon::Help => {
+            p.circle_stroke(c, 7.0, s);
+            p.text(r(0.0, 0.5), Align2::CENTER_CENTER, "?", FontId::proportional(11.0), color);
+        }
     }
 }
 
 /// A ModernButton: optional icon, text, Standard / Accent / Subtle style.
 pub fn button(ui: &mut Ui, skin: &Skin, style: ButtonStyle, icon: Option<Icon>, text: &str, enabled: bool) -> Response {
+    button_impl(ui, skin, style, icon, text, enabled, false)
+}
+
+/// A subtle ModernButton with a trailing chevron, for a command that opens a menu.
+pub fn dropdown_button(ui: &mut Ui, skin: &Skin, icon: Option<Icon>, text: &str, enabled: bool) -> Response {
+    button_impl(ui, skin, ButtonStyle::Subtle, icon, text, enabled, true)
+}
+
+fn button_impl(ui: &mut Ui, skin: &Skin, style: ButtonStyle, icon: Option<Icon>, text: &str, enabled: bool, chevron: bool) -> Response {
     let font = FontId::proportional(14.0);
     let galley = ui.painter().layout_no_wrap(text.to_string(), font, Color32::PLACEHOLDER);
     let icon_w = if icon.is_some() { 16.0 + if text.is_empty() { 0.0 } else { 8.0 } } else { 0.0 };
+    let chevron_w = if chevron { 16.0 } else { 0.0 };
     let pad = if text.is_empty() { 8.0 } else { 12.0 };
-    let size = vec2((galley.size().x + icon_w + pad * 2.0).max(32.0), 32.0);
+    let size = vec2((galley.size().x + icon_w + chevron_w + pad * 2.0).max(32.0), 32.0);
     let sense = if enabled { Sense::click() } else { Sense::hover() };
     let (rect, resp) = ui.allocate_exact_size(size, sense);
     if ui.is_rect_visible(rect) {
@@ -143,8 +184,9 @@ pub fn button(ui: &mut Ui, skin: &Skin, style: ButtonStyle, icon: Option<Icon>, 
                 let fg = if !enabled { skin.text_disabled } else if pressed { skin.text_secondary } else { skin.text };
                 (fill, fg, skin.button_stroke, skin.button_stroke_bottom)
             }
-            ButtonStyle::Subtle => {
-                let fill = if pressed { skin.subtle_pressed } else if hovered { skin.subtle_hover } else { Color32::TRANSPARENT };
+            ButtonStyle::Subtle | ButtonStyle::Toggled => {
+                let rest = if style == ButtonStyle::Toggled { skin.subtle_selected } else { Color32::TRANSPARENT };
+                let fill = if pressed { skin.subtle_pressed } else if hovered { skin.subtle_hover } else { rest };
                 let fg = if enabled { skin.text } else { skin.text_disabled };
                 (fill, fg, Color32::TRANSPARENT, Color32::TRANSPARENT)
             }
@@ -155,14 +197,19 @@ pub fn button(ui: &mut Ui, skin: &Skin, style: ButtonStyle, icon: Option<Icon>, 
         } else if stroke != Color32::TRANSPARENT {
             p.rect_stroke(rect.shrink(0.5), Rounding::same(RADIUS), Stroke::new(1.0_f32, stroke));
         }
-        let content_w = icon_w + galley.size().x;
+        let content_w = icon_w + galley.size().x + chevron_w;
         let mut x = rect.center().x - content_w / 2.0;
         if let Some(ic) = icon {
             paint_icon(p, ic, pos2(x + 8.0, rect.center().y), fg);
             x += icon_w;
         }
+        let text_w = galley.size().x;
         if !text.is_empty() {
             p.galley(pos2(x, rect.center().y - galley.size().y / 2.0), galley, fg);
+        }
+        if chevron {
+            let c = pos2(x + text_w + chevron_w - 4.0, rect.center().y);
+            p.add(Shape::line(vec![pos2(c.x - 3.5, c.y - 1.5), pos2(c.x, c.y + 2.0), pos2(c.x + 3.5, c.y - 1.5)], Stroke::new(1.2_f32, fg)));
         }
     }
     if enabled {
@@ -285,6 +332,77 @@ pub fn caption_button(ui: &mut Ui, skin: &Skin, kind: Caption) -> Response {
             p.line_segment([pos2(c.x + 5.0, c.y - 5.0), pos2(c.x - 5.0, c.y + 5.0)], s);
         }
     }
+    resp
+}
+
+/// What happened to a title-bar tab this frame.
+pub struct TabResponse {
+    pub selected: bool,
+    pub close: bool,
+    /// The tab body, which can be dragged.
+    pub body: Response,
+}
+
+/// One ModernTabStrip tab: rounded, the selected one lifted onto the surface colour with a
+/// hairline border and a semibold title; a close cross on the right, replaced by a dot while
+/// the document has unsaved changes and the pointer is elsewhere. Middle-click closes.
+#[allow(clippy::too_many_arguments)]
+pub fn title_tab(ui: &mut Ui, skin: &Skin, id: egui::Id, title: &str, tip: &str, width: f32, active: bool, dirty: bool, busy: bool) -> TabResponse {
+    let (slot, _) = ui.allocate_exact_size(vec2(width, 30.0), Sense::hover());
+    let resp = ui.interact(slot, id, Sense::click_and_drag());
+    let close_rect = Rect::from_center_size(pos2(slot.right() - 16.0, slot.center().y), vec2(20.0, 20.0));
+    let close = ui.interact(close_rect, id.with("close"), Sense::click());
+    let hot = resp.hovered() || close.hovered();
+    let p = ui.painter();
+    if active {
+        p.rect_filled(slot, Rounding::same(5.0), skin.surface);
+        p.rect_stroke(slot.shrink(0.5), Rounding::same(5.0), Stroke::new(1.0_f32, skin.border));
+    } else if hot {
+        p.rect_filled(slot, Rounding::same(5.0), skin.subtle_hover);
+    }
+
+    let mut x = slot.left() + 12.0;
+    if busy {
+        p.circle_filled(pos2(x + 3.5, slot.center().y), 3.5, skin.accent);
+        x += 14.0;
+    }
+    let family = if active { egui::FontFamily::Name("semibold".into()) } else { egui::FontFamily::Proportional };
+    let color = if active { skin.text } else { skin.text_secondary };
+    let mut job = egui::text::LayoutJob::simple_singleline(title.to_string(), FontId::new(13.0, family), color);
+    job.wrap = egui::text::TextWrapping { break_anywhere: true, ..egui::text::TextWrapping::truncate_at_width((close_rect.left() - 6.0 - x).max(0.0)) };
+    let galley = ui.fonts(|f| f.layout_job(job));
+    p.galley(pos2(x, slot.center().y - galley.size().y / 2.0), galley, color);
+
+    let c = close_rect.center();
+    if dirty && !hot {
+        p.circle_filled(c, 3.5, skin.text_secondary);
+    } else {
+        let fg = if close.hovered() {
+            p.rect_filled(close_rect, Rounding::same(4.0), skin.subtle_selected);
+            skin.text
+        } else {
+            skin.text_secondary
+        };
+        let s = Stroke::new(1.2_f32, fg);
+        p.line_segment([pos2(c.x - 4.0, c.y - 4.0), pos2(c.x + 4.0, c.y + 4.0)], s);
+        p.line_segment([pos2(c.x + 4.0, c.y - 4.0), pos2(c.x - 4.0, c.y + 4.0)], s);
+    }
+    let close_clicked = close.clicked() || resp.clicked_by(egui::PointerButton::Middle);
+    let selected = resp.clicked() || resp.drag_started();
+    let body = if resp.dragged() { resp } else { resp.on_hover_text(tip) };
+    TabResponse { selected, close: close_clicked, body }
+}
+
+/// The + button after the last tab.
+pub fn add_tab_button(ui: &mut Ui, skin: &Skin) -> Response {
+    let (rect, resp) = ui.allocate_exact_size(vec2(30.0, 30.0), Sense::click());
+    if resp.hovered() {
+        ui.painter().rect_filled(rect, Rounding::same(5.0), skin.subtle_hover);
+    }
+    let c = rect.center();
+    let s = Stroke::new(1.4_f32, skin.text);
+    ui.painter().line_segment([pos2(c.x - 6.0, c.y), pos2(c.x + 6.0, c.y)], s);
+    ui.painter().line_segment([pos2(c.x, c.y - 6.0), pos2(c.x, c.y + 6.0)], s);
     resp
 }
 

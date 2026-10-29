@@ -44,13 +44,15 @@ pub struct Skin {
     pub syn_number: Color32,
     pub syn_section: Color32,
     pub track: Color32,
+    pub scroll_thumb: Color32,
+    pub scroll_thumb_hover: Color32,
 }
 
 /// Win11 control corner radius (`CornerStyle.Round`).
 pub const RADIUS: f32 = 4.0;
 /// Popup / card radius.
 pub const RADIUS_LARGE: f32 = 8.0;
-pub const TITLE_BAR_HEIGHT: f32 = 32.0;
+pub const TITLE_BAR_HEIGHT: f32 = 40.0;
 
 const fn rgb(r: u8, g: u8, b: u8) -> Color32 {
     Color32::from_rgb(r, g, b)
@@ -114,6 +116,9 @@ impl Skin {
             syn_number: rgb(29, 29, 29),
             syn_section: rgb(0, 128, 19),
             track: rgb(237, 237, 237),
+            // ModernScrollBarColors defaults.
+            scroll_thumb: rgb(194, 194, 194),
+            scroll_thumb_hover: rgb(160, 160, 160),
         }
     }
 
@@ -158,6 +163,9 @@ impl Skin {
             syn_number: rgb(181, 206, 168),
             syn_section: rgb(106, 153, 85),
             track: rgb(28, 28, 28),
+            // Win11DarkSkin.ScrollBar.
+            scroll_thumb: rgb(106, 106, 106),
+            scroll_thumb_hover: rgb(140, 140, 140),
         }
     }
 
@@ -210,7 +218,14 @@ impl Skin {
             s.spacing.item_spacing = egui::vec2(8.0, 6.0);
             s.spacing.button_padding = egui::vec2(12.0, 5.0);
             s.spacing.menu_margin = egui::Margin::same(6.0);
-            s.spacing.scroll = egui::style::ScrollStyle::thin();
+            // ModernScrollBar: a 6 px rounded thumb centred in a 12 px gutter, always shown.
+            s.spacing.scroll = egui::style::ScrollStyle {
+                bar_width: 6.0,
+                bar_inner_margin: 3.0,
+                bar_outer_margin: 3.0,
+                handle_min_length: 24.0,
+                ..egui::style::ScrollStyle::solid()
+            };
             s.spacing.interact_size.y = 28.0;
             s.text_styles = [
                 (TextStyle::Small, FontId::new(12.0, FontFamily::Proportional)),

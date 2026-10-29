@@ -1960,7 +1960,9 @@ dependencies = [
  "eframe",
  "livre-doc",
  "livre-lang",
+ "raw-window-handle",
  "rfd",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
