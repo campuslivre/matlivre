@@ -3862,6 +3862,1119 @@ fn rescale(a: &[Value]) -> R<Matrix> {
     let r = num_binary(BinOp::Add, &lo, &num_binary(BinOp::Mul, &z, &num_binary(BinOp::Sub, &hi, &lo)?)?)?;
     Ok(r.cast_to(float_kind(x.kind)))
 }
+
+// ---- change points and local extrema ----------------------------------------------------------
+
+/// Cost of a segment for ischange's statistic.
+fn seg_cost(method: &str, t: &[f64], x: &[f64]) -> f64 {
+    let n = x.len() as f64;
+    match method {
+        "variance" => {
+            let mu = mean(x);
+            let v = x.iter().map(|v| (v - mu).powi(2)).sum::<f64>() / n;
+            n * v.max(f64::MIN_POSITIVE).ln()
+        }
+        "linear" => {
+            if x.len() < 3 {
+                return 0.0;
+            }
+            let (a, b) = line_fit(t, x);
+            x.iter().zip(t).map(|(v, tt)| (v - (a * tt + b)).powi(2)).sum()
+        }
+        _ => {
+            let mu = mean(x);
+            x.iter().map(|v| (v - mu).powi(2)).sum()
+        }
+    }
+}
+
+/// Least-squares line: (slope, intercept).
+fn line_fit(t: &[f64], x: &[f64]) -> (f64, f64) {
+    let n = x.len() as f64;
+    if x.len() < 2 {
+        return (0.0, x.first().copied().unwrap_or(f64::NAN));
+    }
+    let tm = t.iter().sum::<f64>() / n;
+    let xm = mean(x);
+    let sxy: f64 = t.iter().zip(x).map(|(a, b)| (a - tm) * (b - xm)).sum();
+    let sxx: f64 = t.iter().map(|a| (a - tm).powi(2)).sum();
+    let s = sxy / sxx;
+    (s, xm - s * tm)
+}
+
+/// Optimal segmentations: best[k][j] = least cost of x[..j] in k+1 segments, with back
+/// pointers. `kmax` bounds the number of changes.
+fn segmentations(method: &str, t: &[f64], x: &[f64], kmax: usize) -> Vec<(f64, Vec<usize>)> {
+    let n = x.len();
+    let minlen = if method == "mean" { 1 } else { 2 };
+    let mut cost = vec![vec![f64::INFINITY; n + 1]; n + 1];
+    for i in 0..n {
+        for j in i + minlen..=n {
+            cost[i][j] = seg_cost(method, &t[i..j], &x[i..j]);
+        }
+    }
+    let mut best = vec![vec![f64::INFINITY; n + 1]; kmax + 1];
+    let mut back = vec![vec![0usize; n + 1]; kmax + 1];
+    for j in 1..=n {
+        best[0][j] = cost[0][j];
+    }
+    for k in 1..=kmax {
+        for j in 1..=n {
+            for i in 1..j {
+                let c = best[k - 1][i] + cost[i][j];
+                if c < best[k][j] {
+                    best[k][j] = c;
+                    back[k][j] = i;
+                }
+            }
+        }
+    }
+    (0..=kmax)
+        .map(|k| {
+            let mut cps = Vec::new();
+            let mut j = n;
+            for kk in (1..=k).rev() {
+                let i = back[kk][j];
+                cps.push(i);
+                j = i;
+            }
+            cps.reverse();
+            (best[k][n], cps)
+        })
+        .collect()
+}
+
+fn ischange(a: &[Value], nargout: usize) -> Ret {
+    let o = Opts::parse(a, &[], &["Threshold", "MaxNumChanges", "SamplePoints", "DataVariables"])?;
+    let x = num_arg(&o.pos, 0, "ischange")?;
+    let mut p = 1;
+    let method = match o.pos.get(1).and_then(lower) {
+        Some(m) => {
+            if !["mean", "variance", "linear"].contains(&m.as_str()) {
+                return rt("Method must be 'mean', 'variance', or 'linear'.");
+            }
+            p = 2;
+            m
+        }
+        None => "mean".into(),
+    };
+    let dim = dim_at(&o.pos, p, &x.dims)?;
+    let len = x.dims.get(dim - 1).copied().unwrap_or(1);
+    let t = sample_points(o.get("SamplePoints"), len)?.unwrap_or_else(|| (1..=len).map(|k| k as f64).collect());
+    let thr = match o.get("Threshold") {
+        Some(v) => v.scalar()?,
+        None => 1.0,
+    };
+    let maxc = match o.get("MaxNumChanges") {
+        Some(v) => Some(v.as_usize()?),
+        None => None,
+    };
+    let mut s1s = Vec::new();
+    let mut s2s = Vec::new();
+    let tf = map_dim(&x, dim, len, |v, _| {
+        let n = v.len();
+        if n == 0 {
+            return Vec::new();
+        }
+        let kmax = n.saturating_sub(1).min(maxc.unwrap_or(n));
+        let segs = segmentations(&method, &t, v, kmax);
+        // With a threshold: minimize cost + threshold * changes. With MaxNumChanges: the
+        // penalized optimum with the most changes not above the maximum.
+        let k = match maxc {
+            None => (0..segs.len()).min_by(|&p, &q| (segs[p].0 + thr * p as f64).partial_cmp(&(segs[q].0 + thr * q as f64)).unwrap_or(Ordering::Equal)).unwrap_or(0),
+            Some(m) => {
+                let full = segmentations(&method, &t, v, n.saturating_sub(1));
+                let mut chosen = 0;
+                for k in 0..=m.min(full.len() - 1) {
+                    // k is a penalized optimum if some penalty makes it best: on the lower hull.
+                    if hull_optimal(&full, k) {
+                        chosen = k;
+                    }
+                }
+                chosen
+            }
+        };
+        let cps = if maxc.is_some() { segmentations(&method, &t, v, k.max(0))[k].1.clone() } else { segs[k].1.clone() };
+        let mut bounds = vec![0];
+        bounds.extend(&cps);
+        bounds.push(n);
+        let mut s1 = vec![0.0; n];
+        let mut s2 = vec![0.0; n];
+        for w in bounds.windows(2) {
+            let (i, j) = (w[0], w[1]);
+            let seg = &v[i..j];
+            let (a1, a2) = if method == "linear" {
+                line_fit(&t[i..j], seg)
+            } else {
+                (mean(seg), var(seg, 0.0))
+            };
+            for q in i..j {
+                s1[q] = a1;
+                s2[q] = a2;
+            }
+        }
+        s1s.push(s1);
+        s2s.push(s2);
+        let mut out = vec![0.0; n];
+        for &c in &cps {
+            out[c] = 1.0;
+        }
+        out
+    })
+    .with_kind(Kind::Logical);
+    if nargout < 2 {
+        return one(Value::Num(tf));
+    }
+    let mut i1 = s1s.into_iter();
+    let s1 = map_dim(&x, dim, len, |_, _| i1.next().unwrap_or_default());
+    let mut i2 = s2s.into_iter();
+    let s2 = map_dim(&x, dim, len, |_, _| i2.next().unwrap_or_default());
+    Ok(Some(vec![Value::Num(tf), Value::Num(s1), Value::Num(s2)]))
+}
+
+/// Whether k changes is optimal for some nonnegative penalty.
+fn hull_optimal(segs: &[(f64, Vec<usize>)], k: usize) -> bool {
+    // Need a penalty p >= 0 with C_k + k p <= C_j + j p for all j.
+    let (mut lo, mut hi) = (0.0f64, f64::INFINITY);
+    for (j, s) in segs.iter().enumerate() {
+        if j == k {
+            continue;
+        }
+        let dc = s.0 - segs[k].0;
+        let dk = j as f64 - k as f64;
+        // dc + dk p >= 0
+        if dk > 0.0 {
+            lo = lo.max(-dc / dk);
+        } else if dk < 0.0 {
+            hi = hi.min(dc / -dk);
+        }
+    }
+    lo <= hi
+}
+
+fn islocal(name: &str, a: &[Value], nargout: usize) -> Ret {
+    let o = Opts::parse(a, &[], &["MinProminence", "FlatSelection", "MinSeparation", "MaxNumExtrema", "ProminenceWindow", "SamplePoints", "DataVariables"])?;
+    let x = num_arg(&o.pos, 0, name)?;
+    let dim = dim_at(&o.pos, 1, &x.dims)?;
+    let len = x.dims.get(dim - 1).copied().unwrap_or(1);
+    let t = sample_points(o.get("SamplePoints"), len)?.unwrap_or_else(|| (1..=len).map(|k| k as f64).collect());
+    let minp = match o.get("MinProminence") {
+        Some(v) => v.scalar()?,
+        None => 0.0,
+    };
+    let flat = match o.get("FlatSelection") {
+        Some(v) => {
+            let f = v.text()?.to_lowercase();
+            if !["center", "first", "last", "all"].contains(&f.as_str()) {
+                return rt("FlatSelection must be 'center', 'first', 'last', or 'all'.");
+            }
+            f
+        }
+        None => "center".into(),
+    };
+    let minsep = match o.get("MinSeparation") {
+        Some(v) => v.scalar()?,
+        None => 0.0,
+    };
+    let maxn = match o.get("MaxNumExtrema") {
+        Some(v) => Some(v.as_usize()?),
+        None => None,
+    };
+    let pwin = match o.get("ProminenceWindow") {
+        Some(v) => Some(window_arg(v)?),
+        None => None,
+    };
+    let sign = if name == "islocalmax" { 1.0 } else { -1.0 };
+    let mut proms = Vec::new();
+    let tf = map_dim(&x, dim, len, |v, _| {
+        let n = v.len();
+        let mut tf = vec![false; n];
+        let mut pr = vec![0.0; n];
+        // Work on the non-NaN subsequence.
+        let idx: Vec<usize> = (0..n).filter(|&i| !v[i].is_nan()).collect();
+        let y: Vec<f64> = idx.iter().map(|&i| sign * v[i]).collect();
+        let m = y.len();
+        let mut cands: Vec<(usize, usize, f64)> = Vec::new();
+        let mut i = 0;
+        while i < m {
+            let mut j = i;
+            while j + 1 < m && y[j + 1] == y[i] {
+                j += 1;
+            }
+            if i > 0 && j + 1 < m && y[i - 1] < y[i] && y[j + 1] < y[i] {
+                let (lim_lo, lim_hi) = match pwin {
+                    Some(w) => {
+                        let c = t[idx[i]];
+                        let lo = (0..m).find(|&k| t[idx[k]] >= c - w.back).unwrap_or(0);
+                        let hi = (0..m).rev().find(|&k| t[idx[k]] <= t[idx[j]] + w.fwd).unwrap_or(m - 1);
+                        (lo, hi)
+                    }
+                    None => (0, m - 1),
+                };
+                let mut lmin = y[i];
+                let mut k = i;
+                while k > lim_lo {
+                    k -= 1;
+                    if y[k] > y[i] {
+                        break;
+                    }
+                    lmin = lmin.min(y[k]);
+                }
+                let mut rmin = y[i];
+                let mut k = j;
+                while k < lim_hi {
+                    k += 1;
+                    if y[k] > y[i] {
+                        break;
+                    }
+                    rmin = rmin.min(y[k]);
+                }
+                cands.push((i, j, y[i] - lmin.max(rmin)));
+            }
+            i = j + 1;
+        }
+        cands.retain(|c| c.2 >= minp && c.2 > 0.0);
+        // Separation and count limits keep the most prominent extrema first.
+        let mut order: Vec<usize> = (0..cands.len()).collect();
+        order.sort_by(|&p, &q| cands[q].2.partial_cmp(&cands[p].2).unwrap_or(Ordering::Equal).then(p.cmp(&q)));
+        let mut kept: Vec<usize> = Vec::new();
+        for &c in &order {
+            let pos = t[idx[cands[c].0]];
+            if minsep > 0.0 && kept.iter().any(|&k| (t[idx[cands[k].0]] - pos).abs() < minsep) {
+                continue;
+            }
+            if maxn.map(|mx| kept.len() >= mx).unwrap_or(false) {
+                break;
+            }
+            kept.push(c);
+        }
+        for &c in &kept {
+            let (lo, hi, p) = cands[c];
+            let picks: Vec<usize> = match flat.as_str() {
+                "first" => vec![lo],
+                "last" => vec![hi],
+                "all" => (lo..=hi).collect(),
+                _ => vec![lo + (hi - lo) / 2],
+            };
+            for q in picks {
+                tf[idx[q]] = true;
+                pr[idx[q]] = p;
+            }
+        }
+        proms.push(pr);
+        tf.iter().map(|&b| bool_val(b)).collect()
+    })
+    .with_kind(Kind::Logical);
+    if nargout < 2 {
+        return one(Value::Num(tf));
+    }
+    let mut ip = proms.into_iter();
+    let p = map_dim(&x, dim, len, |_, _| ip.next().unwrap_or_default()).cast_to(float_kind(x.kind));
+    Ok(Some(vec![Value::Num(tf), Value::Num(p)]))
+}
+
+fn isuniform(a: &[Value]) -> Ret {
+    let x = num_arg(a, 0, "isuniform")?;
+    if x.is_complex() {
+        return rt("Input data must be real.");
+    }
+    if !(x.is_vector() || x.is_empty() || x.is_scalar()) || x.dims.len() > 2 {
+        return rt("Input data must be a vector.");
+    }
+    let n = x.numel();
+    let no = || Ok(Some(vec![Value::bool(false), Value::num(f64::NAN)]));
+    if n < 2 || x.data.iter().any(|v| !v.is_finite()) {
+        return no();
+    }
+    let v = &x.data;
+    let step = (v[n - 1] - v[0]) / (n - 1) as f64;
+    let big = v.iter().fold(0.0f64, |m, x| m.max(x.abs()));
+    let eps = if x.kind == Kind::Single { f32::EPSILON as f64 } else { f64::EPSILON };
+    let tol = 4.0 * eps * big.max(f64::MIN_POSITIVE);
+    let ok = v.windows(2).all(|p| ((p[1] - p[0]) - step).abs() <= tol);
+    if !ok {
+        return no();
+    }
+    let step = Matrix::scalar(step).cast_to(float_kind(x.kind));
+    Ok(Some(vec![Value::bool(true), Value::Num(step)]))
+}
+
+// ---- binning ---------------------------------------------------------------------------------
+
+/// Bin of `v` in `edges` ([e_k, e_k+1), the last bin closed), or None.
+fn bin_of(v: f64, edges: &[f64], right: bool) -> Option<usize> {
+    let n = edges.len();
+    if n < 2 || v.is_nan() || v < edges[0] || v > edges[n - 1] {
+        return None;
+    }
+    if right {
+        if v == edges[0] {
+            return Some(0);
+        }
+        // (e_k, e_k+1], the first bin closed.
+        let k = edges.partition_point(|&e| e < v);
+        return Some(k.saturating_sub(1).min(n - 2));
+    }
+    let k = edges.partition_point(|&e| e <= v);
+    Some((k - 1).min(n - 2))
+}
+
+fn histc(a: &[Value]) -> Ret {
+    let x = num_arg(a, 0, "histc")?;
+    let edges = num_arg(a, 1, "histc")?;
+    let e = &edges.data;
+    if e.windows(2).any(|p| p[1] < p[0]) {
+        return rt("Edge vector must be monotonically non-decreasing.");
+    }
+    let ne = e.len();
+    let bin = |v: f64| -> Option<usize> {
+        if v.is_nan() || ne == 0 || v < e[0] || v > e[ne - 1] {
+            return None;
+        }
+        if v == e[ne - 1] {
+            return Some(ne - 1);
+        }
+        Some(e.partition_point(|&q| q <= v) - 1)
+    };
+    let xm = if x.dims == [0, 0] { x.clone().reshaped(vec![0, 0]) } else { x.clone() };
+    let dim = if a.len() > 2 { dim_at(a, 2, &xm.dims)? } else if xm.dims == [0, 0] { 1 } else { default_dim(&xm.dims) };
+    let counts = map_dim(&xm, dim, ne, |v, _| {
+        let mut c = vec![0.0; ne];
+        for &q in v {
+            if let Some(k) = bin(q) {
+                c[k] += 1.0;
+            }
+        }
+        c
+    });
+    let bins = Matrix::from_dims(x.dims.clone(), x.data.iter().map(|&q| bin(q).map(|k| (k + 1) as f64).unwrap_or(0.0)).collect());
+    Ok(Some(vec![Value::Num(counts), Value::Num(bins)]))
+}
+
+/// Bin edges for a requested number of bins: widths rounded up to two significant digits and
+/// aligned to that resolution, widened until the bins cover the data.
+fn nbins_edges(lo: f64, hi: f64, n: usize) -> Vec<f64> {
+    let n = n.max(1);
+    if !(hi > lo) {
+        let (a, b) = (lo - 0.5, hi + 0.5);
+        return (0..=n).map(|k| a + (b - a) * k as f64 / n as f64).collect();
+    }
+    let raw = (hi - lo) / n as f64;
+    let unit = 10f64.powf(raw.log10().floor()) / 10.0;
+    let mut bw = (raw / unit - 1e-9).ceil() * unit;
+    let left = (lo / unit + 1e-9).floor() * unit;
+    while left + n as f64 * bw < hi {
+        bw += unit;
+    }
+    (0..=n).map(|k| left + k as f64 * bw).collect()
+}
+
+/// Automatic bin edges: unit bins centered on integers for integer data with a small range,
+/// otherwise a "nice" width from Scott's rule (n^(-1/3) in 1-D, n^(-1/4) in 2-D).
+fn auto_edges(v: &[f64], two_d: bool) -> Vec<f64> {
+    let vals: Vec<f64> = v.iter().copied().filter(|x| x.is_finite()).collect();
+    if vals.is_empty() {
+        return vec![0.0, 1.0];
+    }
+    let lo = vals.iter().copied().fold(f64::INFINITY, f64::min);
+    let hi = vals.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    if vals.iter().all(|x| x.fract() == 0.0) && hi - lo <= 50.0 {
+        return (0..=(hi - lo) as usize + 1).map(|k| lo - 0.5 + k as f64).collect();
+    }
+    if hi == lo {
+        return vec![lo - 0.5, hi + 0.5];
+    }
+    let n = vals.len() as f64;
+    let raw = 3.5 * std_of(&vals) * n.powf(if two_d { -0.25 } else { -1.0 / 3.0 });
+    let raw = if raw > 0.0 { raw } else { hi - lo };
+    let pow = 10f64.powf(raw.log10().floor());
+    let rel = raw / pow;
+    let bw = pow
+        * if rel < 1.5 {
+            1.0
+        } else if rel < 2.5 {
+            2.0
+        } else if rel < 4.0 {
+            3.0
+        } else if rel < 7.5 {
+            5.0
+        } else {
+            10.0
+        };
+    let left = (lo / bw).floor();
+    let right = (hi / bw).ceil().max(left + 1.0);
+    ((left as i64)..=(right as i64)).map(|k| k as f64 * bw).collect()
+}
+
+fn discretize(a: &[Value], nargout: usize) -> Ret {
+    let o = Opts::parse(a, &["categorical"], &["IncludedEdge"])?;
+    if o.has("categorical") {
+        return rt("Categorical output of discretize is not supported in this version.");
+    }
+    let x = num_arg(&o.pos, 0, "discretize")?;
+    let spec = num_arg(&o.pos, 1, "discretize")?;
+    let finite: Vec<f64> = x.data.iter().copied().filter(|v| v.is_finite()).collect();
+    let edges: Vec<f64> = if spec.numel() == 1 {
+        let lo = finite.iter().copied().fold(f64::INFINITY, f64::min);
+        let hi = finite.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        nbins_edges(lo, hi, spec.data[0] as usize)
+    } else {
+        if spec.data.windows(2).any(|p| p[1] <= p[0]) {
+            return rt("Bin edges must be a vector that is real, numeric, and monotonically increasing.");
+        }
+        spec.data.clone()
+    };
+    let right = match o.get("IncludedEdge") {
+        Some(v) => match v.text()?.to_lowercase().as_str() {
+            "left" => false,
+            "right" => true,
+            _ => return rt("IncludedEdge must be 'left' or 'right'."),
+        },
+        None => false,
+    };
+    let values = match o.pos.get(2) {
+        Some(v) => {
+            let m = v.to_matrix()?;
+            if m.numel() != edges.len() - 1 {
+                return rt("The number of values must be equal to the number of bins.");
+            }
+            Some(m)
+        }
+        None => None,
+    };
+    let y: Vec<f64> = x
+        .data
+        .iter()
+        .map(|&v| match bin_of(v, &edges, right) {
+            Some(k) => values.as_ref().map(|m| m.data[k]).unwrap_or((k + 1) as f64),
+            None => f64::NAN,
+        })
+        .collect();
+    let mut ym = Matrix::from_dims(x.dims.clone(), y);
+    if let Some(m) = &values {
+        ym = ym.cast_to(m.kind);
+    }
+    if nargout < 2 {
+        return one(Value::Num(ym));
+    }
+    Ok(Some(vec![Value::Num(ym), Value::Num(Matrix::row(edges))]))
+}
+
+fn histcounts2(a: &[Value]) -> Ret {
+    let o = Opts::parse(a, &[], &["BinWidth", "XBinLimits", "YBinLimits", "Normalization", "BinMethod", "NumBins", "XBinEdges", "YBinEdges"])?;
+    let x = num_arg(&o.pos, 0, "histcounts2")?;
+    let y = num_arg(&o.pos, 1, "histcounts2")?;
+    if x.numel() != y.numel() {
+        return rt("X and Y must have the same number of elements.");
+    }
+    let range = |v: &[f64], lim: Option<&Value>| -> R<(f64, f64)> {
+        if let Some(l) = lim {
+            let m = l.to_matrix()?;
+            return Ok((m.data[0], m.data[1]));
+        }
+        let f: Vec<f64> = v.iter().copied().filter(|q| q.is_finite()).collect();
+        Ok((f.iter().copied().fold(f64::INFINITY, f64::min), f.iter().copied().fold(f64::NEG_INFINITY, f64::max)))
+    };
+    let (xr, yr) = (range(&x.data, o.get("XBinLimits"))?, range(&y.data, o.get("YBinLimits"))?);
+    let from_nbins = |r: (f64, f64), n: usize| nbins_edges(r.0, r.1, n);
+    let (xe, ye): (Vec<f64>, Vec<f64>) = match (o.pos.get(2), o.pos.get(3)) {
+        (Some(ex), Some(ey)) => (ex.to_matrix()?.data, ey.to_matrix()?.data),
+        (Some(nb), None) => {
+            let m = nb.to_matrix()?;
+            let (nx, ny) = if m.numel() == 1 { (m.data[0], m.data[0]) } else { (m.data[0], m.data[1]) };
+            (from_nbins(xr, nx as usize), from_nbins(yr, ny as usize))
+        }
+        _ => match (o.get("XBinEdges"), o.get("YBinEdges"), o.get("NumBins"), o.get("BinWidth")) {
+            (Some(ex), Some(ey), ..) => (ex.to_matrix()?.data, ey.to_matrix()?.data),
+            (_, _, Some(nb), _) => {
+                let m = nb.to_matrix()?;
+                let (nx, ny) = if m.numel() == 1 { (m.data[0], m.data[0]) } else { (m.data[0], m.data[1]) };
+                (from_nbins(xr, nx as usize), from_nbins(yr, ny as usize))
+            }
+            (_, _, _, Some(bw)) => {
+                let m = bw.to_matrix()?;
+                let (wx, wy) = if m.numel() == 1 { (m.data[0], m.data[0]) } else { (m.data[0], m.data[1]) };
+                let mk = |r: (f64, f64), w: f64| -> Vec<f64> {
+                    let l = (r.0 / w).floor();
+                    let h = (r.1 / w).floor() + 1.0;
+                    ((l as i64)..=(h as i64)).map(|k| k as f64 * w).collect()
+                };
+                (mk(xr, wx), mk(yr, wy))
+            }
+            _ => {
+                let inx: Vec<f64> = x.data.iter().copied().filter(|v| v.is_finite()).collect();
+                let iny: Vec<f64> = y.data.iter().copied().filter(|v| v.is_finite()).collect();
+                (auto_edges(&inx, true), auto_edges(&iny, true))
+            }
+        },
+    };
+    let (nx, ny) = (xe.len().saturating_sub(1), ye.len().saturating_sub(1));
+    let mut counts = vec![0.0; nx * ny];
+    let mut bx = vec![0.0; x.numel()];
+    let mut by = vec![0.0; x.numel()];
+    for k in 0..x.numel() {
+        if let (Some(i), Some(j)) = (bin_of(x.data[k], &xe, false), bin_of(y.data[k], &ye, false)) {
+            counts[j * nx + i] += 1.0;
+            bx[k] = (i + 1) as f64;
+            by[k] = (j + 1) as f64;
+        }
+    }
+    let total = x.numel() as f64;
+    match o.get("Normalization").map(|v| v.text().map(|t| t.to_lowercase())).transpose()?.as_deref() {
+        None | Some("count") => {}
+        Some("probability") => counts.iter_mut().for_each(|c| *c /= total),
+        Some("countdensity") | Some("pdf") => {
+            let pdf = o.get("Normalization").and_then(lower).as_deref() == Some("pdf");
+            for j in 0..ny {
+                for i in 0..nx {
+                    let area = (xe[i + 1] - xe[i]) * (ye[j + 1] - ye[j]);
+                    counts[j * nx + i] /= area * if pdf { total } else { 1.0 };
+                }
+            }
+        }
+        Some("cumcount") | Some("cdf") => {
+            let cdf = o.get("Normalization").and_then(lower).as_deref() == Some("cdf");
+            let orig = counts.clone();
+            for j in 0..ny {
+                for i in 0..nx {
+                    let s: f64 = (0..=j).flat_map(|jj| (0..=i).map(move |ii| (ii, jj))).map(|(ii, jj)| orig[jj * nx + ii]).sum();
+                    counts[j * nx + i] = if cdf { s / total } else { s };
+                }
+            }
+        }
+        Some(other) => return rt(format!("Invalid normalization '{other}'.")),
+    }
+    Ok(Some(vec![
+        Value::Num(Matrix::from_dims(vec![nx, ny], counts)),
+        Value::Num(Matrix::row(xe)),
+        Value::Num(Matrix::row(ye)),
+        Value::Num(Matrix::from_dims(x.dims.clone(), bx)),
+        Value::Num(Matrix::from_dims(x.dims.clone(), by)),
+    ]))
+}
+
+// ---- forecast errors ---------------------------------------------------------------------------
+
+fn error_metric(name: &str, a: &[Value]) -> R<Matrix> {
+    if a.iter().filter_map(lower).any(|t| t.starts_with("weight") && t != "weight") {
+        return rt("Parameter must be 'Weight'.");
+    }
+    let o = Opts::parse(a, NANFLAGS, &["Weight"])?;
+    let f = num_arg(&o.pos, 0, name)?;
+    let actual = num_arg(&o.pos, 1, name)?;
+    if !f.kind.is_float() || !actual.kind.is_float() {
+        return rt("Invalid data type. First and second arguments must be double or single arrays.");
+    }
+    let e = crate::ops::broadcast(&f, &actual, |p, q| if name == "mape" { ((q - p) / q).abs() } else { (p - q) * (p - q) })?;
+    let omit = omit_nan(&o, false);
+    let spec = dim_spec(o.pos.get(2))?;
+    let w = match o.get("Weight") {
+        Some(v) => Some(v.to_matrix()?.data),
+        None => None,
+    };
+    let r = reduce_spec(&e, &spec, 1, |v, _| {
+        let pairs: Vec<(f64, f64)> = v.iter().enumerate().map(|(k, &q)| (q, w.as_ref().map(|w| w[k.min(w.len() - 1)]).unwrap_or(1.0))).filter(|p| !(omit && p.0.is_nan())).collect();
+        let sw: f64 = pairs.iter().map(|p| p.1).sum();
+        let m = pairs.iter().map(|p| p.0 * p.1).sum::<f64>() / sw;
+        vec![if name == "mape" { 100.0 * m } else { m.sqrt() }]
+    })?;
+    Ok(r.cast_to(single_any(&[&f, &actual])))
+}
+
+// ---- grouping ----------------------------------------------------------------------------------
+
+#[derive(Clone, PartialEq, PartialOrd, Debug)]
+enum Key {
+    Num(f64),
+    Text(String),
+}
+
+/// Per-row keys of one grouping variable (None = missing).
+fn row_keys(v: &Value) -> R<Vec<Option<Key>>> {
+    Ok(match v {
+        Value::Num(m) if m.kind == Kind::Char && m.rows() <= 1 => vec![Some(Key::Text(m.to_string_lossy()))],
+        Value::Num(m) => (0..m.numel()).map(|i| if m.data[i].is_nan() { None } else { Some(Key::Num(m.data[i])) }).collect(),
+        Value::Str(s) => s.data.iter().map(|x| x.clone().map(Key::Text)).collect(),
+        Value::Cell(c) => c.data.iter().map(|x| x.text().map(|t| if t.is_empty() { None } else { Some(Key::Text(t)) })).collect::<R<_>>()?,
+        Value::Time(t) => t.data.iter().map(|p| if p[0].is_nan() { None } else { Some(Key::Num(p[0])) }).collect(),
+        other => return rt(format!("Grouping variables of class '{}' are not supported.", other.class_name())),
+    })
+}
+
+/// Groups from one or more grouping variables: the group number of each row (None when any
+/// key is missing) and the first row of each group, groups sorted by their keys.
+fn groups_of(vars: &[Value]) -> R<(Vec<Option<usize>>, Vec<usize>)> {
+    let keys: Vec<Vec<Option<Key>>> = vars.iter().map(row_keys).collect::<R<_>>()?;
+    let n = keys.first().map(|k| k.len()).unwrap_or(0);
+    if keys.iter().any(|k| k.len() != n) {
+        return rt("Group variables must have the same number of rows.");
+    }
+    let row: Vec<Option<Vec<Key>>> = (0..n).map(|i| keys.iter().map(|k| k[i].clone()).collect::<Option<Vec<Key>>>()).collect();
+    let mut uniq: Vec<(Vec<Key>, usize)> = Vec::new();
+    for (i, r) in row.iter().enumerate() {
+        if let Some(r) = r {
+            if !uniq.iter().any(|(u, _)| u == r) {
+                uniq.push((r.clone(), i));
+            }
+        }
+    }
+    uniq.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(Ordering::Equal));
+    let g = row.iter().map(|r| r.as_ref().and_then(|r| uniq.iter().position(|(u, _)| u == r))).collect();
+    Ok((g, uniq.into_iter().map(|(_, i)| i).collect()))
+}
+
+/// Rows `ix` of a value (elements of a vector, keeping its orientation).
+fn rows_of(v: &Value, ix: &[usize]) -> R<Value> {
+    let d = v.dims();
+    if d.len() == 2 && d[0] == 1 && d[1] != 1 {
+        return take(v, ix.to_vec(), vec![1, ix.len()]);
+    }
+    if d.len() == 2 && d[1] == 1 {
+        return take(v, ix.to_vec(), vec![ix.len(), 1]);
+    }
+    if let Value::Table(t) = v {
+        let rows = Value::Num(Matrix::col(ix.iter().map(|&i| (i + 1) as f64).collect()));
+        return Ok(Value::Table(Box::new(t.paren(&[rows, Value::chars(":")])?)));
+    }
+    indexing::index(v, &[IndexArg::List { dims: vec![ix.len(), 1], ix: ix.to_vec(), from_mask: false }, IndexArg::All])
+}
+
+fn as_column(v: Value) -> R<Value> {
+    let n = v.numel();
+    let d = v.dims();
+    if d.len() == 2 && d[0] == 1 && d[1] != 1 {
+        return take(&v, (0..n).collect(), vec![n, 1]);
+    }
+    Ok(v)
+}
+
+fn gnum(g: &[Option<usize>], dims: Dims) -> Matrix {
+    Matrix::from_dims(dims, g.iter().map(|x| x.map(|k| (k + 1) as f64).unwrap_or(f64::NAN)).collect())
+}
+
+fn findgroups(a: &[Value], nargout: usize) -> Ret {
+    if a.is_empty() {
+        return rt("Not enough input arguments.");
+    }
+    if let [Value::Table(t)] = a {
+        let (g, first) = groups_of(&t.vars)?;
+        let mut out = vec![Value::Num(gnum(&g, vec![g.len(), 1]))];
+        if nargout > 1 {
+            out.push(Value::Table(Box::new(t.paren(&[Value::Num(Matrix::col(first.iter().map(|&i| (i + 1) as f64).collect())), Value::chars(":")])?)));
+        }
+        return Ok(Some(out));
+    }
+    let (g, first) = groups_of(a)?;
+    let mut out = vec![Value::Num(gnum(&g, a[0].dims()))];
+    for v in a.iter().take(nargout.saturating_sub(1)) {
+        out.push(rows_of(v, &first)?);
+    }
+    Ok(Some(out))
+}
+
+fn splitapply(it: &mut Interpreter, a: &[Value], nargout: usize) -> Ret {
+    if a.len() < 3 {
+        return rt("Not enough input arguments.");
+    }
+    let f = a[0].clone();
+    let gv = a[a.len() - 1].to_matrix()?;
+    let data = &a[1..a.len() - 1];
+    let ng = gv.data.iter().filter(|v| !v.is_nan()).fold(0.0f64, |m, &v| m.max(v)) as usize;
+    if gv.data.iter().any(|&v| !v.is_nan() && (v < 1.0 || v.fract() != 0.0)) || (1..=ng).any(|k| !gv.data.contains(&(k as f64))) {
+        return rt("For N groups, every integer between 1 and N must occur at least once in the vector of group numbers.");
+    }
+    let nout = nargout.max(1);
+    let mut outs: Vec<Vec<Value>> = vec![Vec::new(); nout];
+    for k in 1..=ng {
+        let ix: Vec<usize> = (0..gv.numel()).filter(|&i| gv.data[i] == k as f64).collect();
+        let args: Vec<Value> = data.iter().map(|d| rows_of(d, &ix)).collect::<R<_>>()?;
+        let r = it.call_func_value(&f, args, nout)?;
+        for (j, v) in r.into_iter().enumerate().take(nout) {
+            let matrix_data = data.iter().any(|d| d.dims().len() > 2 || (d.dims()[0] > 1 && d.dims()[1..].iter().product::<usize>() > 1));
+            if v.numel() != 1 && !matrix_data {
+                let txt = match &f {
+                    Value::Func(fv) => crate::display::func_text(fv),
+                    v => v.text().unwrap_or_default(),
+                };
+                // Suggest the same function returning a cell: @(x){body}.
+                let hint = match txt.find(')') {
+                    Some(p) if txt.starts_with("@(") => format!("{}{{{}}}", &txt[..=p], &txt[p + 1..]),
+                    _ => format!("@(varargin){{{}(varargin{{:}})}}", txt.trim_start_matches('@')),
+                };
+                return rt(format!(
+                    "The function '{txt}' returned a non-scalar value when applied to the {} group of data.\n\nTo compute nonscalar values for each group, create an anonymous function to return each value in a scalar cell: \n\n\t{hint}",
+                    ordinal(k)
+                ));
+            }
+            outs[j].push(v);
+        }
+    }
+    let row = gv.dims.len() == 2 && gv.dims[0] == 1 && gv.dims[1] != 1;
+    let res = outs.into_iter().map(|vs| if row { indexing::hconcat(vs) } else { indexing::vconcat(vs) }).collect::<R<Vec<_>>>()?;
+    Ok(Some(res))
+}
+
+fn ordinal(k: usize) -> String {
+    let suf = match (k % 10, k % 100) {
+        (1, r) if r != 11 => "st",
+        (2, r) if r != 12 => "nd",
+        (3, r) if r != 13 => "rd",
+        _ => "th",
+    };
+    format!("{k}{suf}")
+}
+
+/// Variable positions selected by a groupvars/datavars specification.
+fn var_list(t: &Table, spec: &Value) -> R<Vec<usize>> {
+    let find = |n: &str| t.names.iter().position(|x| x == n).ok_or_else(|| LangError::new(format!("Unrecognized table variable name '{n}'."), 0));
+    match spec {
+        Value::Cell(c) => c.data.iter().map(|v| find(&v.text()?)).collect(),
+        Value::Str(s) => s.data.iter().map(|v| find(v.as_deref().unwrap_or(""))).collect(),
+        v if v.is_text() => Ok(vec![find(&v.text()?)?]),
+        Value::Num(m) if m.kind == Kind::Logical => Ok((0..m.numel()).filter(|&k| m.data[k] != 0.0).collect()),
+        Value::Num(m) => Ok(m.data.iter().map(|&k| k as usize - 1).collect()),
+        _ => rt("Invalid variable specification."),
+    }
+}
+
+fn is_numeric_var(v: &Value) -> bool {
+    matches!(v, Value::Num(m) if m.kind != Kind::Char)
+}
+
+/// A summary statistic of one group's values.
+fn summary_stat(it: &mut Interpreter, m: &Value, x: &Value) -> R<Value> {
+    if let Value::Func(_) = m {
+        return it.call_func_value(m, vec![x.clone()], 1)?.into_iter().next().ok_or_else(|| LangError::new("The method must return a value.", 0));
+    }
+    let name = m.text()?.to_lowercase();
+    let v = x.to_matrix()?;
+    let d = &v.data;
+    let finite: Vec<f64> = d.iter().copied().filter(|q| !q.is_nan()).collect();
+    let r = match name.as_str() {
+        "mean" => mean(&finite),
+        "sum" => finite.iter().sum(),
+        "min" => finite.iter().copied().fold(f64::NAN, f64::min),
+        "max" => finite.iter().copied().fold(f64::NAN, f64::max),
+        "range" => finite.iter().copied().fold(f64::NAN, f64::max) - finite.iter().copied().fold(f64::NAN, f64::min),
+        "median" => median(&mut finite.clone()),
+        "mode" => {
+            let mut s = finite.clone();
+            s.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            let mut best = (f64::NAN, 0);
+            let mut i = 0;
+            while i < s.len() {
+                let j = s[i..].iter().take_while(|&&q| q == s[i]).count();
+                if j > best.1 {
+                    best = (s[i], j);
+                }
+                i += j;
+            }
+            best.0
+        }
+        "var" => var(&finite, 0.0),
+        "std" => var(&finite, 0.0).sqrt(),
+        "numel" => d.len() as f64,
+        "nnz" => d.iter().filter(|&&q| q != 0.0 && !q.is_nan()).count() as f64,
+        "nummissing" => (d.len() - finite.len()) as f64,
+        "numunique" => {
+            let mut s = finite.clone();
+            s.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            s.dedup();
+            s.len() as f64
+        }
+        other => return rt(format!("Invalid method '{other}'.")),
+    };
+    Ok(Value::num(r))
+}
+
+/// Methods given as a name, a function handle or a cell array of them; with their name prefixes.
+fn methods_of(v: Option<&Value>) -> R<Vec<(String, Value)>> {
+    let list: Vec<Value> = match v {
+        None => return Ok(Vec::new()),
+        Some(Value::Cell(c)) => c.data.clone(),
+        Some(v) => vec![v.clone()],
+    };
+    let mut fun = 0;
+    list.into_iter()
+        .map(|m| {
+            Ok(match &m {
+                Value::Func(_) => {
+                    fun += 1;
+                    (format!("fun{fun}"), m)
+                }
+                _ => (m.text()?.to_lowercase(), m),
+            })
+        })
+        .collect()
+}
+
+/// Splits table or array arguments of the group* functions into (grouping vars, group names,
+/// data vars, data names, source table).
+struct GroupInput {
+    groups: Vec<Value>,
+    gnames: Vec<String>,
+    data: Vec<Value>,
+    dnames: Vec<String>,
+    table: Option<Table>,
+}
+
+fn group_input(src: &Value, gspec: &Value, dspec: Option<&Value>, numeric_only: bool) -> R<GroupInput> {
+    match src {
+        Value::Table(t) => {
+            let gi = var_list(t, gspec)?;
+            let di: Vec<usize> = match dspec {
+                Some(d) => var_list(t, d)?,
+                None => (0..t.vars.len()).filter(|k| !gi.contains(k) && (!numeric_only || is_numeric_var(&t.vars[*k]))).collect(),
+            };
+            Ok(GroupInput {
+                groups: gi.iter().map(|&k| t.vars[k].clone()).collect(),
+                gnames: gi.iter().map(|&k| t.names[k].clone()).collect(),
+                data: di.iter().map(|&k| t.vars[k].clone()).collect(),
+                dnames: di.iter().map(|&k| t.names[k].clone()).collect(),
+                table: Some((**t).clone()),
+            })
+        }
+        v => {
+            let groups = match gspec {
+                Value::Cell(c) if c.data.iter().all(|e| !e.is_text()) => c.data.clone(),
+                g => vec![g.clone()],
+            };
+            Ok(GroupInput { gnames: vec![], groups, data: vec![v.clone()], dnames: vec![], table: None })
+        }
+    }
+}
+
+fn group_table(gi: &GroupInput, first: &[usize]) -> R<Vec<Value>> {
+    gi.groups.iter().map(|g| as_column(rows_of(g, first)?)).collect()
+}
+
+fn groupcounts(a: &[Value]) -> Ret {
+    let src = arg(a, 0, "groupcounts")?;
+    let (gi, _) = match src {
+        Value::Table(_) => (group_input(src, arg(a, 1, "groupcounts")?, None, false)?, ()),
+        v => (GroupInput { groups: vec![v.clone()], gnames: vec![], data: vec![], dnames: vec![], table: None }, ()),
+    };
+    let (g, first) = groups_of(&gi.groups)?;
+    let ng = first.len();
+    let mut counts = vec![0.0; ng];
+    for k in g.iter().flatten() {
+        counts[*k] += 1.0;
+    }
+    let total = g.len() as f64;
+    let pct: Vec<f64> = counts.iter().map(|c| 100.0 * c / total).collect();
+    let gvals = group_table(&gi, &first)?;
+    if gi.table.is_some() {
+        let mut names = gi.gnames.clone();
+        names.push("GroupCount".into());
+        names.push("Percent".into());
+        let mut vars = gvals;
+        vars.push(Value::Num(Matrix::col(counts)));
+        vars.push(Value::Num(Matrix::col(pct)));
+        return one(Value::Table(Box::new(Table::new(names, vars)?)));
+    }
+    Ok(Some(vec![Value::Num(Matrix::col(counts)), gvals.into_iter().next().unwrap_or_else(Value::empty), Value::Num(Matrix::col(pct))]))
+}
+
+fn groupsummary(it: &mut Interpreter, a: &[Value]) -> Ret {
+    let src = arg(a, 0, "groupsummary")?;
+    let gspec = arg(a, 1, "groupsummary")?;
+    let methods = methods_of(a.get(2))?;
+    let gi = group_input(src, gspec, a.get(3), true)?;
+    let (g, first) = groups_of(&gi.groups)?;
+    let ng = first.len();
+    let members: Vec<Vec<usize>> = (0..ng).map(|k| (0..g.len()).filter(|&i| g[i] == Some(k)).collect()).collect();
+    let counts: Vec<f64> = members.iter().map(|m| m.len() as f64).collect();
+    let mut cols: Vec<(String, Value)> = Vec::new();
+    for (dk, d) in gi.data.iter().enumerate() {
+        for (mname, m) in &methods {
+            let mut vals = Vec::with_capacity(ng);
+            for mem in &members {
+                vals.push(summary_stat(it, m, &as_column(rows_of(d, mem)?)?)?);
+            }
+            let name = format!("{mname}_{}", gi.dnames.get(dk).cloned().unwrap_or_default());
+            cols.push((name, indexing::vconcat(vals)?));
+        }
+    }
+    let gvals = group_table(&gi, &first)?;
+    if gi.table.is_some() {
+        let mut names = gi.gnames.clone();
+        names.push("GroupCount".into());
+        let mut vars = gvals;
+        vars.push(Value::Num(Matrix::col(counts)));
+        for (n, v) in cols {
+            names.push(n);
+            vars.push(v);
+        }
+        return one(Value::Table(Box::new(Table::new(names, vars)?)));
+    }
+    let b = if cols.is_empty() { Value::Num(Matrix::new(ng, 0, vec![])) } else { indexing::hconcat(cols.into_iter().map(|c| c.1).collect())? };
+    Ok(Some(vec![b, gvals.into_iter().next().unwrap_or_else(Value::empty), Value::Num(Matrix::col(counts))]))
+}
+
+/// Applies a transformation or filter to each group's data, row positions preserved.
+fn group_transform_values(it: &mut Interpreter, m: &Value, x: &Matrix) -> R<Matrix> {
+    if let Value::Func(_) = m {
+        let r = it.call_func_value(m, vec![Value::Num(x.clone())], 1)?;
+        return r.into_iter().next().ok_or_else(|| LangError::new("The method must return a value.", 0))?.to_matrix();
+    }
+    let name = m.text()?.to_lowercase();
+    let v = &x.data;
+    let fin: Vec<f64> = v.iter().copied().filter(|q| !q.is_nan()).collect();
+    let out: Vec<f64> = match name.as_str() {
+        "zscore" => {
+            let (mu, s) = (mean(&fin), std_of(&fin));
+            v.iter().map(|q| (q - mu) / s).collect()
+        }
+        "norm" => {
+            let n = fin.iter().map(|q| q * q).sum::<f64>().sqrt();
+            v.iter().map(|q| q / n).collect()
+        }
+        "meancenter" => {
+            let mu = mean(&fin);
+            v.iter().map(|q| q - mu).collect()
+        }
+        "rescale" => {
+            let lo = fin.iter().copied().fold(f64::INFINITY, f64::min);
+            let hi = fin.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+            v.iter().map(|q| if hi > lo { (q - lo) / (hi - lo) } else { 0.0 }).collect()
+        }
+        "meanfill" => {
+            let mu = mean(&fin);
+            v.iter().map(|&q| if q.is_nan() { mu } else { q }).collect()
+        }
+        "linearfill" => {
+            let miss: Vec<bool> = v.iter().map(|q| q.is_nan()).collect();
+            let t: Vec<f64> = (1..=v.len()).map(|k| k as f64).collect();
+            let spec = FillSpec { method: "linear".into(), constant: vec![], window: None, ends: EndVals::Extrap, max_gap: None };
+            fill_vec(v, &miss, &t, &spec, 0)
+        }
+        other => return rt(format!("Invalid method '{other}'.")),
+    };
+    Ok(Matrix::from_dims(x.dims.clone(), out))
+}
+
+fn grouptransform(it: &mut Interpreter, a: &[Value], filter: bool) -> Ret {
+    let fname = if filter { "groupfilter" } else { "grouptransform" };
+    let src = arg(a, 0, fname)?;
+    let gspec = arg(a, 1, fname)?;
+    let method = arg(a, 2, fname)?.clone();
+    let gi = group_input(src, gspec, a.get(3), true)?;
+    let (g, first) = groups_of(&gi.groups)?;
+    let n = g.len();
+    let members: Vec<Vec<usize>> = (0..first.len()).map(|k| (0..n).filter(|&i| g[i] == Some(k)).collect()).collect();
+    let mut keep = vec![true; n];
+    let mut new_data: Vec<Matrix> = Vec::new();
+    for d in &gi.data {
+        let dm = d.to_matrix()?;
+        let mut out = dm.clone();
+        for mem in &members {
+            let sub = as_column(rows_of(d, mem)?)?.to_matrix()?;
+            let r = group_transform_values(it, &method, &sub)?;
+            if filter {
+                for (j, &row) in mem.iter().enumerate() {
+                    let flag = if r.numel() == 1 { r.data[0] != 0.0 } else { r.data.get(j).map(|&q| q != 0.0).unwrap_or(false) };
+                    keep[row] &= flag;
+                }
+            } else {
+                if r.numel() != mem.len() && r.numel() != 1 {
+                    return rt("The method must return a vector with one value per row of the group, or a scalar.");
+                }
+                for (j, &row) in mem.iter().enumerate() {
+                    out.data[row] = if r.numel() == 1 { r.data[0] } else { r.data[j] };
+                }
+            }
+        }
+        new_data.push(out);
+    }
+    // Rows in no group (missing keys) are dropped by groupfilter and set to NaN by grouptransform.
+    for (i, gr) in g.iter().enumerate() {
+        if gr.is_none() {
+            keep[i] = false;
+            for d in new_data.iter_mut() {
+                d.data[i] = f64::NAN;
+            }
+        }
+    }
+    let kept: Vec<usize> = (0..n).filter(|&i| keep[i]).collect();
+    if let Some(t) = &gi.table {
+        let mut out = t.clone();
+        for (k, name) in gi.dnames.iter().enumerate() {
+            let pos = out.names.iter().position(|x| x == name).unwrap();
+            if !filter {
+                out.vars[pos] = Value::Num(new_data[k].clone());
+            }
+        }
+        if filter {
+            let rows = Value::Num(Matrix::col(kept.iter().map(|&i| (i + 1) as f64).collect()));
+            out = out.paren(&[rows, Value::chars(":")])?;
+        }
+        return one(Value::Table(Box::new(out)));
+    }
+    let gcol = |ix: &[usize]| -> R<Value> { gi.groups.first().map(|g| as_column(rows_of(g, ix)?)).unwrap_or(Ok(Value::empty())) };
+    if filter {
+        let b = as_column(rows_of(&gi.data[0], &kept)?)?;
+        return Ok(Some(vec![b, gcol(&kept)?]));
+    }
+    let all: Vec<usize> = (0..n).collect();
+    Ok(Some(vec![Value::Num(new_data.remove(0)), gcol(&all)?]))
+}
+
+fn key_name(k: &Key) -> String {
+    match k {
+        Key::Num(v) => crate::builtins::num2str_scalar(*v),
+        Key::Text(t) => t.clone(),
+    }
+}
+
+fn pivot(it: &mut Interpreter, a: &[Value]) -> Ret {
+    let o = Opts::parse(&a[1..], &[], &["Rows", "Columns", "DataVariable", "Method", "IncludeTotals", "IncludeMissingGroups", "RowLabelPlacement", "OutputFormat"])?;
+    let t = match arg(a, 0, "pivot")? {
+        Value::Table(t) => t,
+        _ => return rt("First argument must be a table or timetable."),
+    };
+    let pick = |name: &str| -> R<Vec<usize>> { o.get(name).map(|v| var_list(t, v)).transpose().map(|x| x.unwrap_or_default()) };
+    let ri = pick("Rows")?;
+    let ci = pick("Columns")?;
+    let di = pick("DataVariable")?;
+    if ri.is_empty() && ci.is_empty() {
+        return rt("Specify at least one of 'Rows' or 'Columns'.");
+    }
+    let method = match o.get("Method") {
+        Some(m) => m.clone(),
+        None => Value::chars(if di.is_empty() { "count" } else { "sum" }),
+    };
+    let n = t.nrows;
+    let (rg, rfirst) = if ri.is_empty() { (vec![Some(0); n], vec![0]) } else { groups_of(&ri.iter().map(|&k| t.vars[k].clone()).collect::<Vec<_>>())? };
+    let (cg, cfirst) = if ci.is_empty() { (vec![Some(0); n], vec![0]) } else { groups_of(&ci.iter().map(|&k| t.vars[k].clone()).collect::<Vec<_>>())? };
+    let mut names: Vec<String> = Vec::new();
+    let mut vars: Vec<Value> = Vec::new();
+    for &k in &ri {
+        names.push(t.names[k].clone());
+        vars.push(as_column(rows_of(&t.vars[k], &rfirst)?)?);
+    }
+    for (cj, &cf) in cfirst.iter().enumerate() {
+        let label = if ci.is_empty() {
+            if di.is_empty() { "count".to_string() } else { format!("{}_{}", method.text().unwrap_or_else(|_| "fun".into()), t.names[di[0]]) }
+        } else {
+            ci.iter().map(|&k| row_keys(&t.vars[k]).map(|ks| ks[cf].as_ref().map(key_name).unwrap_or_default())).collect::<R<Vec<_>>>()?.join("_")
+        };
+        let mut col = Vec::with_capacity(rfirst.len());
+        for rj in 0..rfirst.len() {
+            let mem: Vec<usize> = (0..n).filter(|&i| rg[i] == Some(rj) && cg[i] == Some(cj)).collect();
+            let v = if di.is_empty() || lower(&method).as_deref() == Some("count") {
+                Value::num(mem.len() as f64)
+            } else if mem.is_empty() && lower(&method).as_deref() != Some("sum") {
+                Value::num(f64::NAN)
+            } else {
+                summary_stat(it, &method, &as_column(rows_of(&t.vars[di[0]], &mem)?)?)?
+            };
+            col.push(v);
+        }
+        names.push(label);
+        vars.push(indexing::vconcat(col)?);
+    }
+    one(Value::Table(Box::new(Table::new(names, vars)?)))
+}
 // ---- dispatch ----------------------------------------------------------------------------------
 
 fn mat(m: Matrix) -> Ret {
@@ -3907,6 +5020,21 @@ pub fn call(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
         "smoothdata2" => smoothdata2(a),
         "normalize" => normalize(a, nargout),
         "rescale" => mat(rescale(a)?),
+        "ischange" => ischange(a, nargout),
+        "islocalmax" | "islocalmin" => islocal(name, a, nargout),
+        "isuniform" => isuniform(a),
+        "histc" => histc(a),
+        "discretize" => discretize(a, nargout),
+        "histcounts2" => histcounts2(a),
+        "mape" | "rmse" => mat(error_metric(name, a)?),
+        "findgroups" => findgroups(a, nargout),
+        "splitapply" => splitapply(it, a, nargout),
+        "groupcounts" => groupcounts(a),
+        "groupsummary" => groupsummary(it, a),
+        "grouptransform" => grouptransform(it, a, false),
+        "groupfilter" => grouptransform(it, a, true),
+        "pivot" => pivot(it, a),
+        "trenddecomp" => rt("trenddecomp is not supported in this version."),
         _ => rt(format!("'{name}' is not supported in this version.")),
     }
 }
