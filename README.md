@@ -13,6 +13,10 @@ cargo run -p livre-app --release
 ```
 
 Optionally pass a file: `cargo run -p livre-app --release -- path\to\script.mlx`.
+On Windows, `build.bat` builds and `run.bat [file]` builds and starts the app.
+
+The release build `target\release\matlivre.exe` is standalone: the C runtime is linked
+statically (`.cargo/config.toml`), so it depends only on DLLs that ship with Windows.
 Opens and saves `.mlx` (live script packages) and `.m` (plain scripts with `%%` sections).
 
 | Shortcut | Action |
