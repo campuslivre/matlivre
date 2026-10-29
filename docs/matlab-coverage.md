@@ -5,14 +5,14 @@ public function files and classes of these folders of the installation, checked 
 Scope: the core MATLAB language, math, data analysis, strings, data types, dates, file I/O and
 graphics (`toolbox/matlab/...`), and the Symbolic Math Toolbox (`toolbox/symbolic`).
 
-Generated on 2026-10-29 from `master`. Tick items as they land.
+Regenerate with `tools/coverage/update.sh` after merging work (2026-10-29).
 
 | Status | Count |
 |---|---:|
-| Implemented | 487 |
-| In a branch being finished (polyfun, matfun, datafun) | 152 |
+| Implemented | 523 |
+| In a branch not merged yet | 118 |
 | Language keyword (check it works) | 31 |
-| **To implement** | **815** |
+| **To implement** | **813** |
 | Out of scope | 417 |
 
 Out of scope, with the reason given for each: Java/.NET/COM/C interop and MEX, desktop/IDE/GUI and
@@ -35,14 +35,16 @@ Out of scope (audio/video devices or screen capture): `VideoReader`, `VideoWrite
 
 ## matlab/datafun
 
-Implemented: 23. To implement: 2. In a branch: 70. Out of scope: 0.
+Implemented: 25. To implement: 2. In a branch: 68. Out of scope: 0.
 
 To implement:
 
 - [ ] `kde`
 - [ ] `rms`
 
-In a branch: `bounds`, `conv`, `conv2`, `convn`, `corrcoef`, `cov`, `deconv`, `del2`, `detrend`, `discretize`, `fft`, `fft2`, `fftn`, `fftshift`, `fftw`, `fillmissing`, `fillmissing2`, `filloutliers`, `filter`, `filter2`, `findgroups`, `gradient`, `groupcounts`, `groupfilter`, `groupsummary`, `grouptransform`, `histc`, `histcounts2`, `ifft`, `ifft2`, `ifftn`, `ifftshift`, `iqr`, `ischange`, `islocalmax`, `islocalmin`, `isoutlier`, `issortedrows`, `isuniform`, `mape`, `maxk`, `mink`, `movmad`, `movmax`, `movmean`, `movmedian`, `movmin`, `movprod`, `movstd`, `movsum`, `movvar`, `normalize`, `nufft`, `nufftn`, `pivot`, `prctile`, `quantile`, `rescale`, `rmmissing`, `rmoutliers`, `rmse`, `smoothdata`, `smoothdata2`, `splitapply`, `standardizeMissing`, `subspace`, `topkrows`, `trenddecomp`, `xcorr`, `xcov`
+In a branch: `bounds`, `conv2`, `convn`, `corrcoef`, `cov`, `del2`, `detrend`, `discretize`, `fft`, `fft2`, `fftn`, `fftshift`, `fftw`, `fillmissing`, `fillmissing2`, `filloutliers`, `filter`, `filter2`, `findgroups`, `gradient`, `groupcounts`, `groupfilter`, `groupsummary`, `grouptransform`, `histc`, `histcounts2`, `ifft`, `ifft2`, `ifftn`, `ifftshift`, `iqr`, `ischange`, `islocalmax`, `islocalmin`, `isoutlier`, `issortedrows`, `isuniform`, `mape`, `maxk`, `mink`, `movmad`, `movmax`, `movmean`, `movmedian`, `movmin`, `movprod`, `movstd`, `movsum`, `movvar`, `normalize`, `nufft`, `nufftn`, `pivot`, `prctile`, `quantile`, `rescale`, `rmmissing`, `rmoutliers`, `rmse`, `smoothdata`, `smoothdata2`, `splitapply`, `standardizeMissing`, `subspace`, `topkrows`, `trenddecomp`, `xcorr`, `xcov`
+
+Implemented: `conv`, `cummax`, `cummin`, `cumprod`, `cumsum`, `cumtrapz`, `deconv`, `diff`, `head`, `histcounts`, `ismissing`, `issorted`, `max`, `mean`, `median`, `min`, `mode`, `prod`, `sort`, `sortrows`, `std`, `sum`, `tail`, `trapz`, `var`
 
 ## matlab/datatypes
 
@@ -97,6 +99,8 @@ To implement:
 - [ ] `vartype`
 - [ ] `withtol`
 
+Implemented: `NaT`, `array2table`, `arrayfun`, `caldays`, `calmonths`, `calquarters`, `calweeks`, `calyears`, `cast`, `cell`, `cell2table`, `cellfun`, `class`, `datetime`, `days`, `double`, `duration`, `fieldnames`, `func2str`, `hours`, `int16`, `int32`, `int64`, `int8`, `isa`, `iscalendarduration`, `iscell`, `isdatetime`, `isduration`, `isfield`, `isfloat`, `isinteger`, `islogical`, `ismethod`, `isnumeric`, `isobject`, `isprop`, `isstruct`, `istable`, `logical`, `metaclass`, `methods`, `milliseconds`, `minutes`, `missing`, `num2cell`, `properties`, `rmfield`, `seconds`, `single`, `str2func`, `struct`, `struct2table`, `table`, `table2array`, `table2cell`, `table2struct`, `uint16`, `uint32`, `uint64`, `uint8`, `years`
+
 Out of scope (Java/.NET/COM/C/Perl interop or MEX): `iscom`, `isinterface`, `isjava`, `javaArray`, `javaMethod`, `javaMethodEDT`, `javaObject`, `javaObjectEDT`, `opaque`
 
 Out of scope (desktop, IDE, GUI, printing or interactive tool): `cellplot`, `methodsview`
@@ -112,6 +116,8 @@ To implement:
 - [ ] `cospi`
 - [ ] `sinpi`
 
+Implemented: `abs`, `acos`, `acosd`, `acosh`, `acot`, `acotd`, `acoth`, `acsc`, `acscd`, `acsch`, `angle`, `asec`, `asecd`, `asech`, `asin`, `asind`, `asinh`, `atan`, `atan2`, `atan2d`, `atand`, `atanh`, `ceil`, `complex`, `conj`, `cos`, `cosd`, `cosh`, `cot`, `cotd`, `coth`, `cplxpair`, `csc`, `cscd`, `csch`, `deg2rad`, `exp`, `expm1`, `fix`, `floor`, `hypot`, `imag`, `isreal`, `log`, `log10`, `log1p`, `log2`, `mod`, `nextpow2`, `nthroot`, `pow2`, `rad2deg`, `real`, `reallog`, `realpow`, `realsqrt`, `rem`, `round`, `sec`, `secd`, `sech`, `sign`, `sin`, `sind`, `sinh`, `sqrt`, `tan`, `tand`, `tanh`, `unwrap`
+
 ## matlab/elmat
 
 Implemented: 78. To implement: 4. In a branch: 0. Out of scope: 0.
@@ -122,6 +128,8 @@ To implement:
 - [ ] `anymissing`
 - [ ] `anynan`
 - [ ] `combinations`
+
+Implemented: `accumarray`, `blkdiag`, `bsxfun`, `cat`, `circshift`, `compan`, `diag`, `eps`, `eye`, `false`, `find`, `flintmax`, `flip`, `flipdim`, `fliplr`, `flipud`, `freqspace`, `gallery`, `hadamard`, `hankel`, `height`, `hilb`, `i`, `ind2sub`, `inf`, `intmax`, `intmin`, `invhilb`, `ipermute`, `iscolumn`, `isempty`, `isequal`, `isequaln`, `isequalwithequalnans`, `isfinite`, `isinf`, `ismatrix`, `isnan`, `isrow`, `isscalar`, `isvector`, `j`, `length`, `linspace`, `logspace`, `magic`, `maxNumCompThreads`, `meshgrid`, `nan`, `ndgrid`, `ndims`, `numel`, `ones`, `paddata`, `pascal`, `permute`, `pi`, `realmax`, `realmin`, `repelem`, `repmat`, `reshape`, `resize`, `rosser`, `rot90`, `shiftdim`, `size`, `squeeze`, `sub2ind`, `toeplitz`, `tril`, `trimdata`, `triu`, `true`, `vander`, `width`, `wilkinson`, `zeros`
 
 ## matlab/funfun
 
@@ -182,6 +190,8 @@ To implement:
 - [ ] `triplequad`
 - [ ] `vectorize`
 
+Implemented: `symvar`
+
 Out of scope (MATLAB example file): `amp1dae`, `ballode`, `batonode`, `brussode`, `burgersode`, `ddex1`, `ddex1de`, `ddex1delays`, `ddex1hist`, `ddex2`, `ddex3`, `ddex4`, `ddex5`, `emdenbvp`, `fem1ode`, `fem2ode`, `fsbvp`, `hb1dae`, `hb1ode`, `iburgersode`, `ihb1dae`, `kneeode`, `lorenz`, `lotka`, `mat4bvp`, `odeexamples`, `orbitode`, `pdex1`, `pdex1bc`, `pdex1ic`, `pdex1pde`, `pdex2`, `pdex3`, `pdex4`, `pdex5`, `rcbvp`, `rigidode`, `shockbvp`, `threebvp`, `twobc`, `twobvp`, `twoode`, `vanderpoldemo`, `vdp1`, `vdp1000`, `vdpode`, `weissinger`
 
 ## matlab/general
@@ -211,9 +221,11 @@ To implement:
 - [ ] `who`
 - [ ] `whos`
 
-Out of scope (desktop, IDE, GUI, printing or interactive tool): `batchStartupOptionUsed`, `bench`, `callgraphviz`, `depfunprophelper`, `desktop`, `diary`, `echo`, `exit`, `findfile`, `finfo`, `getmcruserdata`, `inmem`, `isdeployed`, `ismcc`, `isstudent`, `logo`, `membrane`, `more`, `open`, `path2rc`, `preferences`, `quit`, `rehash`, `savepath`, `setmcruserdata`, `syntax`
+Implemented: `addpath`, `clear`, `format`, `path`, `pwd`, `rmpath`
 
 Out of scope (Java/.NET/COM/C/Perl interop or MEX): `calllib`, `java`, `javaaddpath`, `javaclasspath`, `javarmpath`, `libfunctions`, `libfunctionsview`, `libisloaded`, `libpointer`, `libstruct`, `loadlibrary`, `mex`, `mexdebug`, `mexext`, `pcode`, `perl`, `unloadlibrary`, `usejava`
+
+Out of scope (desktop, IDE, GUI, printing or interactive tool): `batchStartupOptionUsed`, `bench`, `callgraphviz`, `depfunprophelper`, `desktop`, `diary`, `echo`, `exit`, `findfile`, `finfo`, `getmcruserdata`, `inmem`, `isdeployed`, `ismcc`, `isstudent`, `logo`, `membrane`, `more`, `open`, `path2rc`, `preferences`, `quit`, `rehash`, `savepath`, `setmcruserdata`, `syntax`
 
 ## matlab/graph2d
 
@@ -228,9 +240,11 @@ To implement:
 - [ ] `semilogx`
 - [ ] `semilogy`
 
-Out of scope (internal helper, not a user function): `arrowline`, `axischild`, `axisobj`, `axistext`, `basicfitdatastat`, `doclick`, `dokeypress`, `domymenu`, `doresize`, `editline`, `editrect`, `enddrag`, `fighandle`, `figobj`, `figtoolset`, `getobj`, `getorcreateobj`, `getscribecontextmenu`, `getscribeobjectdata`, `hgbin`, `jpropeditutils`, `middrag`, `moveaxis`, `prepdrag`, `putdowntext`, `scribeclearmode`, `scribeeventhandler`, `scribehandle`, `scribehgobj`, `scriberestoresavefcns`, `scribetextdlg`, `setscribecontextmenu`, `setscribeobjectdata`, `texlabel`
+Implemented: `box`, `plot`, `sgtitle`, `subplot`
 
 Out of scope (desktop, IDE, GUI, printing or interactive tool): `gtext`, `pan`, `plotedit`, `rbbox`, `zoom`
+
+Out of scope (internal helper, not a user function): `arrowline`, `axischild`, `axisobj`, `axistext`, `basicfitdatastat`, `doclick`, `dokeypress`, `domymenu`, `doresize`, `editline`, `editrect`, `enddrag`, `fighandle`, `figobj`, `figtoolset`, `getobj`, `getorcreateobj`, `getscribecontextmenu`, `getscribeobjectdata`, `hgbin`, `jpropeditutils`, `middrag`, `moveaxis`, `prepdrag`, `putdowntext`, `scribeclearmode`, `scribeeventhandler`, `scribehandle`, `scribehgobj`, `scriberestoresavefcns`, `scribetextdlg`, `setscribecontextmenu`, `setscribeobjectdata`, `texlabel`
 
 ## matlab/graph3d
 
@@ -303,11 +317,13 @@ To implement:
 - [ ] `zticklabels`
 - [ ] `zticks`
 
+Implemented: `daspect`, `xlim`, `ylim`
+
 Out of scope (desktop, IDE, GUI, printing or interactive tool): `cameramenu`, `cameratoolbar`, `cmapeditor`, `colordef`, `colormapeditor`, `graymon`, `rotate3d`, `whitebg`
 
 ## matlab/graphics
 
-Implemented: 17. To implement: 110. In a branch: 1. Out of scope: 84.
+Implemented: 19. To implement: 109. In a branch: 0. Out of scope: 84.
 
 To implement:
 
@@ -389,7 +405,6 @@ To implement:
 - [ ] `polaraxes`
 - [ ] `polarbubblechart`
 - [ ] `polarscatter`
-- [ ] `polyshape`
 - [ ] `prism`
 - [ ] `rectangle`
 - [ ] `refresh`
@@ -422,15 +437,15 @@ To implement:
 - [ ] `zlabel`
 - [ ] `zsecondarylabel`
 
-In a branch: `alphaShape`
-
-Out of scope (needs internet map tiles): `geoaxes`, `geobasemap`, `geobubble`, `geodensityplot`, `geolimits`, `geoplot`, `geoscatter`, `geotickformat`
-
-Out of scope (desktop, IDE, GUI, printing or interactive tool): `capturescreen`, `closereq`, `copygraphics`, `dataTipInteraction`, `datacursormode`, `dateTickPicker`, `disableDefaultInteractivity`, `editInteraction`, `enableDefaultInteractivity`, `enableLegacyExplorationModes`, `exportapp`, `exportsetupdlg`, `figureToolbarCreateFcn`, `figureheaderdlg`, `findprinters`, `getFigureToolManager`, `getprinttemplate`, `hgexport`, `hgload`, `hgsave`, `linkaxes`, `linkprop`, `openFigure`, `openfig`, `opengl`, `orient`, `pagesetupdlg`, `panInteraction`, `print`, `printdlg`, `printjob`, `printpreview`, `printtables`, `printtemplate`, `refreshdata`, `regionZoomInteraction`, `regionpicker`, `rendererinfo`, `resetplotview`, `rotateInteraction`, `rulerPanInteraction`, `saveFigure`, `savefig`, `setprinttemplate`, `shg`, `uiaxes`, `uicontextmenu`, `uicontrol`, `uimenu`, `vertexpicker`, `vga`, `zoomInteraction`
+Implemented: `alphaShape`, `axis`, `clf`, `close`, `drawnow`, `figure`, `fplot`, `gca`, `gcf`, `grid`, `histogram`, `hold`, `ishold`, `polyshape`, `scatter`, `subtitle`, `title`, `xlabel`, `ylabel`
 
 Out of scope (audio/video devices or screen capture): `getframe`
 
+Out of scope (desktop, IDE, GUI, printing or interactive tool): `capturescreen`, `closereq`, `copygraphics`, `dataTipInteraction`, `datacursormode`, `dateTickPicker`, `disableDefaultInteractivity`, `editInteraction`, `enableDefaultInteractivity`, `enableLegacyExplorationModes`, `exportapp`, `exportsetupdlg`, `figureToolbarCreateFcn`, `figureheaderdlg`, `findprinters`, `getFigureToolManager`, `getprinttemplate`, `hgexport`, `hgload`, `hgsave`, `linkaxes`, `linkprop`, `openFigure`, `openfig`, `opengl`, `orient`, `pagesetupdlg`, `panInteraction`, `print`, `printdlg`, `printjob`, `printpreview`, `printtables`, `printtemplate`, `refreshdata`, `regionZoomInteraction`, `regionpicker`, `rendererinfo`, `resetplotview`, `rotateInteraction`, `rulerPanInteraction`, `saveFigure`, `savefig`, `setprinttemplate`, `shg`, `uiaxes`, `uicontextmenu`, `uicontrol`, `uimenu`, `vertexpicker`, `vga`, `zoomInteraction`
+
 Out of scope (internal helper, not a user function): `axescheck`, `bwcontr`, `copyoptionsfcn`, `datetickstr`, `defaulterrorcallback`, `figcopytemplatelistener`, `figcopytemplatelistener_legacy`, `handle2struct`, `hasbehavior`, `hgaddbehavior`, `hgbehaviorfactory`, `hgclose`, `hgdisp`, `hgfeval`, `hggetbehavior`, `hggetdisp`, `hgrc`, `hgsetdisp`, `num2ruler`, `parseChartInputs`, `parseparams`, `ruler2num`, `struct2handle`
+
+Out of scope (needs internet map tiles): `geoaxes`, `geobasemap`, `geobubble`, `geodensityplot`, `geolimits`, `geoplot`, `geoscatter`, `geotickformat`
 
 ## matlab/imagesci
 
@@ -500,9 +515,11 @@ To implement:
 - [ ] `xlsread`
 - [ ] `xlswrite`
 
-Out of scope (scientific file format (HDF/netCDF/CDF/FITS/TIFF) or web service): `callSoapService`, `createClassFromWsdl`, `createSoapMessage`, `daqread`, `memmap_data_handle_holder`, `memmapfile`, `parseSoapResponse`, `sendmail`
+Implemented: `clc`, `fprintf`, `readtable`, `writetable`
 
 Out of scope (internal helper, not a user function): `deployprefdir`, `matfinfo`, `partialpath`, `timercb`
+
+Out of scope (scientific file format (HDF/netCDF/CDF/FITS/TIFF) or web service): `callSoapService`, `createClassFromWsdl`, `createSoapMessage`, `daqread`, `memmap_data_handle_holder`, `memmapfile`, `parseSoapResponse`, `sendmail`
 
 ## matlab/lang
 
@@ -534,11 +551,13 @@ To implement:
 
 Language keywords: `ans`, `arguments`, `break`, `case`, `catch`, `classdef`, `continue`, `else`, `elseif`, `empty`, `end`, `for`, `function`, `global`, `if`, `lists`, `nargin`, `nargout`, `otherwise`, `parallel_function`, `parfor`, `persistent`, `precedence`, `return`, `script`, `spmd_feval`, `switch`, `try`, `varargin`, `varargout`, `while`
 
-Out of scope (internal helper, not a user function): `ParallelException`, `checkSyntacticWarnings`
+Implemented: `disp`, `display`, `exist`, `feval`, `inputname`, `nargchk`, `narginchk`
 
 Out of scope (Java/.NET/COM/C/Perl interop or MEX): `javachk`
 
 Out of scope (desktop, IDE, GUI, printing or interactive tool): `keyboard`, `mislocked`, `mlock`, `munlock`
+
+Out of scope (internal helper, not a user function): `ParallelException`, `checkSyntacticWarnings`
 
 ## matlab/matfun
 
@@ -555,6 +574,8 @@ To implement:
 
 In a branch: `balance`, `bandwidth`, `cdf2rdf`, `chol`, `cholupdate`, `cond`, `condeig`, `condest`, `expm`, `funm`, `gsvd`, `hess`, `isbanded`, `ishermitian`, `issymmetric`, `ldl`, `linsolve`, `logm`, `lscov`, `lsqminnorm`, `lu`, `normest`, `normest1`, `null`, `ordeig`, `ordqz`, `ordschur`, `orth`, `pageeig`, `pagesvd`, `pinv`, `planerot`, `polyeig`, `qr`, `qrdelete`, `qrinsert`, `qrupdate`, `qz`, `rank`, `rcond`, `rref`, `rsf2csf`, `schur`, `sqrtm`, `svd`, `sylvester`, `vecnorm`
 
+Implemented: `det`, `eig`, `inv`, `isdiag`, `istril`, `istriu`, `mpower`, `norm`, `trace`
+
 ## matlab/ops
 
 Implemented: 53. To implement: 4. In a branch: 0. Out of scope: 0.
@@ -565,6 +586,8 @@ To implement:
 - [ ] `paren`
 - [ ] `punct`
 - [ ] `uniquetol`
+
+Implemented: `all`, `and`, `any`, `bitand`, `bitcmp`, `bitget`, `bitor`, `bitset`, `bitshift`, `bitxor`, `colon`, `ctranspose`, `eq`, `ge`, `gt`, `horzcat`, `idivide`, `intersect`, `ismember`, `kron`, `ldivide`, `le`, `lt`, `minus`, `mldivide`, `mrdivide`, `mtimes`, `ne`, `not`, `numArgumentsFromSubscript`, `or`, `pagectranspose`, `pagemldivide`, `pagemrdivide`, `pagemtimes`, `pagetranspose`, `plus`, `power`, `rdivide`, `setdiff`, `setxor`, `subsasgn`, `subsindex`, `subsref`, `tensorprod`, `times`, `transpose`, `uminus`, `union`, `unique`, `uplus`, `vertcat`, `xor`
 
 ## matlab/optimfun
 
@@ -586,7 +609,7 @@ Out of scope (internal helper, not a user function): `addLink`, `callAllOptimOut
 
 ## matlab/polyfun
 
-Implemented: 4. To implement: 9. In a branch: 31. Out of scope: 7.
+Implemented: 35. To implement: 8. In a branch: 1. Out of scope: 7.
 
 To implement:
 
@@ -595,12 +618,13 @@ To implement:
 - [ ] `TriScatteredInterp`
 - [ ] `boundaryshape`
 - [ ] `interp1q`
-- [ ] `nsidedpoly`
 - [ ] `polybuffer`
 - [ ] `stlread`
 - [ ] `stlwrite`
 
-In a branch: `boundary`, `convhull`, `convhulln`, `delaunay`, `delaunayTriangulation`, `delaunayn`, `dsearchn`, `griddata`, `griddatan`, `griddedInterpolant`, `inpolygon`, `interp2`, `interp3`, `interpft`, `interpn`, `makima`, `mkpp`, `pchip`, `poly`, `polyarea`, `polyder`, `polyint`, `polyvalm`, `ppval`, `rectint`, `scatteredInterpolant`, `spline`, `triangulation`, `tsearchn`, `unmkpp`, `voronoin`
+In a branch: `poly`
+
+Implemented: `boundary`, `convhull`, `convhulln`, `delaunay`, `delaunayTriangulation`, `delaunayn`, `dsearchn`, `griddata`, `griddatan`, `griddedInterpolant`, `inpolygon`, `interp1`, `interp2`, `interp3`, `interpft`, `interpn`, `makima`, `mkpp`, `nsidedpoly`, `pchip`, `polyarea`, `polyder`, `polyfit`, `polyint`, `polyval`, `polyvalm`, `ppval`, `rectint`, `roots`, `scatteredInterpolant`, `spline`, `triangulation`, `tsearchn`, `unmkpp`, `voronoin`
 
 Out of scope (internal helper, not a user function): `automesh`, `pwch`, `qhull`, `splncore`, `xychk`, `xyzchk`, `xyzvchk`
 
@@ -612,6 +636,8 @@ To implement:
 
 - [ ] `RandStream`
 
+Implemented: `rand`, `randi`, `randn`, `randperm`, `rng`
+
 ## matlab/scribe
 
 Implemented: 1. To implement: 3. In a branch: 0. Out of scope: 13.
@@ -621,6 +647,8 @@ To implement:
 - [ ] `annotation`
 - [ ] `bubblelegend`
 - [ ] `colorbar`
+
+Implemented: `legend`
 
 Out of scope (internal helper, not a user function): `defaultItemHitCallback`, `deselectall`, `getselectobjects`, `hgconvertunits`, `legendcolorbarlayout`, `legendinfo`, `scribealign`, `scribeccp`, `scribecursors`, `selectobject`, `snaptogrid`, `startscribeobject`, `startscribepinning`
 
@@ -680,6 +708,8 @@ To implement:
 
 In a branch: `eigs`, `svds`
 
+Implemented: `nnz`
+
 ## matlab/specfun
 
 Implemented: 40. To implement: 1. In a branch: 0. Out of scope: 0.
@@ -688,9 +718,11 @@ To implement:
 
 - [ ] `matchpairs`
 
+Implemented: `airy`, `besselh`, `besseli`, `besselj`, `besselk`, `bessely`, `beta`, `betainc`, `betaincinv`, `betaln`, `cart2pol`, `cart2sph`, `cross`, `dot`, `ellipj`, `ellipke`, `erf`, `erfc`, `erfcinv`, `erfcx`, `erfinv`, `expint`, `factor`, `factorial`, `gamma`, `gammainc`, `gammaincinv`, `gammaln`, `gcd`, `isprime`, `lcm`, `legendre`, `nchoosek`, `perms`, `pol2cart`, `primes`, `psi`, `rat`, `rats`, `sph2cart`
+
 ## matlab/specgraph
 
-Implemented: 4. To implement: 91. In a branch: 1. Out of scope: 14.
+Implemented: 5. To implement: 91. In a branch: 0. Out of scope: 14.
 
 To implement:
 
@@ -786,11 +818,11 @@ To implement:
 - [ ] `yline`
 - [ ] `yregion`
 
-In a branch: `voronoi`
-
-Out of scope (audio/video devices or screen capture): `frame2im`, `im2frame`, `movie`, `moviein`
+Implemented: `area`, `bar`, `stairs`, `stem`, `voronoi`
 
 Out of scope (Java/.NET/COM/C/Perl interop or MEX): `im2java`
+
+Out of scope (audio/video devices or screen capture): `frame2im`, `im2frame`, `movie`, `moviein`
 
 Out of scope (internal helper, not a user function): `changeseriestype`, `colstyle`, `isplotchild`, `makebars`, `parseplotapi`, `plotchild`, `plotdoneevent`, `plotutils`, `usev6plotapi`
 
@@ -853,6 +885,8 @@ To implement:
 - [ ] `whitespacePattern`
 - [ ] `wildcardPattern`
 
+Implemented: `append`, `blanks`, `cellstr`, `char`, `compose`, `contains`, `convertCharsToStrings`, `convertStringsToChars`, `count`, `deblank`, `endsWith`, `erase`, `extractAfter`, `extractBefore`, `extractBetween`, `insertAfter`, `insertBefore`, `int2str`, `iscellstr`, `ischar`, `isletter`, `isspace`, `isstring`, `isstrprop`, `join`, `lettersPattern`, `lower`, `mat2str`, `newline`, `num2str`, `pad`, `replace`, `reverse`, `split`, `sprintf`, `startsWith`, `str2double`, `str2num`, `strcat`, `strcmp`, `strcmpi`, `strfind`, `string`, `strings`, `strip`, `strjoin`, `strjust`, `strlength`, `strncmp`, `strncmpi`, `strrep`, `strsplit`, `strtrim`, `upper`
+
 ## matlab/timefun
 
 Implemented: 14. To implement: 18. In a branch: 0. Out of scope: 0.
@@ -877,6 +911,8 @@ To implement:
 - [ ] `timeit`
 - [ ] `weeknum`
 - [ ] `x2mdate`
+
+Implemented: `datenum`, `day`, `hour`, `minute`, `month`, `now`, `pause`, `quarter`, `second`, `tic`, `toc`, `today`, `weekday`, `year`
 
 ## matlab/timeseries
 
@@ -1084,7 +1120,9 @@ To implement:
 - [ ] `zeta`
 - [ ] `ztrans`
 
-Out of scope (internal helper, not a user function): `checkIgnoreAnalyticConstraintsValue`, `symFunType`
+Implemented: `assume`, `assumeAlso`, `children`, `coeffs`, `collect`, `digits`, `expand`, `int`, `isAlways`, `jacobian`, `latex`, `lhs`, `limit`, `matlabFunction`, `numden`, `poly2sym`, `pretty`, `rhs`, `simplify`, `solve`, `subs`, `sym`, `sym2poly`, `symfun`, `syms`, `taylor`, `vpa`
 
 Out of scope (desktop, IDE, GUI, printing or interactive tool): `allMuPADNotebooks`, `convertMuPADNotebook`, `funtool`, `matlabFunctionBlock`, `mupad`, `mupadengine`, `mupadwelcome`, `openmn`, `openxvc`, `openxvz`, `release`, `simscapeEquation`, `symReadSSCParameters`, `symReadSSCVariables`, `symWriteSSC`, `symengine`, `taylortool`
+
+Out of scope (internal helper, not a user function): `checkIgnoreAnalyticConstraintsValue`, `symFunType`
 
