@@ -7,6 +7,7 @@ license.workspace = true
 
 [dependencies]
 rayon = "1.12"
+rustfft = "6"
 faer = "0.24"
 cranelift-codegen = "0.137"
 cranelift-frontend = "0.137"

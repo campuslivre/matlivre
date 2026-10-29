@@ -3,6 +3,7 @@
 
 pub mod ast;
 pub mod builtins;
+pub mod builtins_datafun;
 pub mod builtins_elfun;
 pub mod builtins_elmat;
 pub mod builtins_matfun;
