@@ -321,7 +321,13 @@ impl App {
             figures: Vec::new(),
         };
         match launch {
-            Launch::Welcome => app.getting_started(),
+            // Getting started opens once; later launches start with an empty live script (it
+            // stays in the … menu).
+            Launch::Welcome => {
+                if first_launch() {
+                    app.getting_started();
+                }
+            }
             Launch::Open(p) => app.open_path(p),
             Launch::Tab(m) => app.receive(&m),
         }
@@ -1923,6 +1929,22 @@ impl eframe::App for App {
 
 fn rgb(c: Color32) -> [u8; 3] {
     [c.r(), c.g(), c.b()]
+}
+
+/// True on the user's first launch of matlivre, which a marker file in the per-user app data
+/// folder (`%APPDATA%\matlivre`) then records.
+fn first_launch() -> bool {
+    let base = std::env::var_os("APPDATA")
+        .or_else(|| std::env::var_os("XDG_CONFIG_HOME"))
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")));
+    let Some(dir) = base.map(|b| b.join("matlivre")) else { return true };
+    let marker = dir.join("welcomed");
+    if marker.exists() {
+        return false;
+    }
+    let _ = std::fs::create_dir_all(&dir).and_then(|()| std::fs::write(&marker, ""));
+    true
 }
 
 /// A plain script as a document: one code block holding the whole text.
