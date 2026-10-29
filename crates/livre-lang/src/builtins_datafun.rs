@@ -5,6 +5,8 @@
 //! The FFTs use `rustfft` (any length, as FFTW); everything else is computed directly from the
 //! definitions in MATLAB's documentation.
 
+#![allow(clippy::excessive_precision)] // published rational-approximation coefficients
+
 use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::f64::consts::PI;
@@ -38,9 +40,6 @@ fn lower(v: &Value) -> Option<String> {
     if v.is_text() { v.text().ok().map(|t| t.to_lowercase()) } else { None }
 }
 
-fn is_flag(v: &Value, flags: &[&str]) -> bool {
-    lower(v).map(|t| flags.contains(&t.as_str())).unwrap_or(false)
-}
 
 fn c_at(m: &Matrix, i: usize) -> C {
     C::new(m.data[i], m.im_at(i))
@@ -271,9 +270,6 @@ fn var(v: &[f64], w: f64) -> f64 {
     s / if w == 1.0 { n as f64 } else { (n - 1) as f64 }
 }
 
-fn row_or_col(len: usize, row: bool, data: Vec<f64>) -> Matrix {
-    if row { Matrix::new(1, len, data) } else { Matrix::new(len, 1, data) }
-}
 
 // ---- special functions used by statistics ------------------------------------------------------
 
@@ -287,10 +283,10 @@ fn erfc_inv(y: f64) -> f64 {
     // Initial rational approximation, then Newton steps on erfc(x) - y.
     let p = if y < 1.0 { y } else { 2.0 - y };
     let t = (-2.0 * (p / 2.0).ln()).sqrt();
-    let mut x = -0.70711 * ((2.30753 + t * 0.27061) / (1.0 + t * (0.99229 + t * 0.04481)) - t);
+    let mut x = -std::f64::consts::FRAC_1_SQRT_2 * ((2.30753 + t * 0.27061) / (1.0 + t * (0.99229 + t * 0.04481)) - t);
     for _ in 0..3 {
         let err = erfc(x) - p;
-        x += err / (1.12837916709551257 * (-x * x).exp() - x * err);
+        x += err / (std::f64::consts::FRAC_2_SQRT_PI * (-x * x).exp() - x * err);
     }
     if y < 1.0 { x } else { -x }
 }
@@ -551,7 +547,7 @@ fn fft_dim(x: &Matrix, n: usize, dim: usize, inverse: bool, symmetric: bool) -> 
             for k in n / 2 + 1..n {
                 buf[k] = buf[n - k].conj();
             }
-            if n % 2 == 0 {
+            if n.is_multiple_of(2) {
                 buf[n / 2].im = 0.0;
             }
         }
@@ -1773,7 +1769,7 @@ fn sample_points(v: Option<&Value>, n: usize) -> R<Option<Vec<f64>>> {
             if t.len() != n {
                 return rt("Sample points must have the same length as the operating dimension.");
             }
-            if t.windows(2).any(|p| !(p[1] > p[0])) || t.iter().any(|x| !x.is_finite()) {
+            if t.windows(2).any(|p| p[1].partial_cmp(&p[0]) != Some(Ordering::Greater)) || t.iter().any(|x| !x.is_finite()) {
                 return rt("Sample points must be unique, sorted, and finite.");
             }
             Ok(Some(t))
@@ -2796,9 +2792,8 @@ fn fillmissing(it: &mut Interpreter, a: &[Value], nargout: usize) -> Ret {
     let spec = FillSpec { method: method.clone(), constant, window, ends, max_gap };
     let (stride, _, outer) = layout(&d, dim);
     let at = |o_: usize, i: usize, j: usize| o_ * stride * len + j * stride + i;
-    let filled: Value;
     let mut tf = vec![false; miss.len()];
-    match &src {
+    let filled = match &src {
         Value::Num(m) if m.kind.is_float() || m.kind.is_int() || m.kind == Kind::Logical => {
             let mut out = m.clone();
             if method == "knn" {
@@ -2824,7 +2819,7 @@ fn fillmissing(it: &mut Interpreter, a: &[Value], nargout: usize) -> Ret {
                 *f = miss[k] && !out.data[k].is_nan() && (m.data[k].is_nan() || out.data[k] != m.data[k] || o.get("MissingLocations").is_some());
             }
             let kind = m.kind;
-            filled = Value::Num(out.cast_to(kind));
+            Value::Num(out.cast_to(kind))
         }
         other => {
             // Text and other arrays: index-based fills only.
@@ -2856,9 +2851,9 @@ fn fillmissing(it: &mut Interpreter, a: &[Value], nargout: usize) -> Ret {
                     }
                 }
             }
-            filled = v;
+            v
         }
-    }
+    };
     if nargout < 2 {
         return one(filled);
     }
@@ -3603,6 +3598,7 @@ fn smoothdata(a: &[Value]) -> Ret {
     Ok(Some(vec![Value::Num(out.cast_to(x.kind)), Value::Num(wout)]))
 }
 
+#[allow(clippy::needless_range_loop)]
 fn smoothdata2(a: &[Value]) -> Ret {
     let o = Opts::parse(a, NANFLAGS, &["SmoothingFactor", "SamplePoints"])?;
     let x = num_arg(&o.pos, 0, "smoothdata2")?;
@@ -3825,8 +3821,7 @@ fn normalize(a: &[Value], nargout: usize) -> Ret {
     let rd = with_dim(&x.dims, dim, 1);
     let cm = Matrix::from_dims(rd.clone(), if center.is_none() && range.is_none() && norm_p.is_none() { vec![0.0; cs.len()] } else { cs }).cast_to(x.kind);
     let sm = Matrix::from_dims(rd, ss).cast_to(x.kind);
-    let cm = if center.is_none() && range.is_none() { Value::Num(cm) } else { Value::Num(cm) };
-    Ok(Some(vec![Value::Num(out), cm, Value::Num(sm)]))
+    Ok(Some(vec![Value::Num(out), Value::Num(cm), Value::Num(sm)]))
 }
 
 fn rescale(a: &[Value]) -> R<Matrix> {
@@ -3994,7 +3989,7 @@ fn ischange(a: &[Value], nargout: usize) -> Ret {
                 chosen
             }
         };
-        let cps = if maxc.is_some() { segmentations(&method, &t, v, k.max(0))[k].1.clone() } else { segs[k].1.clone() };
+        let cps = if maxc.is_some() { segmentations(&method, &t, v, k)[k].1.clone() } else { segs[k].1.clone() };
         let mut bounds = vec![0];
         bounds.extend(&cps);
         bounds.push(n);
@@ -4255,7 +4250,7 @@ fn histc(a: &[Value]) -> Ret {
 /// aligned to that resolution, widened until the bins cover the data.
 fn nbins_edges(lo: f64, hi: f64, n: usize) -> Vec<f64> {
     let n = n.max(1);
-    if !(hi > lo) {
+    if hi.partial_cmp(&lo) != Some(Ordering::Greater) {
         let (a, b) = (lo - 0.5, hi + 0.5);
         return (0..=n).map(|k| a + (b - a) * k as f64 / n as f64).collect();
     }
@@ -4975,6 +4970,81 @@ fn pivot(it: &mut Interpreter, a: &[Value]) -> Ret {
     }
     one(Value::Table(Box::new(Table::new(names, vars)?)))
 }
+
+fn fillmissing2(a: &[Value], nargout: usize) -> Ret {
+    let o = Opts::parse(a, &[], &["MissingLocations", "SamplePoints", "MaxDistance"])?;
+    let x = num_arg(&o.pos, 0, "fillmissing2")?;
+    let method = arg(&o.pos, 1, "fillmissing2")?.text().map(|t| t.to_lowercase()).unwrap_or_default();
+    if !["nearest", "linear", "natural", "cubic", "v4", "movmean", "movmedian"].contains(&method.as_str()) {
+        return rt("Fill method must be 'nearest', 'linear', 'natural', 'cubic', 'v4', 'movmean', or 'movmedian'.");
+    }
+    if !["nearest", "movmean", "movmedian"].contains(&method.as_str()) {
+        return rt(format!("Fill method '{method}' is not supported by fillmissing2 in this version."));
+    }
+    if x.dims.len() > 2 {
+        return rt("Input data must be a matrix.");
+    }
+    let (r, c) = (x.rows(), x.cols());
+    let miss: Vec<bool> = match o.get("MissingLocations") {
+        Some(v) => v.to_matrix()?.data.iter().map(|&b| b != 0.0).collect(),
+        None => x.data.iter().map(|v| v.is_nan()).collect(),
+    };
+    let mut out = x.clone();
+    let known: Vec<usize> = (0..miss.len()).filter(|&p| !miss[p]).collect();
+    if method == "nearest" {
+        // A triangulation needs three points not on one line.
+        let (r0, c0) = known.first().map(|&p| (p % r, p / r)).unwrap_or((0, 0));
+        let (r1, c1) = known.get(1).map(|&p| (p % r, p / r)).unwrap_or((0, 0));
+        let flat = known.len() < 3
+            || known.iter().all(|&p| {
+                let (pr, pc) = ((p % r) as f64 - r0 as f64, (p / r) as f64 - c0 as f64);
+                let (dr, dc) = (r1 as f64 - r0 as f64, c1 as f64 - c0 as f64);
+                pr * dc - pc * dr == 0.0
+            });
+        if !flat {
+            for p in (0..miss.len()).filter(|&p| miss[p]) {
+                let (pr, pc) = ((p % r) as f64, (p / r) as f64);
+                // Nearest known element; ties go to the later element in memory order.
+                let mut best = (f64::INFINITY, 0usize);
+                for &q in &known {
+                    let d = ((q % r) as f64 - pr).powi(2) + ((q / r) as f64 - pc).powi(2);
+                    if d <= best.0 {
+                        best = (d, q);
+                    }
+                }
+                out.data[p] = x.data[best.1];
+            }
+        }
+    } else {
+        let w = match arg(&o.pos, 2, "fillmissing2")? {
+            Value::Cell(cl) if cl.data.len() == 2 => (window_arg(&cl.data[0])?, window_arg(&cl.data[1])?),
+            v @ Value::Num(m) if m.numel() == 1 => (window_arg(v)?, window_arg(v)?),
+            _ => return rt("Invalid argument at position 3. Window size must be a scalar value or a cell array."),
+        };
+        let sr = spans(None, r, w.0);
+        let sc = spans(None, c, w.1);
+        for p in (0..miss.len()).filter(|&p| miss[p]) {
+            let (i, j) = (p % r, p / r);
+            let mut vals: Vec<f64> = Vec::new();
+            for jj in sc[j].lo..sc[j].hi {
+                for ii in sr[i].lo..sr[i].hi {
+                    let q = jj * r + ii;
+                    if !miss[q] && !x.data[q].is_nan() {
+                        vals.push(x.data[q]);
+                    }
+                }
+            }
+            if !vals.is_empty() {
+                out.data[p] = if method == "movmean" { mean(&vals) } else { median(&mut vals) };
+            }
+        }
+    }
+    let tf: Vec<f64> = (0..miss.len()).map(|p| bool_val(miss[p] && !out.data[p].is_nan())).collect();
+    if nargout < 2 {
+        return one(Value::Num(out));
+    }
+    Ok(Some(vec![Value::Num(out), Value::Num(logical(x.dims.clone(), tf))]))
+}
 // ---- dispatch ----------------------------------------------------------------------------------
 
 fn mat(m: Matrix) -> Ret {
@@ -5011,6 +5081,7 @@ pub fn call(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
         "gradient" => gradient(a, nargout),
         "del2" => mat(del2(a)?),
         "fillmissing" => fillmissing(it, a, nargout),
+        "fillmissing2" => fillmissing2(a, nargout),
         "standardizeMissing" => standardize_missing(a),
         "rmmissing" => rmmissing(a, nargout),
         "isoutlier" => isoutlier(a),
