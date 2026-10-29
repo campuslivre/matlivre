@@ -20,10 +20,12 @@ pub struct Payload {
     pub path: Option<PathBuf>,
     pub dirty: bool,
     pub name: String,
+    /// A plain `.m` script tab rather than a live script.
+    pub script: bool,
 }
 
 /// Writes the tab to the temp folder and returns the manifest path.
-pub fn write(doc: &Document, path: Option<&Path>, dirty: bool, name: &str) -> Result<PathBuf, String> {
+pub fn write(doc: &Document, path: Option<&Path>, dirty: bool, name: &str, script: bool) -> Result<PathBuf, String> {
     static N: AtomicU32 = AtomicU32::new(0);
     let stem = format!("{PREFIX}{}-{}", std::process::id(), N.fetch_add(1, Ordering::Relaxed));
     let dir = std::env::temp_dir();
@@ -31,7 +33,8 @@ pub fn write(doc: &Document, path: Option<&Path>, dirty: bool, name: &str) -> Re
     let manifest = dir.join(format!("{stem}.txt"));
     doc.save(&doc_file).map_err(|e| e.to_string())?;
     let path = path.map(|p| p.display().to_string()).unwrap_or_default();
-    let text = format!("{MAGIC}\n{}\n{path}\n{}\n{name}\n", doc_file.display(), u8::from(dirty));
+    let kind = if script { "script" } else { "live" };
+    let text = format!("{MAGIC}\n{}\n{path}\n{}\n{name}\n{kind}\n", doc_file.display(), u8::from(dirty));
     std::fs::write(&manifest, text).map_err(|e| e.to_string())?;
     Ok(manifest)
 }
@@ -52,6 +55,7 @@ pub fn read(manifest: &Path) -> Result<Payload, String> {
         path: (!lines[2].is_empty()).then(|| PathBuf::from(lines[2])),
         dirty: lines[3] == "1",
         name: lines[4].to_string(),
+        script: lines.get(5) == Some(&"script"),
     })
 }
 
@@ -123,7 +127,7 @@ mod tests {
         let mut doc = Document::new_script();
         doc.push(BlockKind::Heading, "Results");
         doc.push(BlockKind::Code, "x = 1:3;\ndisp(x)");
-        let manifest = write(&doc, None, true, "untitled2.mlx").unwrap();
+        let manifest = write(&doc, None, true, "untitled2.mlx", false).unwrap();
 
         let (tx, rx) = mpsc::channel();
         let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();

@@ -24,7 +24,7 @@ fn reads_shipped_live_scripts() {
         let back = read_mlx_bytes(&write_mlx_bytes(&doc).unwrap()).unwrap();
         assert_eq!(doc.blocks.len(), back.blocks.len());
         for (a, b) in doc.blocks.iter().zip(&back.blocks) {
-            assert_eq!((a.kind, &a.text), (b.kind, &b.text));
+            assert_eq!((a.kind, &a.text, a.controls.len()), (b.kind, &b.text, b.controls.len()));
         }
         eprintln!("{s}: {} blocks, {} sections", doc.blocks.len(), doc.sections().len());
     }

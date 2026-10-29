@@ -7,7 +7,9 @@ use std::path::Path;
 use quick_xml::events::Event;
 use quick_xml::Reader;
 
-use crate::{BlockKind, DocError, Document};
+use crate::controls::span_bytes;
+use crate::json::Json;
+use crate::{Block, BlockKind, ControlKind, DocError, Document, LiveControl};
 
 const DOCUMENT_PART: &str = "matlab/document.xml";
 
@@ -44,12 +46,26 @@ pub(crate) fn parse_document_xml(xml: &str) -> Result<Document, DocError> {
     let mut style: Option<String> = None;
     let mut sect = false;
     let mut text = String::new();
+    let mut in_choice = false;
+    let mut in_control = false;
+    let mut attrs: Vec<(String, String)> = Vec::new();
+    let mut raw_controls: Vec<Vec<(String, String)>> = Vec::new();
     loop {
         let ev = reader.read_event().map_err(|e| DocError::Format(format!("Malformed document.xml: {e}")))?;
         match ev {
-            // Live-control markup inside mc:AlternateContent is skipped; its current value
-            // is already part of the code text.
+            // Inside mc:AlternateContent only live controls (in mc:Choice) are read; their
+            // current value is already part of the code text.
             Event::Start(e) if e.name().as_ref() == b"mc:AlternateContent" => alt_depth += 1,
+            Event::Start(e) if alt_depth > 0 => match e.name().as_ref() {
+                b"mc:Choice" => in_choice = true,
+                b"w:customXml" if in_choice && in_p && attr(&e, b"w:element").as_deref() == Some("livecontrol") => {
+                    in_control = true;
+                    attrs.clear();
+                }
+                b"w:attr" if in_control => attrs.extend(name_val(&e)),
+                _ => {}
+            },
+            Event::Empty(e) if alt_depth > 0 && in_control && e.name().as_ref() == b"w:attr" => attrs.extend(name_val(&e)),
             Event::Start(e) | Event::Empty(e) if alt_depth == 0 => {
                 match e.name().as_ref() {
                     b"w:p" => {
@@ -57,14 +73,9 @@ pub(crate) fn parse_document_xml(xml: &str) -> Result<Document, DocError> {
                         style = None;
                         sect = false;
                         text.clear();
+                        raw_controls.clear();
                     }
-                    b"w:pStyle" => {
-                        for a in e.attributes().flatten() {
-                            if a.key.as_ref() == b"w:val" {
-                                style = Some(a.unescape_value().map(|v| v.into_owned()).unwrap_or_default());
-                            }
-                        }
-                    }
+                    b"w:pStyle" => style = Some(attr(&e, b"w:val").unwrap_or_default()),
                     b"w:sectPr" if in_p => sect = true,
                     b"w:t" => in_t = true,
                     b"w:br" if in_p => text.push('\n'),
@@ -74,6 +85,11 @@ pub(crate) fn parse_document_xml(xml: &str) -> Result<Document, DocError> {
             }
             Event::End(e) => match e.name().as_ref() {
                 b"mc:AlternateContent" => alt_depth = alt_depth.saturating_sub(1),
+                b"mc:Choice" => in_choice = false,
+                b"w:customXml" if in_control => {
+                    in_control = false;
+                    raw_controls.push(std::mem::take(&mut attrs));
+                }
                 b"w:t" => in_t = false,
                 b"w:p" if in_p => {
                     in_p = false;
@@ -83,6 +99,14 @@ pub(crate) fn parse_document_xml(xml: &str) -> Result<Document, DocError> {
                         let kind = style_kind(style.as_deref());
                         let t = if kind == BlockKind::Code { text.replace("\r\n", "\n") } else { text.clone() };
                         doc.push(kind, t.trim_end_matches('\n').to_string());
+                        if kind == BlockKind::Code {
+                            let b = doc.blocks.last_mut().expect("just pushed");
+                            for raw in raw_controls.drain(..) {
+                                if let Some(c) = decode_control(raw, &b.text) {
+                                    b.add_control(c);
+                                }
+                            }
+                        }
                         if sect {
                             doc.push(BlockKind::SectionBreak, "");
                         }
@@ -106,6 +130,166 @@ pub(crate) fn parse_document_xml(xml: &str) -> Result<Document, DocError> {
     Ok(doc)
 }
 
+fn attr(e: &quick_xml::events::BytesStart, key: &[u8]) -> Option<String> {
+    e.attributes().flatten().find(|a| a.key.as_ref() == key).map(|a| a.unescape_value().map(|v| v.into_owned()).unwrap_or_default())
+}
+
+fn name_val(e: &quick_xml::events::BytesStart) -> Option<(String, String)> {
+    Some((attr(e, b"w:name")?, attr(e, b"w:val").unwrap_or_default()))
+}
+
+const SPAN_ATTRS: [&str; 4] = ["startOffsetLine", "startColumn", "endOffsetLine", "endColumn"];
+
+/// Canonical `context.type` for a type name as found in files (case-insensitive).
+fn canonical_type(ty: &str) -> Option<&'static str> {
+    Some(match ty.to_ascii_lowercase().as_str() {
+        "slider" => "slider",
+        "combobox" | "dropdown" => "comboBox",
+        "checkbox" => "checkBox",
+        "editfield" => "editField",
+        "button" => "button",
+        _ => return None,
+    })
+}
+
+fn kind_type(kind: &ControlKind) -> &'static str {
+    match kind {
+        ControlKind::Slider { .. } => "slider",
+        ControlKind::DropDown { .. } => "comboBox",
+        ControlKind::CheckBox => "checkBox",
+        ControlKind::EditField => "editField",
+        ControlKind::Button { .. } => "button",
+    }
+}
+
+fn json_text(v: &Json) -> Option<String> {
+    match v {
+        Json::Str(s) => Some(s.clone()),
+        Json::Num(_) | Json::Bool(_) => Some(v.to_string()),
+        _ => None,
+    }
+}
+
+/// Code literals (and labels) of drop-down items given as strings, numbers or `{value, label}` objects.
+fn items(v: Option<&Json>) -> Vec<(String, Option<String>)> {
+    let Some(Json::Arr(a)) = v else { return Vec::new() };
+    a.iter()
+        .filter_map(|it| match it {
+            Json::Obj(_) => {
+                let val = it.get("value").or_else(|| it.get("item")).and_then(json_text)?;
+                Some((val, it.get("label").or_else(|| it.get("text")).and_then(json_text)))
+            }
+            _ => json_text(it).map(|t| (t, None)),
+        })
+        .collect()
+}
+
+/// A live control from its customXml attributes, if its type is known and its span matches `code`.
+fn decode_control(attrs: Vec<(String, String)>, code: &str) -> Option<LiveControl> {
+    let get = |n: &str| attrs.iter().find(|(k, _)| k == n).map(|(_, v)| v.as_str());
+    let ctx = Json::parse(get("context")?)?;
+    let data = ctx.get("data");
+    let field = |k: &str| data.and_then(|d| d.get(k)).or_else(|| ctx.get(k));
+    let num = |k: &str, d: f64| field(k).and_then(Json::as_f64).filter(|v| v.is_finite()).unwrap_or(d);
+    let kind = match canonical_type(ctx.get("type")?.as_str()?)? {
+        "slider" => {
+            let (min, max, step) = (num("min", 0.0), num("max", 100.0), num("step", 1.0));
+            ControlKind::Slider { min: min.min(max), max: max.max(min), step: if step > 0.0 { step } else { 1.0 } }
+        }
+        "comboBox" => {
+            let mut it = items(field("items"));
+            let labels = field("itemLabels").or_else(|| field("labels")).map(|l| items(Some(l)));
+            if let Some(labels) = labels.filter(|l| l.len() == it.len()) {
+                for (i, l) in it.iter_mut().zip(labels) {
+                    i.1 = Some(l.0);
+                }
+            }
+            let labels = it.iter().map(|(v, l)| l.clone().unwrap_or_else(|| v.clone())).collect();
+            ControlKind::DropDown { items: it.into_iter().map(|(v, _)| v).collect(), labels }
+        }
+        "checkBox" => ControlKind::CheckBox,
+        "editField" => ControlKind::EditField,
+        _ => ControlKind::Button { label: field("label").or_else(|| field("text")).and_then(json_text).unwrap_or_else(|| "Run".into()) },
+    };
+    let int = |n: &str| get(n).and_then(|v| v.trim().parse::<f64>().ok()).filter(|v| v.fract() == 0.0 && *v >= 0.0).map(|v| v as usize);
+    let (sl, sc) = (int("startOffsetLine")?, int("startColumn")?);
+    if int("endOffsetLine").is_some_and(|el| el != sl) {
+        return None;
+    }
+    let start = sc.checked_sub(1)?;
+    let lit = get("text");
+    let button = matches!(kind, ControlKind::Button { .. });
+    // A 1-based line and an exclusive end column first; when there is a `text` to check the
+    // span against, also an inclusive end column, the literal's length and a 0-based line.
+    let ec = int("endColumn");
+    let mut lines: Vec<usize> = sl.checked_sub(1).into_iter().collect();
+    let mut ends: Vec<usize> = if button { vec![start] } else { ec.and_then(|e| e.checked_sub(1)).into_iter().collect() };
+    if let (Some(lit), false) = (lit, button) {
+        ends.extend(ec);
+        ends.push(start + lit.chars().count());
+        lines.push(sl);
+    }
+    let (line, end) = lines.iter().flat_map(|&l| ends.iter().map(move |&e| (l, e))).find(|&(l, e)| {
+        (button || e > start) && span_bytes(code, l, start, e).is_some_and(|r| button || lit.is_none_or(|t| code[r] == *t))
+    })?;
+    let extra = attrs.iter().filter(|(k, _)| k != "text" && !SPAN_ATTRS.contains(&k.as_str())).cloned().collect();
+    Some(LiveControl { kind, line, start, end, extra })
+}
+
+/// The `context` JSON of control `i`, updating its original JSON when that is of the same type.
+fn context_json(b: &Block, i: usize) -> String {
+    let c = &b.controls[i];
+    let ty = kind_type(&c.kind);
+    let base = c.extra.iter().find(|(k, _)| k == "context").and_then(|(_, v)| Json::parse(v));
+    let mut ctx = base
+        .filter(|j| matches!(j, Json::Obj(_)) && j.get("type").and_then(Json::as_str).and_then(canonical_type) == Some(ty))
+        .unwrap_or_else(|| Json::Obj(vec![("type".into(), Json::Str(ty.into()))]));
+    let mut data = ctx.get("data").filter(|d| matches!(d, Json::Obj(_))).cloned().unwrap_or(Json::Obj(Vec::new()));
+    let lit = b.control_text(i);
+    let strs = |v: &[String]| Json::Arr(v.iter().map(|s| Json::Str(s.clone())).collect());
+    match &c.kind {
+        ControlKind::Slider { min, max, step } => {
+            data.set("min", Json::Num(*min));
+            data.set("max", Json::Num(*max));
+            data.set("step", Json::Num(*step));
+            data.set("value", lit.trim().parse().map_or_else(|_| Json::Str(lit.into()), Json::Num));
+        }
+        ControlKind::DropDown { items, labels } => {
+            data.set("items", strs(items));
+            let key = if data.get("labels").is_some() { "labels" } else { "itemLabels" };
+            if labels != items || data.get(key).is_some() {
+                data.set(key, strs(labels));
+            }
+            data.set("value", Json::Str(lit.into()));
+        }
+        ControlKind::CheckBox => data.set("value", Json::Bool(lit.trim() == "true")),
+        ControlKind::EditField => data.set("value", Json::Str(lit.into())),
+        ControlKind::Button { label } => data.set("label", Json::Str(label.clone())),
+    }
+    ctx.set("data", data);
+    ctx.to_string()
+}
+
+fn control_xml(b: &Block, i: usize) -> String {
+    let c = &b.controls[i];
+    let mut x = String::from(r#"<mc:AlternateContent><mc:Choice Requires="R2018a"><w:customXml w:element="livecontrol"><w:customXmlPr>"#);
+    let mut push = |k: &str, v: &str| x.push_str(&format!(r#"<w:attr w:name="{}" w:val="{}"/>"#, attr_esc(k), attr_esc(v)));
+    push("context", &context_json(b, i));
+    push("text", b.control_text(i));
+    for (k, v) in SPAN_ATTRS.iter().zip([c.line + 1, c.start + 1, c.line + 1, c.end + 1]) {
+        push(k, &v.to_string());
+    }
+    for (k, v) in c.extra.iter().filter(|(k, _)| k != "context") {
+        push(k, v);
+    }
+    x.push_str("</w:customXmlPr></w:customXml></mc:Choice><mc:Fallback/></mc:AlternateContent>");
+    x
+}
+
+fn attr_esc(s: &str) -> String {
+    esc(s).replace('\n', "&#10;").replace('\r', "&#13;").replace('\t', "&#9;")
+}
+
 fn esc(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
 }
@@ -116,14 +300,18 @@ fn cdata(s: &str) -> String {
 }
 
 pub(crate) fn document_xml(doc: &Document) -> String {
-    let mut x = String::from(r#"<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>"#);
+    let mut x = String::from(r#"<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><w:body>"#);
     for b in &doc.blocks {
         match b.kind {
             BlockKind::SectionBreak => x.push_str("<w:p><w:pPr><w:sectPr/></w:pPr></w:p>"),
             BlockKind::Code => {
                 x.push_str(r#"<w:p><w:pPr><w:pStyle w:val="code"/></w:pPr><w:r><w:t>"#);
                 x.push_str(&cdata(&b.text));
-                x.push_str("</w:t></w:r></w:p>");
+                x.push_str("</w:t></w:r>");
+                for i in 0..b.controls.len() {
+                    x.push_str(&control_xml(b, i));
+                }
+                x.push_str("</w:p>");
             }
             kind => {
                 let style = match kind {
@@ -236,5 +424,90 @@ y = 2;]]></w:t></w:r><mc:AlternateContent xmlns:mc="http://schemas.openxmlformat
         let a: Vec<(BlockKind, &str)> = d.blocks.iter().map(|b| (b.kind, b.text.as_str())).collect();
         let b: Vec<(BlockKind, &str)> = back.blocks.iter().map(|b| (b.kind, b.text.as_str())).collect();
         assert_eq!(a, b);
+    }
+
+    fn spans(b: &Block) -> Vec<(ControlKind, usize, usize, usize, &str)> {
+        (0..b.controls.len()).map(|i| (b.controls[i].kind.clone(), b.controls[i].line, b.controls[i].start, b.controls[i].end, b.control_text(i))).collect()
+    }
+
+    #[test]
+    fn minimal_control_without_context_keeps_code_only() {
+        let xml = r#"<w:document xmlns:w="w"><w:body><w:p><w:pPr><w:pStyle w:val="code"/></w:pPr><w:r><w:t><![CDATA[x = 1;]]></w:t></w:r><mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><mc:Choice Requires="R2018a"><w:customXml w:element="livecontrol"><w:customXmlPr><w:attr w:name="text" w:val="1"/></w:customXmlPr></w:customXml></mc:Choice><mc:Fallback/></mc:AlternateContent></w:p></w:body></w:document>"#;
+        let d = parse_document_xml(xml).unwrap();
+        assert_eq!(d.blocks.len(), 1);
+        assert_eq!(d.blocks[0].text, "x = 1;");
+        assert!(d.blocks[0].controls.is_empty());
+    }
+
+    #[test]
+    fn reads_controls_leniently() {
+        let ctl = |attrs: &[(&str, &str)]| {
+            let a: String = attrs.iter().map(|(k, v)| format!(r#"<w:attr w:name="{k}" w:val="{}"/>"#, attr_esc(v))).collect();
+            format!(r#"<mc:AlternateContent xmlns:mc="m"><mc:Choice Requires="R2018a"><w:customXml w:element="livecontrol"><w:customXmlPr>{a}</w:customXmlPr></w:customXml></mc:Choice><mc:Fallback><w:r><w:t>junk</w:t></w:r></mc:Fallback></mc:AlternateContent>"#)
+        };
+        let span = |l: &'static str, s: &'static str, e: &'static str| [("startOffsetLine", l), ("startColumn", s), ("endOffsetLine", l), ("endColumn", e)];
+        let slider_ctx = r#"{"type":"slider","data":{"min":1,"max":10,"value":3,"runOn":"change"}}"#;
+        let controls = [
+            // Inclusive end column, no step.
+            ctl(&[&[("context", slider_ctx), ("text", "3"), ("id", "abc")][..], &span("1", "8", "8")].concat()),
+            ctl(&[&[("context", r#"{"type":"dropdown","data":{"items":[{"value":"'sin'","label":"Sine"},{"value":"'cos'","label":"Cosine"}]}}"#), ("text", "'sin'")][..], &span("2", "6", "11")].concat()),
+            ctl(&[&[("context", r#"{"type":"checkbox","data":{"value":true}}"#), ("text", "true")][..], &span("2", "18", "22")].concat()),
+            // Unknown type, a span that does not match its text, and no text at all.
+            ctl(&[&[("context", r#"{"type":"colorPicker"}"#), ("text", "plot")][..], &span("3", "1", "5")].concat()),
+            ctl(&[&[("context", r#"{"type":"editField"}"#), ("text", "freq2")][..], &span("3", "6", "10")].concat()),
+            ctl(&[&[("context", r#"{"type":"editField"}"#)][..], &span("3", "6", "10")].concat()),
+        ]
+        .concat();
+        let xml = format!(
+            r#"<w:document xmlns:w="w"><w:body><w:p><w:pPr><w:pStyle w:val="code"/></w:pPr><w:r><w:t><![CDATA[freq = 3;
+fn = 'sin'; on = true;
+plot(freq)]]></w:t></w:r>{controls}</w:p></w:body></w:document>"#
+        );
+        let d = parse_document_xml(&xml).unwrap();
+        let b = &d.blocks[0];
+        assert_eq!(b.text, "freq = 3;\nfn = 'sin'; on = true;\nplot(freq)");
+        let dd = ControlKind::DropDown { items: vec!["'sin'".into(), "'cos'".into()], labels: vec!["Sine".into(), "Cosine".into()] };
+        assert_eq!(
+            spans(b),
+            vec![
+                (ControlKind::Slider { min: 1.0, max: 10.0, step: 1.0 }, 0, 7, 8, "3"),
+                (dd, 1, 5, 10, "'sin'"),
+                (ControlKind::CheckBox, 1, 17, 21, "true"),
+                (ControlKind::EditField, 2, 5, 9, "freq"),
+            ]
+        );
+        assert_eq!(b.controls[0].extra, vec![("context".to_string(), slider_ctx.to_string()), ("id".to_string(), "abc".to_string())]);
+        // Unknown context fields survive a write.
+        let out = document_xml(&d);
+        assert!(out.contains(&attr_esc(r#"{"type":"slider","data":{"min":1,"max":10,"value":3,"runOn":"change","step":1}}"#)), "{out}");
+    }
+
+    #[test]
+    fn controls_round_trip() {
+        let mut d = Document::new();
+        d.push(BlockKind::Title, "Controls");
+        let code = "freq = 2.5; fn = 'sin';\nshow = true; name = \"a<b&\"\"c\";\nplot(freq)";
+        d.push(BlockKind::Code, code);
+        assert!(d.add_control(1, 0, 7, 10, ControlKind::Slider { min: -1.0, max: 10.0, step: 0.5 }));
+        assert!(d.add_control(1, 0, 17, 22, ControlKind::DropDown { items: vec!["'sin'".into(), "'cos'".into()], labels: vec!["Sine".into(), "Cosine".into()] }));
+        assert!(d.add_control(1, 1, 7, 11, ControlKind::CheckBox));
+        assert!(d.add_control(1, 1, 20, 29, ControlKind::EditField));
+        assert!(d.add_control(1, 2, 10, 10, ControlKind::Button { label: "Run \"it\"\n<now>".into() }));
+        d.blocks[1].controls[3].extra.push(("note".into(), "a\tb\n\"c\" & <d>".into()));
+        let back = read_mlx_bytes(&write_mlx_bytes(&d).unwrap()).unwrap();
+        assert_eq!(back.blocks[1].text, code);
+        assert_eq!(spans(&back.blocks[1]), spans(&d.blocks[1]));
+        assert_eq!(back.blocks[1].control_text(3), "\"a<b&\"\"c\"");
+        for (a, b) in d.blocks[1].controls.iter().zip(&back.blocks[1].controls) {
+            assert_eq!(a.extra[..], b.extra[1..]);
+            assert_eq!(b.extra[0].0, "context");
+        }
+        // Writing what was read reproduces the same document.
+        assert_eq!(document_xml(&back), document_xml(&d));
+        let mut changed = back.clone();
+        changed.blocks[1].set_control_value(0, "7");
+        let again = read_mlx_bytes(&write_mlx_bytes(&changed).unwrap()).unwrap();
+        assert_eq!(again.blocks[1].text, "freq = 7; fn = 'sin';\nshow = true; name = \"a<b&\"\"c\";\nplot(freq)");
+        assert_eq!(again.blocks[1].control_text(1), "'sin'");
     }
 }

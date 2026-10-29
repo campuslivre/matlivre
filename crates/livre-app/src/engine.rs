@@ -15,8 +15,14 @@ pub enum Command {
     /// Run `blocks` in order. `all_code` holds every code block of the document so local
     /// functions defined anywhere are callable.
     Run { blocks: Vec<(u64, String)>, all_code: Vec<String>, folder: Option<std::path::PathBuf> },
+    /// A command-window line, run in the base workspace without resetting figures or
+    /// functions. Its outputs come back under [`COMMAND_ID`].
+    Eval(String),
     ClearWorkspace,
 }
+
+/// The block id the command window's outputs are reported under.
+pub const COMMAND_ID: u64 = u64::MAX;
 
 pub enum Event {
     BlockStarted(u64),
@@ -77,6 +83,22 @@ fn engine_main(rx: Receiver<Command>, tx: Sender<Event>, cancel: Arc<AtomicBool>
                 it.clear_workspace();
                 it.close_all_figures();
                 let _ = tx.send(Event::Finished { workspace: it.workspace(), ok: true, elapsed: Duration::ZERO });
+                ctx.request_repaint();
+            }
+            Command::Eval(src) => {
+                current.set(COMMAND_ID);
+                let started = Instant::now();
+                let ok = match livre_lang::parser::parse(&src) {
+                    Ok(prog) => {
+                        it.define_functions(&prog);
+                        it.run(&prog.body).is_ok()
+                    }
+                    Err(e) => {
+                        let _ = tx.send(Event::Output(COMMAND_ID, Output { line: 1, kind: OutputKind::Error(e.message) }));
+                        false
+                    }
+                };
+                let _ = tx.send(Event::Finished { workspace: it.workspace(), ok, elapsed: started.elapsed() });
                 ctx.request_repaint();
             }
             Command::Run { blocks, all_code, folder } => {

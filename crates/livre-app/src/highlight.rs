@@ -1,21 +1,33 @@
 //! Error-tolerant syntax highlighting for code blocks being edited.
 
 use eframe::egui::text::{LayoutJob, TextFormat};
-use eframe::egui::{Color32, FontId};
+use eframe::egui::{Color32, FontFamily, FontId};
 
 use crate::theme::Skin;
 
-pub fn highlight(src: &str, skin: &Skin, font: FontId) -> LayoutJob {
+/// `line_height` sets the row pitch (20 px in the editors); with `bold_sections`, `%%` lines
+/// are drawn semibold as section headers (the plain-script view).
+pub fn highlight(src: &str, skin: &Skin, font: FontId, line_height: Option<f32>, bold_sections: bool) -> LayoutJob {
     let mut job = LayoutJob::default();
-    let fmt = |c: Color32| TextFormat { font_id: font.clone(), color: c, ..Default::default() };
+    let bold = FontId::new(font.size, FontFamily::Name("mono-bold".into()));
+    let fmt = |c: Color32, section: bool| TextFormat {
+        font_id: if section && bold_sections { bold.clone() } else { font.clone() },
+        color: c,
+        line_height,
+        ..Default::default()
+    };
     let b = src.as_bytes();
     let mut i = 0;
     let mut prev_value = false;
     let mut line_start = true;
+    let mut section_line = false;
     while i < b.len() {
         let c = b[i];
         let start = i;
         let color;
+        if line_start && src[start..].starts_with("%%") {
+            section_line = true;
+        }
         if c == b'%' {
             // Comment to end of line; `%%` at line start is a section title.
             while i < b.len() && b[i] != b'\n' {
@@ -47,7 +59,7 @@ pub fn highlight(src: &str, skin: &Skin, font: FontId) -> LayoutJob {
                 color = skin.syn_keyword;
                 prev_value = word == "end";
             } else {
-                color = skin.text;
+                color = skin.syn_text;
                 prev_value = true;
             }
         } else if c.is_ascii_digit() || (c == b'.' && i + 1 < b.len() && b[i + 1].is_ascii_digit()) {
@@ -60,17 +72,18 @@ pub fn highlight(src: &str, skin: &Skin, font: FontId) -> LayoutJob {
             // Run of other characters; UTF-8 safe advance.
             let ch = src[i..].chars().next().unwrap();
             i += ch.len_utf8();
-            color = skin.text;
+            color = skin.syn_text;
             prev_value = matches!(c, b')' | b']' | b'}' | b'\'');
         }
         line_start = c == b'\n' || (line_start && (c == b' ' || c == b'\t'));
+        job.append(&src[start..i], 0.0, fmt(color, section_line));
         if c == b'\n' {
             prev_value = false;
+            section_line = false;
         }
-        job.append(&src[start..i], 0.0, fmt(color));
     }
     if src.is_empty() {
-        job.append("", 0.0, fmt(skin.text));
+        job.append("", 0.0, fmt(skin.syn_text, false));
     }
     job
 }
