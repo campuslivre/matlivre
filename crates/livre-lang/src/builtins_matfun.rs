@@ -1041,13 +1041,12 @@ fn ldl_rook(a0: &M, from_upper: bool) -> (M, M, Vec<usize>) {
                     let temp = if real { re(-d11 * x[j].re) } else { x[j].conj() * -d11 };
                     let djj = a.at(j, j) + x[j] * temp;
                     a.set(j, j, if real { djj } else { re(djj.re) });
-                    for i in j + 1..n {
-                        let v = x[i] * temp;
-                        *a.rf(i, j) += v;
+                    for (i, xi) in x.iter().enumerate().skip(j + 1) {
+                        *a.rf(i, j) += xi * temp;
                     }
                 }
-                for i in k + 1..n {
-                    l.set(i, k, x[i] * d11);
+                for (i, xi) in x.iter().enumerate().skip(k + 1) {
+                    l.set(i, k, xi * d11);
                 }
                 mirror(&mut a, k + 1);
             }
@@ -1567,6 +1566,7 @@ fn q_full(a: &M) -> M {
 
 /// Swaps the adjacent diagonal blocks (k, n1) and (k+n1, n2) of the (quasi-)triangular
 /// matrix S (and of T for a pencil), updating the left and right transforms.
+#[allow(clippy::too_many_arguments)]
 fn swap_blocks(s: &mut M, mut t: Option<&mut M>, q: &mut M, z: &mut M, k: usize, n1: usize, n2: usize, real: bool) {
     let n = s.r;
     let m = n1 + n2;
@@ -1674,7 +1674,7 @@ fn swap_blocks(s: &mut M, mut t: Option<&mut M>, q: &mut M, z: &mut M, k: usize,
         }
     };
     clean(s, t.as_deref_mut(), q, z, k, n2);
-    clean(s, t.as_deref_mut(), q, z, k + n2, n1);
+    clean(s, t, q, z, k + n2, n1);
 }
 
 /// Stable reordering of the diagonal blocks so that higher cluster numbers come first.
@@ -1814,7 +1814,7 @@ fn ordeig_pencil(aa: &M, bb: &M) -> Vec<Z> {
 
 /// Scaling and squaring with Padé approximants (Higham 2005).
 fn expm_of(a: &M) -> M {
-    const THETA: [(usize, f64); 4] = [(3, 1.495585217958292e-2), (5, 2.539398330063230e-1), (7, 9.504178996162932e-1), (9, 2.097847961257068)];
+    const THETA: [(usize, f64); 4] = [(3, 1.495585217958292e-2), (5, 2.53939833006323e-1), (7, 9.504178996162932e-1), (9, 2.097847961257068)];
     let nrm = a.norm1();
     for (m, th) in THETA {
         if nrm <= th {
@@ -1913,8 +1913,8 @@ fn sqrtm_tri(t: &M) -> M {
 
 /// Gauss-Legendre nodes and weights on [0, 1] (8 points).
 fn gauss_legendre8() -> [(f64, f64); 8] {
-    let x = [0.1834346424956498, 0.5255324099163290, 0.7966664774136267, 0.9602898564975363];
-    let w = [0.3626837833783620, 0.3137066458778873, 0.2223810344533745, 0.1012285362903763];
+    let x = [0.1834346424956498, 0.525532409916329, 0.7966664774136267, 0.9602898564975363];
+    let w = [0.362683783378362, 0.3137066458778873, 0.2223810344533745, 0.1012285362903763];
     let mut out = [(0.0, 0.0); 8];
     for k in 0..4 {
         out[2 * k] = ((1.0 - x[k]) / 2.0, w[k] / 2.0);
@@ -1984,7 +1984,7 @@ fn named_deriv(name: &str, x: Z, k: usize) -> Option<Z> {
         }
         "sinh" | "cosh" => {
             let (s, c) = (z(cx.sinh()), z(cx.cosh()));
-            if (k + usize::from(name == "cosh")) % 2 == 0 { s } else { c }
+            if (k + usize::from(name == "cosh")).is_multiple_of(2) { s } else { c }
         }
         _ => return None,
     })
@@ -2267,7 +2267,7 @@ fn selection(v: &Value, eigs: &[Z], name: &str) -> R<Vec<f64>> {
     }
     let m = v.to_matrix()?;
     if m.numel() != eigs.len() {
-        return rt(format!("Cluster or selection vector must have length equal to the number of eigenvalues."));
+        return rt("Cluster or selection vector must have length equal to the number of eigenvalues.");
     }
     Ok(m.data.clone())
 }
@@ -2438,6 +2438,7 @@ fn pick(vals: &[Z], k: usize, sigma: Option<Z>, key: &str) -> Vec<usize> {
 
 /// LAPACK `gebal`: permutation to isolate eigenvalues, then power-of-2 scaling. Returns
 /// (T, B) with B = T\A*T.
+#[allow(clippy::needless_range_loop)]
 fn balance_of(a: &M, permute: bool) -> (M, M) {
     let n = a.r;
     let mut b = a.clone();
@@ -2469,29 +2470,17 @@ fn balance_of(a: &M, permute: bool) -> (M, M) {
     let (mut k, mut l) = (0usize, n - 1);
     if permute {
         // Rows isolating an eigenvalue go to the bottom.
-        'rows: loop {
-            for j in (0..=l).rev() {
-                if (0..=l).all(|i| i == j || !nz(b.at(j, i))) {
-                    exchange(&mut b, &mut t, j, l, k, l);
-                    if l == 0 {
-                        return (t, b);
-                    }
-                    l -= 1;
-                    continue 'rows;
-                }
+        while let Some(j) = (0..=l).rev().find(|&j| (0..=l).all(|i| i == j || !nz(b.at(j, i)))) {
+            exchange(&mut b, &mut t, j, l, k, l);
+            if l == 0 {
+                return (t, b);
             }
-            break;
+            l -= 1;
         }
         // Columns isolating an eigenvalue go to the left.
-        'cols: loop {
-            for j in k..=l {
-                if (k..=l).all(|i| i == j || !nz(b.at(i, j))) {
-                    exchange(&mut b, &mut t, j, k, k, l);
-                    k += 1;
-                    continue 'cols;
-                }
-            }
-            break;
+        while let Some(j) = (k..=l).find(|&j| (k..=l).all(|i| i == j || !nz(b.at(i, j)))) {
+            exchange(&mut b, &mut t, j, k, k, l);
+            k += 1;
         }
     }
     let sfmin1 = f64::MIN_POSITIVE / (EPS * 0.5);
@@ -2572,8 +2561,8 @@ fn qr_update(q: &M, r: &M, u: &[Z], v: &[Z]) -> (M, M) {
         rot_cols(&mut q, k, k + 1, c, s, 0, m);
     }
     if m > 0 {
-        for j in 0..n {
-            *r.rf(0, j) += w[0] * v[j].conj();
+        for (j, vj) in v.iter().enumerate().take(n) {
+            *r.rf(0, j) += w[0] * vj.conj();
         }
     }
     for k in 0..n.min(m.saturating_sub(1)) {
@@ -3547,6 +3536,7 @@ fn eigs(it: &mut Interpreter, a: &[Value], nargout: usize) -> Ret {
     vals(vec![v.val(cv), M::diag(&d).val(cplx), Value::num(0.0)])
 }
 
+#[allow(clippy::needless_range_loop)]
 fn polyeig(a: &[Value], nargout: usize) -> Ret {
     if a.is_empty() {
         return rt("Not enough input arguments.");
@@ -3812,6 +3802,7 @@ fn qr_modify(name: &str, a: &[Value]) -> Ret {
     vals(vec![q.val(c), r.val(c)])
 }
 
+#[allow(clippy::needless_range_loop)]
 fn cholupdate(a: &[Value], nargout: usize) -> Ret {
     let (r0, c1) = square(a, 0, "cholupdate", "R must be square.")?;
     let (x0, c2) = arg2d(a, 1, "cholupdate", "X must be 2-D.")?;

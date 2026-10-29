@@ -1,6 +1,8 @@
 //! Linear algebra (matfun) against values recorded from MATLAB R2023b (printed with %.17g).
 //! Factorizations that are not unique (SVD vectors, Schur and QZ bases) are pinned through
 //! properties MATLAB also satisfies; the `t*` flags were all true in MATLAB.
+// Recorded values such as 1.4142135623730951 are MATLAB's output, not stand-ins for constants.
+#![allow(clippy::approx_constant)]
 
 use livre_lang::{Interpreter, OutputKind, Value};
 
