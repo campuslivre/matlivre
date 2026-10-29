@@ -4,6 +4,7 @@
 pub mod ast;
 pub mod builtins;
 pub mod builtins_datafun;
+pub mod builtins_dates;
 pub mod builtins_elfun;
 pub mod builtins_elmat;
 pub mod builtins_matfun;
@@ -16,6 +17,7 @@ pub mod builtins_polyfun;
 pub mod builtins_specfun;
 pub mod builtins_strings;
 pub mod builtins_text;
+pub mod builtins_types;
 pub mod class;
 pub mod cplx;
 pub mod display;
