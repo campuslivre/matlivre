@@ -9,8 +9,8 @@ Regenerate with `tools/coverage/update.sh` after merging work (2026-10-29).
 
 | Status | Count |
 |---|---:|
-| Implemented | 523 |
-| In a branch not merged yet | 118 |
+| Implemented | 574 |
+| In a branch not merged yet | 67 |
 | Language keyword (check it works) | 31 |
 | **To implement** | **813** |
 | Out of scope | 417 |
@@ -35,16 +35,16 @@ Out of scope (audio/video devices or screen capture): `VideoReader`, `VideoWrite
 
 ## matlab/datafun
 
-Implemented: 25. To implement: 2. In a branch: 68. Out of scope: 0.
+Implemented: 26. To implement: 2. In a branch: 67. Out of scope: 0.
 
 To implement:
 
 - [ ] `kde`
 - [ ] `rms`
 
-In a branch: `bounds`, `conv2`, `convn`, `corrcoef`, `cov`, `del2`, `detrend`, `discretize`, `fft`, `fft2`, `fftn`, `fftshift`, `fftw`, `fillmissing`, `fillmissing2`, `filloutliers`, `filter`, `filter2`, `findgroups`, `gradient`, `groupcounts`, `groupfilter`, `groupsummary`, `grouptransform`, `histc`, `histcounts2`, `ifft`, `ifft2`, `ifftn`, `ifftshift`, `iqr`, `ischange`, `islocalmax`, `islocalmin`, `isoutlier`, `issortedrows`, `isuniform`, `mape`, `maxk`, `mink`, `movmad`, `movmax`, `movmean`, `movmedian`, `movmin`, `movprod`, `movstd`, `movsum`, `movvar`, `normalize`, `nufft`, `nufftn`, `pivot`, `prctile`, `quantile`, `rescale`, `rmmissing`, `rmoutliers`, `rmse`, `smoothdata`, `smoothdata2`, `splitapply`, `standardizeMissing`, `subspace`, `topkrows`, `trenddecomp`, `xcorr`, `xcov`
+In a branch: `bounds`, `conv2`, `convn`, `corrcoef`, `cov`, `del2`, `detrend`, `discretize`, `fft`, `fft2`, `fftn`, `fftshift`, `fftw`, `fillmissing`, `fillmissing2`, `filloutliers`, `filter`, `filter2`, `findgroups`, `gradient`, `groupcounts`, `groupfilter`, `groupsummary`, `grouptransform`, `histc`, `histcounts2`, `ifft`, `ifft2`, `ifftn`, `ifftshift`, `iqr`, `ischange`, `islocalmax`, `islocalmin`, `isoutlier`, `issortedrows`, `isuniform`, `mape`, `maxk`, `mink`, `movmad`, `movmax`, `movmean`, `movmedian`, `movmin`, `movprod`, `movstd`, `movsum`, `movvar`, `normalize`, `nufft`, `nufftn`, `pivot`, `prctile`, `quantile`, `rescale`, `rmmissing`, `rmoutliers`, `rmse`, `smoothdata`, `smoothdata2`, `splitapply`, `standardizeMissing`, `topkrows`, `trenddecomp`, `xcorr`, `xcov`
 
-Implemented: `conv`, `cummax`, `cummin`, `cumprod`, `cumsum`, `cumtrapz`, `deconv`, `diff`, `head`, `histcounts`, `ismissing`, `issorted`, `max`, `mean`, `median`, `min`, `mode`, `prod`, `sort`, `sortrows`, `std`, `sum`, `tail`, `trapz`, `var`
+Implemented: `conv`, `cummax`, `cummin`, `cumprod`, `cumsum`, `cumtrapz`, `deconv`, `diff`, `head`, `histcounts`, `ismissing`, `issorted`, `max`, `mean`, `median`, `min`, `mode`, `prod`, `sort`, `sortrows`, `std`, `subspace`, `sum`, `tail`, `trapz`, `var`
 
 ## matlab/datatypes
 
@@ -561,7 +561,7 @@ Out of scope (internal helper, not a user function): `ParallelException`, `check
 
 ## matlab/matfun
 
-Implemented: 9. To implement: 6. In a branch: 47. Out of scope: 0.
+Implemented: 56. To implement: 6. In a branch: 0. Out of scope: 0.
 
 To implement:
 
@@ -572,9 +572,7 @@ To implement:
 - [ ] `pagenorm`
 - [ ] `svdappend`
 
-In a branch: `balance`, `bandwidth`, `cdf2rdf`, `chol`, `cholupdate`, `cond`, `condeig`, `condest`, `expm`, `funm`, `gsvd`, `hess`, `isbanded`, `ishermitian`, `issymmetric`, `ldl`, `linsolve`, `logm`, `lscov`, `lsqminnorm`, `lu`, `normest`, `normest1`, `null`, `ordeig`, `ordqz`, `ordschur`, `orth`, `pageeig`, `pagesvd`, `pinv`, `planerot`, `polyeig`, `qr`, `qrdelete`, `qrinsert`, `qrupdate`, `qz`, `rank`, `rcond`, `rref`, `rsf2csf`, `schur`, `sqrtm`, `svd`, `sylvester`, `vecnorm`
-
-Implemented: `det`, `eig`, `inv`, `isdiag`, `istril`, `istriu`, `mpower`, `norm`, `trace`
+Implemented: `balance`, `bandwidth`, `cdf2rdf`, `chol`, `cholupdate`, `cond`, `condeig`, `condest`, `det`, `eig`, `expm`, `funm`, `gsvd`, `hess`, `inv`, `isbanded`, `isdiag`, `ishermitian`, `issymmetric`, `istril`, `istriu`, `ldl`, `linsolve`, `logm`, `lscov`, `lsqminnorm`, `lu`, `mpower`, `norm`, `normest`, `normest1`, `null`, `ordeig`, `ordqz`, `ordschur`, `orth`, `pageeig`, `pagesvd`, `pinv`, `planerot`, `polyeig`, `qr`, `qrdelete`, `qrinsert`, `qrupdate`, `qz`, `rank`, `rcond`, `rref`, `rsf2csf`, `schur`, `sqrtm`, `svd`, `sylvester`, `trace`, `vecnorm`
 
 ## matlab/ops
 
@@ -609,7 +607,7 @@ Out of scope (internal helper, not a user function): `addLink`, `callAllOptimOut
 
 ## matlab/polyfun
 
-Implemented: 35. To implement: 8. In a branch: 1. Out of scope: 7.
+Implemented: 36. To implement: 8. In a branch: 0. Out of scope: 7.
 
 To implement:
 
@@ -622,9 +620,7 @@ To implement:
 - [ ] `stlread`
 - [ ] `stlwrite`
 
-In a branch: `poly`
-
-Implemented: `boundary`, `convhull`, `convhulln`, `delaunay`, `delaunayTriangulation`, `delaunayn`, `dsearchn`, `griddata`, `griddatan`, `griddedInterpolant`, `inpolygon`, `interp1`, `interp2`, `interp3`, `interpft`, `interpn`, `makima`, `mkpp`, `nsidedpoly`, `pchip`, `polyarea`, `polyder`, `polyfit`, `polyint`, `polyval`, `polyvalm`, `ppval`, `rectint`, `roots`, `scatteredInterpolant`, `spline`, `triangulation`, `tsearchn`, `unmkpp`, `voronoin`
+Implemented: `boundary`, `convhull`, `convhulln`, `delaunay`, `delaunayTriangulation`, `delaunayn`, `dsearchn`, `griddata`, `griddatan`, `griddedInterpolant`, `inpolygon`, `interp1`, `interp2`, `interp3`, `interpft`, `interpn`, `makima`, `mkpp`, `nsidedpoly`, `pchip`, `poly`, `polyarea`, `polyder`, `polyfit`, `polyint`, `polyval`, `polyvalm`, `ppval`, `rectint`, `roots`, `scatteredInterpolant`, `spline`, `triangulation`, `tsearchn`, `unmkpp`, `voronoin`
 
 Out of scope (internal helper, not a user function): `automesh`, `pwch`, `qhull`, `splncore`, `xychk`, `xyzchk`, `xyzvchk`
 
@@ -654,7 +650,7 @@ Out of scope (internal helper, not a user function): `defaultItemHitCallback`, `
 
 ## matlab/sparfun
 
-Implemented: 1. To implement: 47. In a branch: 2. Out of scope: 0.
+Implemented: 3. To implement: 47. In a branch: 0. Out of scope: 0.
 
 To implement:
 
@@ -706,9 +702,7 @@ To implement:
 - [ ] `treelayout`
 - [ ] `unmesh`
 
-In a branch: `eigs`, `svds`
-
-Implemented: `nnz`
+Implemented: `eigs`, `nnz`, `svds`
 
 ## matlab/specfun
 
