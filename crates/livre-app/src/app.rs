@@ -255,6 +255,15 @@ pub struct App {
     control_edit: Option<ControlEdit>,
     /// Figures drawn by scripts and the command window, shown in floating windows.
     figures: Vec<(Figure, bool)>,
+    /// The save-changes dialog, while it is up.
+    confirm: Option<Confirm>,
+}
+
+/// A tab with unsaved changes the app asks about before closing it.
+struct Confirm {
+    tab: u64,
+    /// Closing the window: the tabs whose changes the user chose to drop so far.
+    window: Option<HashSet<u64>>,
 }
 
 impl App {
@@ -319,6 +328,7 @@ impl App {
             copied: None,
             control_edit: None,
             figures: Vec::new(),
+            confirm: None,
         };
         match launch {
             // Getting started opens once; later launches start with an empty live script (it
@@ -387,30 +397,71 @@ impl App {
         matches!(self.origin, Some(Origin::Tab { id: t, .. }) if t == id)
     }
 
-    /// Asks to save a tab with unsaved changes. False if the user cancelled.
-    fn confirm_discard(&mut self, i: usize) -> bool {
-        if !self.tabs[i].dirty {
-            return true;
-        }
-        let answer = rfd::MessageDialog::new()
-            .set_title("matlivre")
-            .set_level(rfd::MessageLevel::Warning)
-            .set_description(format!("Save changes to {}?", self.tabs[i].title()))
-            .set_buttons(rfd::MessageButtons::YesNoCancel)
-            .show();
-        match answer {
-            rfd::MessageDialogResult::Yes => {
-                self.active = i;
-                self.save(false)
-            }
-            rfd::MessageDialogResult::No => true,
-            _ => false,
+    /// Closes a tab, first asking to save unsaved changes.
+    fn close_tab(&mut self, ctx: &egui::Context, i: usize) {
+        if self.tabs[i].dirty {
+            self.active = i;
+            self.confirm = Some(Confirm { tab: self.tabs[i].id, window: None });
+            // egui lays a new area out unseen on its first frame; show it on the next.
+            ctx.request_repaint();
+        } else {
+            self.remove_tab(ctx, i);
         }
     }
 
-    fn close_tab(&mut self, ctx: &egui::Context, i: usize) {
-        if self.confirm_discard(i) {
-            self.remove_tab(ctx, i);
+    /// Closing the window: asks about the next tab with unsaved changes not yet settled, or
+    /// closes the window once there is none.
+    fn close_window(&mut self, ctx: &egui::Context, dropped: HashSet<u64>) {
+        match self.tabs.iter().position(|t| t.dirty && !dropped.contains(&t.id)) {
+            Some(i) => {
+                self.active = i;
+                self.confirm = Some(Confirm { tab: self.tabs[i].id, window: Some(dropped) });
+                ctx.request_repaint();
+            }
+            None => {
+                self.tabs.clear();
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            }
+        }
+    }
+
+    /// The save-changes dialog, while one is up: Save, Don't save, or Cancel.
+    fn confirm_dialog(&mut self, ctx: &egui::Context) {
+        let Some(c) = &self.confirm else { return };
+        let Some(i) = self.tabs.iter().position(|t| t.id == c.tab) else {
+            self.confirm = None;
+            return;
+        };
+        self.menu = None;
+        // Keep typing out of the document behind the dialog.
+        ctx.memory_mut(|m| {
+            if let Some(f) = m.focused() {
+                m.surrender_focus(f);
+            }
+        });
+        let title = format!("Save changes to {}?", self.tabs[i].title());
+        let buttons = ["Save", "Don't save", "Cancel"];
+        let Some(answer) = widgets::content_dialog(ctx, &self.skin, Id::new("confirm"), &title, "Your changes will be lost if you don't save them.", &buttons) else {
+            return;
+        };
+        let Some(c) = self.confirm.take() else { return };
+        let go = match answer {
+            0 => {
+                self.active = i;
+                self.save(false)
+            }
+            1 => true,
+            _ => false,
+        };
+        if !go {
+            return;
+        }
+        match c.window {
+            None => self.remove_tab(ctx, i),
+            Some(mut dropped) => {
+                dropped.insert(c.tab);
+                self.close_window(ctx, dropped);
+            }
         }
     }
 
@@ -635,6 +686,11 @@ impl App {
     }
 
     fn new_doc(&mut self, kind: Kind) {
+        // An untouched untitled tab gives way to the new one rather than piling up.
+        let i = self.active;
+        if self.tabs.get(i).is_some_and(|t| t.is_pristine() && !self.is_running_tab(t.id)) {
+            self.tabs.remove(i);
+        }
         let name = self.untitled_name(kind);
         match kind {
             Kind::Live => {
@@ -1058,6 +1114,10 @@ impl App {
     fn handle_shortcuts(&mut self, ctx: &egui::Context) {
         let sc = |m: Modifiers, k: Key| KeyboardShortcut::new(m, k);
         let pressed = |s: KeyboardShortcut| ctx.input_mut(|i| i.consume_shortcut(&s));
+        // The save-changes dialog takes the keyboard while it is up.
+        if self.confirm.is_some() {
+            return;
+        }
         if (self.menu.is_some() || self.control_edit.is_some()) && pressed(sc(Modifiers::NONE, Key::Escape)) {
             self.menu = None;
             self.control_edit = None;
@@ -1852,10 +1912,6 @@ impl App {
         self.figures.retain(|(_, open)| *open);
     }
 
-    fn confirm_close_all(&mut self) -> bool {
-        (0..self.tabs.len()).all(|i| self.confirm_discard(i))
-    }
-
     /// Resize handles for the borderless window.
     fn window_edges(&self, ctx: &egui::Context) {
         let maximized = ctx.input(|i| i.viewport().maximized.unwrap_or(false));
@@ -1899,8 +1955,11 @@ impl eframe::App for App {
         if self.tabs.is_empty() {
             return;
         }
-        if ctx.input(|i| i.viewport().close_requested()) && !self.confirm_close_all() {
+        if ctx.input(|i| i.viewport().close_requested()) && self.tabs.iter().any(|t| t.dirty) {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            if self.confirm.is_none() {
+                self.close_window(ctx, HashSet::new());
+            }
         }
         self.poll_engine();
         self.handle_shortcuts(ctx);
@@ -1918,6 +1977,7 @@ impl eframe::App for App {
         self.menus(ctx);
         self.figure_windows(ctx);
         self.window_edges(ctx);
+        self.confirm_dialog(ctx);
         // The window frame where DWM does not draw it (the window is borderless).
         if !self.rounded && !ctx.input(|i| i.viewport().maximized.unwrap_or(false)) {
             let r = ctx.screen_rect();

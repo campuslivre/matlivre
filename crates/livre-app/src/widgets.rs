@@ -1,6 +1,6 @@
 //! Custom-painted controls matching ModernWinForms: subtle command-bar buttons, menus, the
-//! title-bar TabStrip, caption buttons, splitters, tree rows, and the text box, track bar,
-//! combo box and check box the live controls use.
+//! title-bar TabStrip, caption buttons, splitters, tree rows, the content dialog, and the text
+//! box, track bar, combo box and check box the live controls use.
 
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Id, Pos2, Rect, Response, Rounding, Sense, Shape, Stroke, Ui};
 
@@ -567,6 +567,87 @@ pub fn standard_button(ui: &mut Ui, skin: &Skin, id: Id, text: &str) -> Response
     elevation_stroke(p, rect, skin.button_stroke, if pressed { skin.button_stroke } else { skin.button_stroke_bottom });
     p.galley(rect.center() - galley.size() / 2.0, galley, if pressed { skin.text_secondary } else { skin.text });
     resp
+}
+
+/// A 32 px ContentDialog footer button, `width` wide: an accent button or a standard one.
+fn dialog_button(ui: &mut Ui, skin: &Skin, id: Id, text: &str, width: f32, accent: bool) -> Response {
+    let (rect, _) = ui.allocate_exact_size(vec2(width, 32.0), Sense::hover());
+    let resp = ui.interact(rect, id, Sense::click());
+    let p = ui.painter();
+    let pressed = resp.is_pointer_button_down_on();
+    if accent {
+        let fill = if pressed { skin.accent.gamma_multiply(0.8) } else if resp.hovered() { skin.accent_hover } else { skin.accent };
+        p.rect_filled(rect, Rounding::same(RADIUS), fill);
+        // --accent-elevation: a faint light edge and a darker bottom.
+        elevation_stroke(p, rect, Color32::from_white_alpha(20), if pressed { Color32::TRANSPARENT } else { Color32::from_black_alpha(if skin.dark { 36 } else { 102 }) });
+        let fg = if pressed { skin.on_accent.gamma_multiply(0.8) } else { skin.on_accent };
+        p.text(rect.center(), Align2::CENTER_CENTER, text, FontId::proportional(14.0), fg);
+    } else {
+        let fill = if pressed { skin.button_pressed } else if resp.hovered() { skin.button_hover } else { skin.button_fill };
+        p.rect_filled(rect, Rounding::same(RADIUS), fill);
+        elevation_stroke(p, rect, skin.button_stroke, if pressed { skin.button_stroke } else { skin.button_stroke_bottom });
+        p.text(rect.center(), Align2::CENTER_CENTER, text, FontId::proportional(14.0), if pressed { skin.text_secondary } else { skin.text });
+    }
+    resp
+}
+
+/// ModernWinForms ContentDialog: a smoke layer over the whole window, which takes every click,
+/// and a centred card with a title, a message and a footer of equal-width buttons, the first
+/// an accent button. Returns the button picked; Enter picks the first, Escape the last.
+pub fn content_dialog(ctx: &egui::Context, skin: &Skin, id: Id, title: &str, message: &str, buttons: &[&str]) -> Option<usize> {
+    let screen = ctx.screen_rect();
+    let smoke = id.with("smoke");
+    egui::Area::new(smoke).order(egui::Order::Foreground).fixed_pos(screen.min).show(ctx, |ui| {
+        let (r, _) = ui.allocate_exact_size(screen.size(), Sense::click_and_drag());
+        ui.painter().rect_filled(r, Rounding::ZERO, Color32::from_black_alpha(77));
+    });
+    ctx.move_to_top(egui::LayerId::new(egui::Order::Foreground, smoke));
+
+    let mut picked = None;
+    let width = 448.0_f32.min(screen.width() - 32.0);
+    egui::Area::new(id).order(egui::Order::Tooltip).anchor(Align2::CENTER_CENTER, vec2(0.0, 0.0)).show(ctx, |ui| {
+        let card = egui::Frame::none()
+            .fill(skin.window)
+            .rounding(Rounding::same(RADIUS_LARGE))
+            // --shadow-dialog: 0 32px 64px rgba(0,0,0,.19), deeper than a flyout's.
+            .shadow(egui::epaint::Shadow { offset: vec2(0.0, 16.0), blur: 48.0, spread: 0.0, color: Color32::from_black_alpha(if skin.dark { 110 } else { 48 }) })
+            .show(ui, |ui| {
+                ui.set_width(width);
+                ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
+                egui::Frame::none()
+                    .fill(skin.surface)
+                    .rounding(Rounding { nw: RADIUS_LARGE, ne: RADIUS_LARGE, sw: 0.0, se: 0.0 })
+                    .inner_margin(egui::Margin::same(24.0))
+                    .show(ui, |ui| {
+                        ui.set_width(ui.available_width());
+                        ui.add(egui::Label::new(egui::RichText::new(title).font(semibold(20.0)).color(skin.text)).wrap());
+                        ui.add_space(12.0);
+                        ui.add(egui::Label::new(egui::RichText::new(message).font(FontId::proportional(14.0)).color(skin.text)).wrap());
+                    });
+                let (line, _) = ui.allocate_exact_size(vec2(width, 1.0), Sense::hover());
+                ui.painter().rect_filled(line, Rounding::ZERO, skin.separator);
+                egui::Frame::none().inner_margin(egui::Margin::same(24.0)).show(ui, |ui| {
+                    let n = buttons.len() as f32;
+                    let w = (ui.available_width() - 8.0 * (n - 1.0)) / n;
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = 8.0;
+                        for (i, label) in buttons.iter().enumerate() {
+                            if dialog_button(ui, skin, id.with(i), label, w, i == 0).clicked() {
+                                picked = Some(i);
+                            }
+                        }
+                    });
+                });
+            });
+        ui.painter().rect_stroke(card.response.rect.shrink(0.5), Rounding::same(RADIUS_LARGE), Stroke::new(1.0_f32, skin.menu_border));
+    });
+    if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter)) {
+        picked = Some(0);
+    }
+    if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
+        picked = buttons.len().checked_sub(1);
+    }
+    picked
 }
 
 /// ModernWinForms InfoBar with error severity: tinted card, error glyph, bold title, message.
