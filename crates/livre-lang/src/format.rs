@@ -211,10 +211,10 @@ fn atoms(args: &[Value]) -> Result<Vec<Atom>, LangError> {
         match a {
             Value::Num(m) if m.kind == Kind::Char => out.push(Atom::Str(m.to_string_lossy())),
             Value::Num(m) => out.extend(m.data.iter().map(|&x| Atom::Num(x))),
-            Value::Str(s) => out.push(Atom::Str(s.clone())),
-            Value::Cell(_) => return rt("Function is not defined for 'cell' inputs."),
-            Value::Struct(_) => return rt("Function is not defined for 'struct' inputs."),
-            Value::Func(_) => return rt("Function is not defined for 'function_handle' inputs."),
+            Value::Str(s) => out.extend(s.data.iter().map(|x| Atom::Str(x.clone().unwrap_or_else(|| "<missing>".into())))),
+            Value::Time(t) => out.extend((0..t.data.len()).map(|i| Atom::Str(t.format_elem(i)))),
+            Value::Sym(s) => out.extend(s.data.iter().map(|e| Atom::Str(e.to_string()))),
+            other => return rt(format!("Function is not defined for '{}' inputs.", other.class_name())),
         }
     }
     Ok(out)

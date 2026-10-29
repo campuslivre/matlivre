@@ -7,6 +7,8 @@ use crate::error::LangError;
 #[derive(Debug, Clone, PartialEq)]
 pub enum Tok {
     Num(f64),
+    /// Imaginary literal such as `3i`.
+    Imag(f64),
     /// Single-quoted char array.
     Chars(String),
     /// Double-quoted string scalar.
@@ -112,7 +114,7 @@ impl<'a> Lexer<'a> {
     /// value inside brackets separates elements.
     fn prev_is_value(&self) -> bool {
         match self.out.last().map(|t| &t.tok) {
-            Some(Tok::Num(_)) | Some(Tok::Chars(_)) | Some(Tok::Str(_)) | Some(Tok::Ident(_)) => true,
+            Some(Tok::Num(_)) | Some(Tok::Imag(_)) | Some(Tok::Chars(_)) | Some(Tok::Str(_)) | Some(Tok::Ident(_)) => true,
             Some(Tok::Kw(Kw::End)) => !self.brackets.is_empty(),
             Some(Tok::Op(op)) => matches!(*op, ")" | "]" | "}" | "'" | ".'"),
             _ => false,
@@ -187,7 +189,13 @@ impl<'a> Lexer<'a> {
 
             if c.is_ascii_digit() || (c == b'.' && self.peek(1).is_ascii_digit()) {
                 let n = self.number()?;
-                self.push(Tok::Num(n), space);
+                // `3i` / `2.5j` are imaginary literals.
+                if matches!(self.peek(0), b'i' | b'j') && !(self.peek(1).is_ascii_alphanumeric() || self.peek(1) == b'_') {
+                    self.i += 1;
+                    self.push(Tok::Imag(n), space);
+                } else {
+                    self.push(Tok::Num(n), space);
+                }
                 continue;
             }
             if c.is_ascii_alphabetic() || c == b'_' {

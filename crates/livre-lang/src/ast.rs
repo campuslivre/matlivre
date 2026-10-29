@@ -65,6 +65,10 @@ pub enum UnOp {
 #[derive(Debug, Clone)]
 pub enum Expr {
     Num(f64),
+    /// Imaginary literal `3i`.
+    Imag(f64),
+    /// `name@Super`: superclass constructor (`obj@Super(...)`) or superclass method call.
+    SuperRef { name: String, class: String },
     Chars(String),
     Str(String),
     Ident(String),

@@ -126,6 +126,61 @@ comparisons, `& | && || ~`, ranges `a:b:c`, `end` in indexing. Statements: assig
 plotting functions (`plot`, `figure`, `hold`, `title`, `xlabel`, `ylabel`, `legend`, `grid`,
 `scatter`, `bar`).
 
+### 5.1 Compatibility rule
+
+MATLAB compatibility is a requirement, not a goal: syntax, semantics, function names and
+signatures, error conditions, value display and file interchange follow MATLAB's public,
+documented behavior. Where matlivre does not match yet, the gap is listed in section 6 as a
+limitation — never redefined as a design choice.
+
+### 5.2 Extended language (public MATLAB behavior)
+
+- **N-D arrays.** Every array type has a shape of ≥ 2 dimensions with trailing singleton
+  dimensions dropped. Indexing with k subscripts collapses the trailing dimensions into the
+  k-th; linear indexing follows the source-vector orientation rule; `end` is the size of the
+  dimension it indexes (or of the collapsed tail). Implicit expansion applies to every
+  dimension. Pages display as `A(:,:,k) =`.
+- **Numeric classes.** `double`, `single`, `logical`, `char`, `int8…int64`, `uint8…uint64`.
+  Integer arithmetic is computed in double, rounded half away from zero and saturated to the
+  class range; an integer combines only with the same integer class or with double/
+  logical/char; `single` with `double` yields `single`; relational results are `logical`.
+  `intmax`, `intmin`, `realmax`, `class`, `cast`, `isinteger`, `isfloat`.
+- **Complex numbers.** Literals `3i`/`2j`, constants `i`, `j`, `1i`. Arithmetic, `'`
+  conjugate transpose vs `.'`, `abs`, `angle`, `real`, `imag`, `conj`, `isreal`,
+  `complex`, elementary functions on the complex plane (`sqrt(-1)`, `log(-1)`, `(-8)^(1/3)`
+  return complex). Results whose imaginary parts are all zero become real. `<`, `>` compare
+  real parts; `==` compares both. Display `3.0000 + 4.0000i`.
+- **String arrays.** `"…"` creates a string scalar; `[...]` of strings forms a string array;
+  `+` concatenates elementwise with implicit expansion and converts numbers; `==` compares
+  elementwise; `<missing>`; `strings`, `strlength`, `join`, `split`, `strip`, `replace`,
+  `append`, `extractBefore`, `extractAfter`, and the text functions accept string arrays.
+- **Struct arrays.** `s(2).f = v` grows the array; `s.f` on an array is a comma-separated
+  list (`[s.f]`, `{s.f}`); `struct('a', {1, 2})` builds a 1×2 array; `numel`, `isfield`,
+  `fieldnames`, `rmfield`, `arrayfun` over elements; display `1×2 struct array with fields:`.
+- **Classes.** `classdef` files on the search path (the script's folder): `properties` with
+  defaults and attributes, `methods` (ordinary, `Static`, constructor), single and multiple
+  inheritance with `obj@Super(...)`, `< handle` reference semantics vs value semantics,
+  `obj.method(...)` and `method(obj, ...)` dispatch, operator overloading through the
+  documented method names (`plus`, `minus`, `times`, `mtimes`, `eq`, `lt`, `uminus`, …),
+  `disp` overloading, `isa`, `class`, `properties`, `methods`, `isprop`, `ismethod`,
+  `isobject`. Function files (`name.m`) on the path are callable too.
+- **Date and time.** `datetime` (components, `'now'`, text, `'TimeZone'` UTC offsets,
+  `'Format'`), `duration` (`years`, `days`, `hours`, `minutes`, `seconds`, `milliseconds`,
+  `duration(h,m,s)`), `calendarDuration` (`calyears`, `calmonths`, `calweeks`, `caldays`,
+  `between`), arithmetic and comparisons, component functions and properties (`Year`,
+  `Month`, `Day`, `Hour`, `Minute`, `Second`), `NaT`, colon ranges with a duration step,
+  default display formats `dd-MMM-yyyy HH:mm:ss`, `hh:mm:ss`, `1.5 hr`, `5d`.
+- **Tables.** `table` (variable names from argument names or `'VariableNames'`),
+  `T.Var`, `T(rows, vars)`, `T{rows, vars}`, `T.Properties.VariableNames`, adding variables,
+  `height`, `width`, `size`, `head`, `tail`, `sortrows`, `table2array`, `array2table`,
+  `cell2table`, `readtable`/`writetable` (CSV), vertical/horizontal concatenation, display
+  with the variable-name header and underline.
+- **Symbolic Math.** `syms`, `sym`, exact rational arithmetic, `subs`, `diff`, `int`
+  (indefinite and definite), `simplify`, `expand`, `factor`, `collect`, `solve` (polynomial
+  and linear systems), `limit`, `taylor`, `symvar`, `coeffs`, `sym2poly`, `poly2sym`, `numden`,
+  `double`, `vpa`, `char`, `latex`, `pretty`, `matlabFunction`, `fplot`, symbolic matrices
+  (`det`, `inv`, `*`). Output uses MATLAB's term ordering (descending degree).
+
 ## 6. Open questions / unknowns
 
 - Exact numeric display rules for every `format` mode and for mixed-magnitude matrices
@@ -134,3 +189,12 @@ plotting functions (`plot`, `figure`, `hold`, `title`, `xlabel`, `ylabel`, `lege
   for loading; we write a minimal `output.xml`.
 - Live control execution models (`executionModel`, `executionOn`) — controls are not
   interactive in the PoC.
+
+### Known compatibility gaps
+
+- `int64`/`uint64` values beyond 2^53 lose precision (computed in double).
+- Named IANA time zones other than `UTC`/fixed offsets, and daylight-saving rules.
+- Object arrays, `set.`/`get.` property methods beyond `get.` for `Dependent` properties,
+  property validation, events, enumerations, packages.
+- Symbolic: integration beyond table rules, linearity, linear substitution and parts;
+  `solve` beyond polynomials and linear systems; assumptions are accepted but ignored.

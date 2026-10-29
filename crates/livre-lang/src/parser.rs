@@ -12,6 +12,18 @@ pub fn parse(src: &str) -> Result<Program, LangError> {
     p.program()
 }
 
+/// Parses a single expression (property defaults, `str2func`).
+pub fn parse_expr(src: &str) -> Result<Expr, LangError> {
+    let toks = tokenize(src)?;
+    let mut p = Parser { toks, pos: 0, index_depth: 0 };
+    let e = p.expr()?;
+    p.skip_newlines();
+    if !matches!(p.peek(), Tok::Eof) {
+        return Err(p.unexpected("end of expression"));
+    }
+    Ok(e)
+}
+
 struct Parser {
     toks: Vec<Token>,
     pos: usize,
@@ -66,6 +78,7 @@ impl Parser {
     fn unexpected(&self, wanted: &str) -> LangError {
         let found = match self.peek() {
             Tok::Num(n) => format!("number {n}"),
+            Tok::Imag(n) => format!("number {n}i"),
             Tok::Chars(s) => format!("'{s}'"),
             Tok::Str(s) => format!("\"{s}\""),
             Tok::Ident(s) => format!("'{s}'"),
@@ -126,10 +139,18 @@ impl Parser {
             }
             self.bump();
         }
-        let name = match self.bump() {
+        let mut name = match self.bump() {
             Tok::Ident(n) => n,
             _ => return Err(self.unexpected("function name")),
         };
+        // Property accessors: `get.Name` / `set.Name`.
+        if self.is_op(".") {
+            if let Tok::Ident(m) = self.peek_at(1).clone() {
+                self.bump();
+                self.bump();
+                name = format!("{name}.{m}");
+            }
+        }
         let mut params = Vec::new();
         if self.eat_op("(") {
             while !self.is_op(")") {
@@ -582,9 +603,30 @@ impl Parser {
     fn primary(&mut self) -> PResult<Expr> {
         match self.bump() {
             Tok::Num(n) => Ok(Expr::Num(n)),
+            Tok::Imag(n) => Ok(Expr::Imag(n)),
             Tok::Chars(s) => Ok(Expr::Chars(s)),
             Tok::Str(s) => Ok(Expr::Str(s)),
-            Tok::Ident(n) => Ok(Expr::Ident(n)),
+            Tok::Ident(n) => {
+                // `obj@Super(...)` / `method@Super(...)`.
+                if self.is_op("@") && !self.toks[self.pos].space_before {
+                    if let Tok::Ident(class) = self.peek_at(1).clone() {
+                        self.bump();
+                        self.bump();
+                        let mut class = class;
+                        while self.is_op(".") {
+                            if let Tok::Ident(m) = self.peek_at(1).clone() {
+                                self.bump();
+                                self.bump();
+                                class = format!("{class}.{m}");
+                            } else {
+                                break;
+                            }
+                        }
+                        return Ok(Expr::SuperRef { name: n, class });
+                    }
+                }
+                Ok(Expr::Ident(n))
+            }
             Tok::Kw(Kw::End) if self.index_depth > 0 => Ok(Expr::End),
             Tok::Op("(") => {
                 let saved = self.index_depth;
@@ -725,7 +767,9 @@ pub fn unparse(e: &Expr) -> String {
         r.iter().map(|row| list(row)).collect::<Vec<_>>().join(";")
     }
     match e {
-        Expr::Num(n) => crate::display::fmt_short_scalar(*n),
+        Expr::Num(n) => crate::display::fmt_g(*n, 15),
+        Expr::Imag(n) => format!("{}i", crate::display::fmt_g(*n, 15)),
+        Expr::SuperRef { name, class } => format!("{name}@{class}"),
         Expr::Chars(s) => format!("'{}'", s.replace('\'', "''")),
         Expr::Str(s) => format!("\"{}\"", s.replace('"', "\"\"")),
         Expr::Ident(n) => n.clone(),

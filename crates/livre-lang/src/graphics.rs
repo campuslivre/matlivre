@@ -30,6 +30,17 @@ pub enum SeriesKind {
     Bar,
     Stairs,
     Area,
+    Stem,
+}
+
+/// How x values are labeled: plain numbers, wall-clock milliseconds (datetime) or
+/// milliseconds (duration).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum XAxisKind {
+    #[default]
+    Numeric,
+    DateTime,
+    Duration,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -44,6 +55,8 @@ pub struct Series {
     pub line_width: f32,
     pub marker_size: f32,
     pub name: Option<String>,
+    /// Bar width in x units (histograms); `None` = 0.8 of the spacing.
+    pub bar_width: Option<f64>,
 }
 
 impl Series {
@@ -54,10 +67,14 @@ impl Series {
             y,
             color: None,
             line_style: if kind == SeriesKind::Scatter { LineStyle::None } else { LineStyle::Solid },
-            marker: if kind == SeriesKind::Scatter { Some(Marker::Circle) } else { None },
+            marker: match kind {
+                SeriesKind::Scatter | SeriesKind::Stem => Some(Marker::Circle),
+                _ => None,
+            },
             line_width: 1.5,
             marker_size: 6.0,
             name: None,
+            bar_width: None,
         }
     }
 }
@@ -73,6 +90,7 @@ pub struct Axes {
     pub series: Vec<Series>,
     pub xlim: Option<(f64, f64)>,
     pub ylim: Option<(f64, f64)>,
+    pub x_kind: XAxisKind,
 }
 
 #[derive(Debug, Clone, PartialEq)]

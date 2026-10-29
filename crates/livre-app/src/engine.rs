@@ -14,7 +14,7 @@ use livre_lang::{Interpreter, Output, OutputKind, VarInfo};
 pub enum Command {
     /// Run `blocks` in order. `all_code` holds every code block of the document so local
     /// functions defined anywhere are callable.
-    Run { blocks: Vec<(u64, String)>, all_code: Vec<String> },
+    Run { blocks: Vec<(u64, String)>, all_code: Vec<String>, folder: Option<std::path::PathBuf> },
     ClearWorkspace,
 }
 
@@ -79,7 +79,10 @@ fn engine_main(rx: Receiver<Command>, tx: Sender<Event>, cancel: Arc<AtomicBool>
                 let _ = tx.send(Event::Finished { workspace: it.workspace(), ok: true, elapsed: Duration::ZERO });
                 ctx.request_repaint();
             }
-            Command::Run { blocks, all_code } => {
+            Command::Run { blocks, all_code, folder } => {
+                // The script's folder is on the search path (function and classdef files);
+                // resetting it each run picks up edited files.
+                it.set_search_path(folder.into_iter().collect());
                 let started = Instant::now();
                 // Each run draws into fresh figures, like re-running a live script.
                 it.close_all_figures();

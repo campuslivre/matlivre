@@ -1,141 +1,298 @@
-//! Arithmetic, relational and logical operators with MATLAB implicit expansion.
+//! Operators with MATLAB class rules, complex support and N-D implicit expansion.
 
 use crate::ast::{BinOp, UnOp};
+use crate::cplx::C;
 use crate::display::fmt_g;
 use crate::error::{rt, LangError};
-use crate::value::{Kind, Matrix, Value};
+use crate::nd;
+use crate::value::{CellArray, Kind, Matrix, StrArray, Value};
 
 type R<T> = Result<T, LangError>;
 
-/// Elementwise `f(a, b)` with scalar and implicit (row/column) expansion.
+/// Elementwise real `f(a, b)` with implicit expansion; result is a real double array.
 pub fn broadcast(a: &Matrix, b: &Matrix, f: impl Fn(f64, f64) -> f64) -> R<Matrix> {
-    if a.rows == b.rows && a.cols == b.cols {
+    if a.dims == b.dims {
         let data = a.data.iter().zip(&b.data).map(|(&x, &y)| f(x, y)).collect();
-        return Ok(Matrix::new(a.rows, a.cols, data));
+        return Ok(Matrix::from_dims(a.dims.clone(), data));
     }
     if a.is_scalar() {
         let x = a.data[0];
-        return Ok(Matrix::new(b.rows, b.cols, b.data.iter().map(|&y| f(x, y)).collect()));
+        return Ok(Matrix::from_dims(b.dims.clone(), b.data.iter().map(|&y| f(x, y)).collect()));
     }
     if b.is_scalar() {
         let y = b.data[0];
-        return Ok(Matrix::new(a.rows, a.cols, a.data.iter().map(|&x| f(x, y)).collect()));
+        return Ok(Matrix::from_dims(a.dims.clone(), a.data.iter().map(|&x| f(x, y)).collect()));
     }
-    let rows = expand_dim(a.rows, b.rows)?;
-    let cols = expand_dim(a.cols, b.cols)?;
-    let mut data = Vec::with_capacity(rows * cols);
-    for c in 0..cols {
-        let ca = if a.cols == 1 { 0 } else { c };
-        let cb = if b.cols == 1 { 0 } else { c };
-        for r in 0..rows {
-            let ra = if a.rows == 1 { 0 } else { r };
-            let rb = if b.rows == 1 { 0 } else { r };
-            data.push(f(a.get(ra, ca), b.get(rb, cb)));
-        }
-    }
-    Ok(Matrix::new(rows, cols, data))
+    let (dims, pairs) = nd::broadcast_pairs(&a.dims, &b.dims)?;
+    Ok(Matrix::from_dims(dims, pairs.into_iter().map(|(i, j)| f(a.data[i], b.data[j])).collect()))
 }
 
-fn expand_dim(x: usize, y: usize) -> R<usize> {
-    if x == y {
-        Ok(x)
-    } else if x == 1 {
-        Ok(y)
-    } else if y == 1 {
-        Ok(x)
+/// Elementwise complex `f(a, b)` with implicit expansion.
+pub fn broadcast_c(a: &Matrix, b: &Matrix, f: impl Fn(C, C) -> C) -> R<Matrix> {
+    let ca = |i: usize| C::new(a.data[i], a.im_at(i));
+    let cb = |j: usize| C::new(b.data[j], b.im_at(j));
+    let (dims, pairs): (nd::Dims, Vec<(usize, usize)>) = if a.dims == b.dims {
+        (a.dims.clone(), (0..a.numel()).map(|i| (i, i)).collect())
     } else {
-        rt("Arrays have incompatible sizes for this operation.")
+        nd::broadcast_pairs(&a.dims, &b.dims)?
+    };
+    let mut re = Vec::with_capacity(pairs.len());
+    let mut im = Vec::with_capacity(pairs.len());
+    for (i, j) in pairs {
+        let z = f(ca(i), cb(j));
+        re.push(z.re);
+        im.push(z.im);
     }
+    Ok(Matrix::complex(dims, re, im))
+}
+
+pub fn map_c(m: &Matrix, f: impl Fn(C) -> C) -> Matrix {
+    let mut re = Vec::with_capacity(m.numel());
+    let mut im = Vec::with_capacity(m.numel());
+    for i in 0..m.numel() {
+        let z = f(C::new(m.data[i], m.im_at(i)));
+        re.push(z.re);
+        im.push(z.im);
+    }
+    Matrix::complex(m.dims.clone(), re, im)
 }
 
 fn b2f(b: bool) -> f64 {
     if b { 1.0 } else { 0.0 }
 }
 
-/// Text of a value when concatenated with a string (`"n = " + 5`).
-fn as_string_operand(v: &Value) -> R<String> {
-    match v {
-        Value::Str(s) => Ok(s.clone()),
-        Value::Num(m) if m.kind == Kind::Char => Ok(m.to_string_lossy()),
-        Value::Num(m) if m.is_scalar() => Ok(if m.kind == Kind::Logical {
-            if m.data[0] != 0.0 { "true".into() } else { "false".into() }
-        } else {
-            fmt_g(m.data[0], 5)
-        }),
-        _ => rt("String concatenation requires scalar operands."),
-    }
+/// Result class of an arithmetic operation (MATLAB combination rules).
+pub fn arith_kind(a: Kind, b: Kind) -> R<Kind> {
+    Ok(match (a, b) {
+        (Kind::Int(x), Kind::Int(y)) if x == y => Kind::Int(x),
+        (Kind::Int(x), Kind::Int(y)) => {
+            return rt(format!("Integers can only be combined with integers of the same class, or scalar doubles. ({} and {})", x.name(), y.name()))
+        }
+        (Kind::Int(x), _) | (_, Kind::Int(x)) => Kind::Int(x),
+        (Kind::Single, _) | (_, Kind::Single) => Kind::Single,
+        _ => Kind::Double,
+    })
 }
 
 pub fn binary(op: BinOp, a: &Value, b: &Value) -> R<Value> {
-    if matches!(a, Value::Str(_)) || matches!(b, Value::Str(_)) {
-        let (x, y) = (as_string_operand(a)?, as_string_operand(b)?);
-        return match op {
-            BinOp::Add => Ok(Value::Str(x + &y)),
-            BinOp::Eq => Ok(Value::bool(x == y)),
-            BinOp::Ne => Ok(Value::bool(x != y)),
-            BinOp::Lt => Ok(Value::bool(x < y)),
-            BinOp::Gt => Ok(Value::bool(x > y)),
-            BinOp::Le => Ok(Value::bool(x <= y)),
-            BinOp::Ge => Ok(Value::bool(x >= y)),
-            _ => rt(format!("Operator '{}' is not supported for strings.", op.symbol())),
-        };
+    if matches!(a, Value::Sym(_)) || matches!(b, Value::Sym(_)) {
+        return crate::sym::binary(op, a, b);
     }
-    let (Value::Num(x), Value::Num(y)) = (a, b) else {
-        let bad = if matches!(a, Value::Num(_)) { b } else { a };
-        return rt(format!("Operator '{}' is not supported for operands of type '{}'.", op.symbol(), bad.class_name()));
-    };
-    num_binary(op, x, y).map(Value::Num)
+    if matches!(a, Value::Time(_)) || matches!(b, Value::Time(_)) {
+        return crate::time::binary(op, a, b);
+    }
+    if matches!(a, Value::Str(_)) || matches!(b, Value::Str(_)) {
+        return string_binary(op, a, b);
+    }
+    match (a, b) {
+        (Value::Num(x), Value::Num(y)) => num_binary(op, x, y).map(Value::Num),
+        _ => {
+            let bad = if matches!(a, Value::Num(_)) { b } else { a };
+            rt(format!("Operator '{}' is not supported for operands of type '{}'.", op.symbol(), bad.class_name()))
+        }
+    }
 }
+
+// ---- strings -----------------------------------------------------------------------------
+
+/// Converts an operand of a string operation to a string array (MATLAB `string()` rules).
+pub fn to_str_array(v: &Value) -> R<StrArray> {
+    Ok(match v {
+        Value::Str(s) => s.clone(),
+        Value::Num(m) if m.kind == Kind::Char => {
+            // A char matrix becomes one string per row.
+            let (rows, cols) = (m.rows(), m.cols());
+            if rows <= 1 {
+                StrArray::scalar(m.to_string_lossy())
+            } else {
+                StrArray::col((0..rows).map(|r| (0..cols).map(|c| char::from_u32(m.get(r, c) as u32).unwrap_or('?')).collect()).collect())
+            }
+        }
+        Value::Num(m) => StrArray::from_dims(
+            m.dims.clone(),
+            (0..m.numel())
+                .map(|i| {
+                    let x = m.data[i];
+                    if m.kind == Kind::Logical {
+                        Some(if x != 0.0 { "true".into() } else { "false".into() })
+                    } else if x.is_nan() && m.kind == Kind::Double {
+                        None
+                    } else if m.is_complex() {
+                        Some(format!("{}{}{}i", fmt_g(x, 5), if m.im_at(i) < 0.0 { "-" } else { "+" }, fmt_g(m.im_at(i).abs(), 5)))
+                    } else {
+                        Some(fmt_g(x, 5))
+                    }
+                })
+                .collect(),
+        ),
+        Value::Cell(c) => StrArray::from_dims(c.dims.clone(), c.data.iter().map(|x| x.text().map(Some)).collect::<R<_>>()?),
+        Value::Time(t) => StrArray::from_dims(t.dims.clone(), (0..t.data.len()).map(|i| Some(t.format_elem(i))).collect()),
+        other => return rt(format!("Conversion to string from {} is not possible.", other.class_name())),
+    })
+}
+
+fn string_binary(op: BinOp, a: &Value, b: &Value) -> R<Value> {
+    let x = to_str_array(a)?;
+    let y = to_str_array(b)?;
+    let pairs: (nd::Dims, Vec<(usize, usize)>) = if x.dims == y.dims {
+        (x.dims.clone(), (0..x.data.len()).map(|i| (i, i)).collect())
+    } else {
+        nd::broadcast_pairs(&x.dims, &y.dims)?
+    };
+    let (dims, pairs) = pairs;
+    match op {
+        BinOp::Add => Ok(Value::Str(StrArray::from_dims(
+            dims,
+            pairs
+                .into_iter()
+                .map(|(i, j)| match (&x.data[i], &y.data[j]) {
+                    (Some(p), Some(q)) => Some(format!("{p}{q}")),
+                    _ => None,
+                })
+                .collect(),
+        ))),
+        BinOp::Eq | BinOp::Ne | BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge => {
+            let data = pairs
+                .into_iter()
+                .map(|(i, j)| match (&x.data[i], &y.data[j]) {
+                    (Some(p), Some(q)) => b2f(match op {
+                        BinOp::Eq => p == q,
+                        BinOp::Ne => p != q,
+                        BinOp::Lt => p < q,
+                        BinOp::Le => p <= q,
+                        BinOp::Gt => p > q,
+                        _ => p >= q,
+                    }),
+                    // Comparisons with <missing> are false (and ~= is true).
+                    _ => b2f(op == BinOp::Ne),
+                })
+                .collect();
+            Ok(Value::Num(Matrix::from_dims(dims, data).with_kind(Kind::Logical)))
+        }
+        _ => rt(format!("Operator '{}' is not supported for operands of type 'string'.", op.symbol())),
+    }
+}
+
+// ---- numeric -----------------------------------------------------------------------------
 
 pub fn num_binary(op: BinOp, x: &Matrix, y: &Matrix) -> R<Matrix> {
     use BinOp::*;
+    // Fast path: real double scalars.
+    if x.kind == Kind::Double && y.kind == Kind::Double && x.is_scalar() && y.is_scalar() && x.im.is_none() && y.im.is_none() {
+        let (a, b) = (x.data[0], y.data[0]);
+        let real = |v: f64| Ok(Matrix::scalar(v));
+        let logical = |v: bool| Ok(Matrix::scalar(b2f(v)).with_kind(Kind::Logical));
+        match op {
+            Add => return real(a + b),
+            Sub => return real(a - b),
+            Mul | MatMul => return real(a * b),
+            Div | MatDiv => return real(a / b),
+            LeftDiv | MatLeftDiv => return real(b / a),
+            Pow | MatPow if a >= 0.0 || b.fract() == 0.0 => return real(a.powf(b)),
+            Eq => return logical(a == b),
+            Ne => return logical(a != b),
+            Lt => return logical(a < b),
+            Le => return logical(a <= b),
+            Gt => return logical(a > b),
+            Ge => return logical(a >= b),
+            And | AndAnd => return logical(a != 0.0 && b != 0.0),
+            Or | OrOr => return logical(a != 0.0 || b != 0.0),
+            _ => {}
+        }
+    }
+    let complex = x.is_complex() || y.is_complex();
     let logical = |m: Matrix| m.with_kind(Kind::Logical);
-    Ok(match op {
-        Add => broadcast(x, y, |a, b| a + b)?,
-        Sub => broadcast(x, y, |a, b| a - b)?,
-        Mul => broadcast(x, y, |a, b| a * b)?,
-        Div => broadcast(x, y, |a, b| a / b)?,
-        LeftDiv => broadcast(x, y, |a, b| b / a)?,
-        Pow => broadcast(x, y, f64::powf)?,
+    match op {
+        Eq | Ne => {
+            if complex {
+                let m = broadcast_c(x, y, |p, q| C::new(b2f((p == q) == (op == Eq)), 0.0))?;
+                return Ok(logical(Matrix::from_dims(m.dims, m.data)));
+            }
+            return Ok(logical(broadcast(x, y, |a, b| b2f((a == b) == (op == Eq)))?));
+        }
+        Lt => return Ok(logical(broadcast(x, y, |a, b| b2f(a < b))?)),
+        Le => return Ok(logical(broadcast(x, y, |a, b| b2f(a <= b))?)),
+        Gt => return Ok(logical(broadcast(x, y, |a, b| b2f(a > b))?)),
+        Ge => return Ok(logical(broadcast(x, y, |a, b| b2f(a >= b))?)),
+        And | AndAnd | Or | OrOr => {
+            let nz = |m: &Matrix| -> Matrix {
+                Matrix::from_dims(m.dims.clone(), (0..m.numel()).map(|i| b2f(m.data[i] != 0.0 || m.im_at(i) != 0.0)).collect())
+            };
+            if x.data.iter().any(|v| v.is_nan()) || y.data.iter().any(|v| v.is_nan()) {
+                return rt("NaN's cannot be converted to logicals.");
+            }
+            let (p, q) = (nz(x), nz(y));
+            let and = matches!(op, And | AndAnd);
+            return Ok(logical(broadcast(&p, &q, |a, b| b2f(if and { a != 0.0 && b != 0.0 } else { a != 0.0 || b != 0.0 }))?));
+        }
+        _ => {}
+    }
+    let kind = arith_kind(x.kind, y.kind)?;
+    if complex && kind.is_int() {
+        return rt("Complex integer arithmetic is not supported.");
+    }
+    let out = match op {
+        Add | Sub | Mul | Div | LeftDiv => {
+            if complex {
+                broadcast_c(x, y, |p, q| match op {
+                    Add => p.add(q),
+                    Sub => p.sub(q),
+                    Mul => p.mul(q),
+                    Div => p.div(q),
+                    _ => q.div(p),
+                })?
+            } else {
+                match op {
+                    Add => broadcast(x, y, |a, b| a + b)?,
+                    Sub => broadcast(x, y, |a, b| a - b)?,
+                    Mul => broadcast(x, y, |a, b| a * b)?,
+                    Div => broadcast(x, y, |a, b| a / b)?,
+                    _ => broadcast(x, y, |a, b| b / a)?,
+                }
+            }
+        }
+        Pow => elem_pow(x, y, kind)?,
         MatMul => {
             if x.is_scalar() || y.is_scalar() {
-                broadcast(x, y, |a, b| a * b)?
-            } else {
-                matmul(x, y)?
+                return num_binary(Mul, x, y);
             }
+            if kind.is_int() {
+                return rt("MTIMES (*) is not fully supported for integer data types. Use TIMES (.*) instead.");
+            }
+            matmul_any(x, y)?
         }
         MatDiv => {
             if y.is_scalar() {
-                broadcast(x, y, |a, b| a / b)?
-            } else {
-                // x / y = (y' \ x')'
-                solve(&y.transpose(), &x.transpose())?.transpose()
+                return num_binary(Div, x, y);
             }
+            let xt = ctranspose(x);
+            let yt = ctranspose(y);
+            ctranspose(&solve_any(&yt, &xt)?)
         }
         MatLeftDiv => {
             if x.is_scalar() {
-                broadcast(x, y, |a, b| b / a)?
-            } else {
-                solve(x, y)?
+                return num_binary(LeftDiv, x, y);
             }
+            solve_any(x, y)?
         }
         MatPow => {
             if x.is_scalar() && y.is_scalar() {
-                Matrix::scalar(x.data[0].powf(y.data[0]))
-            } else if y.is_scalar() && x.rows == x.cols {
+                return num_binary(Pow, x, y);
+            }
+            if y.is_scalar() && y.im.is_none() && x.is_2d() && x.rows() == x.cols() {
                 let p = y.data[0];
                 if p.fract() != 0.0 {
                     return rt("Matrix power with non-integer exponents is not supported.");
                 }
-                let base = if p < 0.0 { inv(x)? } else { x.clone() };
+                let base = if p < 0.0 { inv_any(x)? } else { x.clone().with_kind(Kind::Double) };
                 let mut n = p.abs() as u64;
-                let mut result = identity(x.rows);
+                let mut result = identity(x.rows());
                 let mut sq = base;
                 while n > 0 {
                     if n & 1 == 1 {
-                        result = matmul(&result, &sq)?;
+                        result = matmul_any(&result, &sq)?;
                     }
-                    sq = matmul(&sq, &sq)?;
+                    sq = matmul_any(&sq, &sq)?;
                     n >>= 1;
                 }
                 result
@@ -143,36 +300,87 @@ pub fn num_binary(op: BinOp, x: &Matrix, y: &Matrix) -> R<Matrix> {
                 return rt("Incorrect dimensions for raising a matrix to a power. Check that the matrix is square and the power is a scalar. To operate on each element of the matrix individually, use POWER (.^).");
             }
         }
-        Eq => logical(broadcast(x, y, |a, b| b2f(a == b))?),
-        Ne => logical(broadcast(x, y, |a, b| b2f(a != b))?),
-        Lt => logical(broadcast(x, y, |a, b| b2f(a < b))?),
-        Le => logical(broadcast(x, y, |a, b| b2f(a <= b))?),
-        Gt => logical(broadcast(x, y, |a, b| b2f(a > b))?),
-        Ge => logical(broadcast(x, y, |a, b| b2f(a >= b))?),
-        And | AndAnd => logical(broadcast(x, y, |a, b| b2f(a != 0.0 && b != 0.0))?),
-        Or | OrOr => logical(broadcast(x, y, |a, b| b2f(a != 0.0 || b != 0.0))?),
-    })
+        _ => unreachable!(),
+    };
+    let mut out = out.cast_to(kind);
+    out.narrow();
+    Ok(out)
+}
+
+fn elem_pow(x: &Matrix, y: &Matrix, kind: Kind) -> R<Matrix> {
+    let needs_complex = x.is_complex()
+        || y.is_complex()
+        || (!kind.is_int() && x.data.iter().any(|&a| a < 0.0) && y.data.iter().any(|&b| b.fract() != 0.0 && b.is_finite()));
+    if needs_complex {
+        if kind.is_int() {
+            return rt("Complex integer arithmetic is not supported.");
+        }
+        return broadcast_c(x, y, |p, q| p.powc(q));
+    }
+    broadcast(x, y, f64::powf)
+}
+
+/// `'`: conjugate transpose.
+pub fn ctranspose(m: &Matrix) -> Matrix {
+    let mut t = m.transpose();
+    if let Some(im) = t.im.as_mut() {
+        for v in im.iter_mut() {
+            *v = -*v;
+        }
+    }
+    t
 }
 
 pub fn unary(op: UnOp, v: &Value) -> R<Value> {
+    match v {
+        Value::Sym(_) => return crate::sym::unary(op, v),
+        Value::Time(t) => return crate::time::unary(op, t),
+        _ => {}
+    }
     match (op, v) {
-        (UnOp::CTranspose | UnOp::Transpose, Value::Num(m)) => Ok(Value::Num(m.transpose())),
-        (UnOp::CTranspose | UnOp::Transpose, Value::Cell(c)) => {
-            let mut data = Vec::with_capacity(c.data.len());
-            for r in 0..c.rows {
-                for col in 0..c.cols {
-                    data.push(c.data[col * c.rows + r].clone());
-                }
+        (UnOp::CTranspose | UnOp::Transpose, Value::Num(m)) => {
+            if !m.is_2d() {
+                return rt("Transpose on ND array is not defined. Use PERMUTE instead.");
             }
-            Ok(Value::Cell(crate::value::CellArray::new(c.cols, c.rows, data)))
+            Ok(Value::Num(if op == UnOp::CTranspose { ctranspose(m) } else { m.transpose() }))
         }
-        (UnOp::CTranspose | UnOp::Transpose, Value::Str(_) | Value::Struct(_) | Value::Func(_)) => Ok(v.clone()),
-        (UnOp::Neg, Value::Num(m)) => Ok(Value::Num(m.map(|x| -x))),
-        (UnOp::Plus, Value::Num(m)) => Ok(Value::Num(m.map(|x| x))),
-        (UnOp::Not, Value::Num(m)) => Ok(Value::Num(m.map(|x| b2f(x == 0.0)).with_kind(Kind::Logical))),
+        (UnOp::CTranspose | UnOp::Transpose, Value::Cell(c)) => {
+            let (d, data) = nd::transpose(&c.dims, &c.data)?;
+            Ok(Value::Cell(CellArray::from_dims(d, data)))
+        }
+        (UnOp::CTranspose | UnOp::Transpose, Value::Str(s)) => {
+            let (d, data) = nd::transpose(&s.dims, &s.data)?;
+            Ok(Value::Str(StrArray::from_dims(d, data)))
+        }
+        (UnOp::CTranspose | UnOp::Transpose, Value::Struct(s)) => {
+            let (d, elems) = nd::transpose(&s.dims, &s.elems)?;
+            let mut out = s.clone();
+            out.dims = d;
+            out.elems = elems;
+            Ok(Value::Struct(out))
+        }
+        (UnOp::CTranspose | UnOp::Transpose, Value::Func(_) | Value::Object(_)) => Ok(v.clone()),
+        (UnOp::Neg, Value::Num(m)) => {
+            let kind = if matches!(m.kind, Kind::Logical | Kind::Char) { Kind::Double } else { m.kind };
+            let mut out = Matrix { dims: m.dims.clone(), data: m.data.iter().map(|x| -x).collect(), im: m.im.as_ref().map(|im| im.iter().map(|x| -x).collect()), kind: Kind::Double };
+            out = out.cast_to(kind);
+            Ok(Value::Num(out))
+        }
+        (UnOp::Plus, Value::Num(m)) => {
+            let kind = if matches!(m.kind, Kind::Logical | Kind::Char) { Kind::Double } else { m.kind };
+            Ok(Value::Num(m.clone().with_kind(kind)))
+        }
+        (UnOp::Not, Value::Num(m)) => {
+            if m.data.iter().any(|x| x.is_nan()) {
+                return rt("NaN's cannot be converted to logicals.");
+            }
+            Ok(Value::Num(Matrix::from_dims(m.dims.clone(), (0..m.numel()).map(|i| b2f(m.data[i] == 0.0 && m.im_at(i) == 0.0)).collect()).with_kind(Kind::Logical)))
+        }
         _ => rt(format!("Unary operator is not supported for values of class '{}'.", v.class_name())),
     }
 }
+
+// ---- linear algebra ----------------------------------------------------------------------
 
 pub fn identity(n: usize) -> Matrix {
     let mut m = Matrix::zeros(n, n);
@@ -182,11 +390,22 @@ pub fn identity(n: usize) -> Matrix {
     m
 }
 
+fn real_part(m: &Matrix) -> Matrix {
+    Matrix::from_dims(m.dims.clone(), m.data.clone())
+}
+
+fn imag_part(m: &Matrix) -> Matrix {
+    Matrix::from_dims(m.dims.clone(), m.im.clone().unwrap_or_else(|| vec![0.0; m.numel()]))
+}
+
 pub fn matmul(a: &Matrix, b: &Matrix) -> R<Matrix> {
-    if a.cols != b.rows {
+    if !a.is_2d() || !b.is_2d() {
+        return rt("Arguments must be 2-D, or at least one argument must be scalar. Use TIMES (.*) for elementwise multiplication.");
+    }
+    if a.cols() != b.rows() {
         return rt("Incorrect dimensions for matrix multiplication. Check that the number of columns in the first matrix matches the number of rows in the second matrix. To operate on each element of the matrix individually, use TIMES (.*) for elementwise multiplication.");
     }
-    let (n, m, p) = (a.rows, a.cols, b.cols);
+    let (n, m, p) = (a.rows(), a.cols(), b.cols());
     let mut out = vec![0.0; n * p];
     // Column-major j-k-i loop order keeps the inner loop contiguous.
     for j in 0..p {
@@ -205,11 +424,79 @@ pub fn matmul(a: &Matrix, b: &Matrix) -> R<Matrix> {
     Ok(Matrix::new(n, p, out))
 }
 
+/// Matrix product for real or complex operands.
+pub fn matmul_any(a: &Matrix, b: &Matrix) -> R<Matrix> {
+    if !a.is_complex() && !b.is_complex() {
+        return matmul(&real_part(a), &real_part(b));
+    }
+    let (ar, ai, br, bi) = (real_part(a), imag_part(a), real_part(b), imag_part(b));
+    let re = broadcast(&matmul(&ar, &br)?, &matmul(&ai, &bi)?, |x, y| x - y)?;
+    let im = broadcast(&matmul(&ar, &bi)?, &matmul(&ai, &br)?, |x, y| x + y)?;
+    Ok(Matrix::complex(re.dims, re.data, im.data))
+}
+
+/// Real embedding of a complex matrix: [Re -Im; Im Re].
+fn embed(m: &Matrix) -> Matrix {
+    let (r, c) = (m.rows(), m.cols());
+    let mut e = Matrix::zeros(2 * r, 2 * c);
+    for j in 0..c {
+        for i in 0..r {
+            let re = m.get(i, j);
+            let im = m.im_at(j * r + i);
+            e.set(i, j, re);
+            e.set(i, j + c, -im);
+            e.set(i + r, j, im);
+            e.set(i + r, j + c, re);
+        }
+    }
+    e
+}
+
+fn stack_complex(m: &Matrix) -> Matrix {
+    let (r, c) = (m.rows(), m.cols());
+    let mut s = Matrix::zeros(2 * r, c);
+    for j in 0..c {
+        for i in 0..r {
+            s.set(i, j, m.get(i, j));
+            s.set(i + r, j, m.im_at(j * r + i));
+        }
+    }
+    s
+}
+
+fn unstack_complex(s: &Matrix) -> Matrix {
+    let r = s.rows() / 2;
+    let c = s.cols();
+    let mut re = Vec::with_capacity(r * c);
+    let mut im = Vec::with_capacity(r * c);
+    for j in 0..c {
+        for i in 0..r {
+            re.push(s.get(i, j));
+            im.push(s.get(i + r, j));
+        }
+    }
+    Matrix::complex(vec![r, c], re, im)
+}
+
+pub fn solve_any(a: &Matrix, b: &Matrix) -> R<Matrix> {
+    if !a.is_complex() && !b.is_complex() {
+        return solve(&real_part(a), &real_part(b));
+    }
+    Ok(unstack_complex(&solve(&embed(a), &stack_complex(b))?))
+}
+
+pub fn inv_any(a: &Matrix) -> R<Matrix> {
+    if !a.is_complex() {
+        return inv(&real_part(a));
+    }
+    let n = a.rows();
+    solve_any(a, &identity(n))
+}
+
 /// LU decomposition with partial pivoting. Returns (lu, perm, sign) or an error if singular.
 fn lu(a: &Matrix) -> R<(Matrix, Vec<usize>, f64)> {
-    let n = a.rows;
-    let mut lu = a.clone();
-    lu.kind = Kind::Double;
+    let n = a.rows();
+    let mut lu = Matrix::from_dims(a.dims.clone(), a.data.clone());
     let mut perm: Vec<usize> = (0..n).collect();
     let mut sign = 1.0;
     for k in 0..n {
@@ -250,9 +537,9 @@ fn lu(a: &Matrix) -> R<(Matrix, Vec<usize>, f64)> {
 }
 
 fn lu_solve(lu: &Matrix, perm: &[usize], b: &Matrix) -> Matrix {
-    let n = lu.rows;
-    let mut x = Matrix::zeros(n, b.cols);
-    for col in 0..b.cols {
+    let n = lu.rows();
+    let mut x = Matrix::zeros(n, b.cols());
+    for col in 0..b.cols() {
         let mut y: Vec<f64> = perm.iter().map(|&p| b.get(p, col)).collect();
         for i in 0..n {
             for k in 0..i {
@@ -274,10 +561,13 @@ fn lu_solve(lu: &Matrix, perm: &[usize], b: &Matrix) -> Matrix {
 
 /// `a \ b`: exact solve for square systems, least squares otherwise.
 pub fn solve(a: &Matrix, b: &Matrix) -> R<Matrix> {
-    if a.rows != b.rows {
+    if !a.is_2d() || !b.is_2d() {
+        return rt("Inputs must be 2-D.");
+    }
+    if a.rows() != b.rows() {
         return rt("Matrix dimensions must agree.");
     }
-    if a.rows == a.cols {
+    if a.rows() == a.cols() {
         let (lu, perm, _) = lu(a)?;
         Ok(lu_solve(&lu, &perm, b))
     } else {
@@ -290,22 +580,22 @@ pub fn solve(a: &Matrix, b: &Matrix) -> R<Matrix> {
 }
 
 pub fn inv(a: &Matrix) -> R<Matrix> {
-    if a.rows != a.cols {
+    if !a.is_2d() || a.rows() != a.cols() {
         return rt("Matrix must be square.");
     }
     let (lu, perm, _) = lu(a)?;
-    Ok(lu_solve(&lu, &perm, &identity(a.rows)))
+    Ok(lu_solve(&lu, &perm, &identity(a.rows())))
 }
 
 pub fn det(a: &Matrix) -> R<f64> {
-    if a.rows != a.cols {
+    if !a.is_2d() || a.rows() != a.cols() {
         return rt("Matrix must be square.");
     }
-    if a.rows == 0 {
+    if a.rows() == 0 {
         return Ok(1.0);
     }
     match lu(a) {
-        Ok((lu, _, sign)) => Ok((0..a.rows).map(|i| lu.get(i, i)).product::<f64>() * sign),
+        Ok((lu, _, sign)) => Ok((0..a.rows()).map(|i| lu.get(i, i)).product::<f64>() * sign),
         Err(_) => Ok(0.0),
     }
 }

@@ -3,7 +3,7 @@
 
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Pos2, Rect, Rounding, Sense, Shape, Stroke, Ui};
 use livre_lang::display::fmt_g;
-use livre_lang::{Axes, Figure, LineStyle, Marker, SeriesKind};
+use livre_lang::{Axes, Figure, LineStyle, Marker, SeriesKind, XAxisKind};
 
 use crate::theme::{Skin, RADIUS};
 
@@ -47,6 +47,28 @@ fn nice_axis(lo: f64, hi: f64, target: f64) -> (f64, f64, Vec<f64>) {
     (a, b, ticks)
 }
 
+/// Ticks for datetime/duration axes (values in ms) at calendar-friendly steps.
+fn time_ticks(lo: f64, hi: f64) -> Vec<f64> {
+    const S: f64 = 1000.0;
+    const M: f64 = 60.0 * S;
+    const H: f64 = 60.0 * M;
+    const D: f64 = 24.0 * H;
+    let steps = [S, 5.0 * S, 15.0 * S, 30.0 * S, M, 5.0 * M, 15.0 * M, 30.0 * M, H, 3.0 * H, 6.0 * H, 12.0 * H, D, 2.0 * D, 7.0 * D, 14.0 * D, 30.0 * D, 91.0 * D, 365.0 * D];
+    let step = steps.iter().copied().find(|s| (hi - lo) / s <= 6.0).unwrap_or_else(|| nice_step(hi - lo, 6.0));
+    ticks_within(lo, hi, step)
+}
+
+fn x_label(kind: XAxisKind, v: f64, step: f64, range: f64) -> String {
+    match kind {
+        XAxisKind::Numeric => tick_label(v, step),
+        XAxisKind::DateTime => {
+            let pattern = if step >= 86_400_000.0 { if range > 400.0 * 86_400_000.0 { "MMM yyyy" } else { "MMM dd" } } else { "HH:mm" };
+            livre_lang::time::format_datetime(v, pattern)
+        }
+        XAxisKind::Duration => livre_lang::time::format_duration(v, "hh:mm"),
+    }
+}
+
 fn tick_label(v: f64, step: f64) -> String {
     if v.abs() < step * 1e-9 {
         return "0".into();
@@ -67,7 +89,7 @@ fn bounds(ax: &Axes) -> ((f64, f64), (f64, f64)) {
                 y1 = y1.max(y);
             }
         }
-        if matches!(s.kind, SeriesKind::Bar | SeriesKind::Area) {
+        if matches!(s.kind, SeriesKind::Bar | SeriesKind::Area | SeriesKind::Stem) {
             y0 = y0.min(0.0);
             y1 = y1.max(0.0);
         }
@@ -125,7 +147,14 @@ fn draw_axes(p: &egui::Painter, skin: &Skin, ax: &Axes, cell: Rect, hover: Optio
         inner.min.x += 18.0;
     }
     let ((dx0, dx1), (dy0, dy1)) = bounds(ax);
-    let (x0, x1, xticks) = if ax.xlim.is_some() { let s = nice_step(dx1 - dx0, 6.0); (dx0, dx1, ticks_within(dx0, dx1, s)) } else { nice_axis(dx0, dx1, 6.0) };
+    let (x0, x1, xticks) = if ax.x_kind != XAxisKind::Numeric {
+        (dx0, dx1, time_ticks(dx0, dx1))
+    } else if ax.xlim.is_some() {
+        let s = nice_step(dx1 - dx0, 6.0);
+        (dx0, dx1, ticks_within(dx0, dx1, s))
+    } else {
+        nice_axis(dx0, dx1, 6.0)
+    };
     let (y0, y1, yticks) = if ax.ylim.is_some() { let s = nice_step(dy1 - dy0, 5.0); (dy0, dy1, ticks_within(dy0, dy1, s)) } else { nice_axis(dy0, dy1, 5.0) };
     let xstep = if xticks.len() > 1 { xticks[1] - xticks[0] } else { 1.0 };
     let ystep = if yticks.len() > 1 { yticks[1] - yticks[0] } else { 1.0 };
@@ -144,7 +173,7 @@ fn draw_axes(p: &egui::Painter, skin: &Skin, ax: &Axes, cell: Rect, hover: Optio
             p.line_segment([pos2(x, plot.top()), pos2(x, plot.bottom())], Stroke::new(1.0_f32, skin.chart_grid));
         }
         p.line_segment([pos2(x, plot.bottom()), pos2(x, plot.bottom() - 4.0)], Stroke::new(1.0_f32, skin.chart_axis));
-        p.text(pos2(x, plot.bottom() + 3.0), Align2::CENTER_TOP, tick_label(v, xstep), small.clone(), skin.chart_axis_text);
+        p.text(pos2(x, plot.bottom() + 3.0), Align2::CENTER_TOP, x_label(ax.x_kind, v, xstep, x1 - x0), small.clone(), skin.chart_axis_text);
     }
     for &v in &yticks {
         let y = ty(v);
@@ -162,8 +191,14 @@ fn draw_axes(p: &egui::Painter, skin: &Skin, ax: &Axes, cell: Rect, hover: Optio
         let stroke = Stroke::new(s.line_width.max(0.5), color);
         let pts: Vec<Option<Pos2>> = s.x.iter().zip(&s.y).map(|(&x, &y)| if x.is_finite() && y.is_finite() { Some(pos2(tx(x), ty(y))) } else { None }).collect();
         match s.kind {
+            SeriesKind::Stem => {
+                let base = ty(0.0f64.clamp(y0, y1));
+                for pt in pts.iter().flatten() {
+                    clip.line_segment([pos2(pt.x, base), *pt], stroke);
+                }
+            }
             SeriesKind::Bar => {
-                let w = (bar_spacing(&s.x) * 0.8) as f32 * plot.width() / (x1 - x0) as f32;
+                let w = s.bar_width.unwrap_or(bar_spacing(&s.x) * 0.8) as f32 * plot.width() / (x1 - x0) as f32;
                 let base = ty(0.0f64.clamp(y0, y1));
                 for pt in pts.iter().flatten() {
                     let r = Rect::from_min_max(pos2(pt.x - w / 2.0, pt.y.min(base)), pos2(pt.x + w / 2.0, pt.y.max(base)));
@@ -221,7 +256,12 @@ fn draw_axes(p: &egui::Painter, skin: &Skin, ax: &Axes, cell: Rect, hover: Optio
             clip.line_segment([pos2(plot.left(), h.y), pos2(plot.right(), h.y)], cs);
             let xv = x0 + ((h.x - plot.left()) / plot.width()) as f64 * (x1 - x0);
             let yv = y0 + ((plot.bottom() - h.y) / plot.height()) as f64 * (y1 - y0);
-            let text = format!("x {}   y {}", fmt_g(xv, 4), fmt_g(yv, 4));
+            let xs = match ax.x_kind {
+                XAxisKind::Numeric => fmt_g(xv, 4),
+                XAxisKind::DateTime => livre_lang::time::format_datetime(xv, "dd-MMM-yyyy HH:mm"),
+                XAxisKind::Duration => livre_lang::time::format_duration(xv, "hh:mm:ss"),
+            };
+            let text = format!("x {xs}   y {}", fmt_g(yv, 4));
             let galley = p.layout_no_wrap(text, small.clone(), Color32::WHITE);
             let mut r = Rect::from_min_size(h + vec2(10.0, -26.0), galley.size() + vec2(12.0, 6.0));
             if r.right() > plot.right() {

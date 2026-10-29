@@ -1,0 +1,323 @@
+//! Printers: MATLAB `char(sym)` text, LaTeX, and elementwise MATLAB code (`matlabFunction`).
+
+use super::expr::{Const, Expr, Num, Rel};
+use crate::display::fmt_g;
+
+#[derive(Clone, Copy, PartialEq)]
+pub enum Style {
+    Matlab,
+    Code,
+}
+
+const P_ADD: u8 = 1;
+const P_MUL: u8 = 2;
+const P_POW: u8 = 4;
+const P_ATOM: u8 = 5;
+
+fn num_text(n: Num, style: Style) -> String {
+    match n {
+        Num::Rat(p, 1) => p.to_string(),
+        Num::Rat(p, q) => format!("{p}/{q}"),
+        Num::F(x) => {
+            if style == Style::Code {
+                fmt_g(x, 17)
+            } else {
+                let s = fmt_g(x, 16);
+                if s.contains('.') || s.contains('e') || s.contains("Inf") || s.contains("NaN") { s } else { format!("{s}.0") }
+            }
+        }
+    }
+}
+
+/// Degree of `e` in variable `v` for MATLAB's term ordering (non-polynomial parts count 0).
+fn degree(e: &Expr, v: &str) -> f64 {
+    match e {
+        Expr::Var(n) if n == v => 1.0,
+        Expr::Pow(b, x) => match x.as_num() {
+            Some(n) => degree(b, v) * n.to_f64(),
+            None => 0.0,
+        },
+        Expr::Mul(fs) => fs.iter().map(|f| degree(f, v)).sum(),
+        _ => 0.0,
+    }
+}
+
+/// Orders sum terms like MATLAB: by descending degree in each variable (alphabetically),
+/// constants last.
+fn ordered_terms(terms: &[Expr]) -> Vec<Expr> {
+    let mut vars = Vec::new();
+    for t in terms {
+        t.free_vars(&mut vars);
+    }
+    vars.sort();
+    let mut v: Vec<Expr> = terms.to_vec();
+    v.sort_by(|a, b| {
+        let a_const = a.as_num().is_some();
+        let b_const = b.as_num().is_some();
+        if a_const != b_const {
+            return a_const.cmp(&b_const);
+        }
+        let total = |e: &Expr| vars.iter().map(|x| degree(e, x)).sum::<f64>();
+        let o = total(b).partial_cmp(&total(a)).unwrap_or(std::cmp::Ordering::Equal);
+        if o != std::cmp::Ordering::Equal {
+            return o;
+        }
+        for x in &vars {
+            let o = degree(b, x).partial_cmp(&degree(a, x)).unwrap_or(std::cmp::Ordering::Equal);
+            if o != std::cmp::Ordering::Equal {
+                return o;
+            }
+        }
+        std::cmp::Ordering::Equal
+    });
+    v
+}
+
+/// Splits a product into (coefficient, numerator factors, denominator factors).
+fn fraction(e: &Expr) -> (Num, Vec<Expr>, Vec<Expr>) {
+    let factors: Vec<Expr> = match e {
+        Expr::Mul(f) => f.clone(),
+        other => vec![other.clone()],
+    };
+    let mut coeff = Num::int(1);
+    let mut num = Vec::new();
+    let mut den = Vec::new();
+    for f in factors {
+        match &f {
+            Expr::Num(n) => coeff = coeff.mul(*n),
+            Expr::Pow(b, x) if x.as_num().map(|n| n.is_neg()).unwrap_or(false) => {
+                den.push(Expr::pow((**b).clone(), Expr::Num(x.as_num().unwrap().neg())));
+            }
+            _ => num.push(f),
+        }
+    }
+    (coeff, num, den)
+}
+
+pub fn print(e: &Expr, style: Style) -> String {
+    pr(e, style).0
+}
+
+fn wrap(s: (String, u8), min: u8) -> String {
+    if s.1 < min { format!("({})", s.0) } else { s.0 }
+}
+
+fn pr(e: &Expr, style: Style) -> (String, u8) {
+    let (mul_op, div_op, pow_op) = if style == Style::Code { (".*", "./", ".^") } else { ("*", "/", "^") };
+    match e {
+        Expr::Num(n) => {
+            let s = num_text(*n, style);
+            let prec = if n.is_neg() || matches!(n, Num::Rat(_, q) if *q != 1) { P_MUL } else { P_ATOM };
+            (s, prec)
+        }
+        Expr::Var(v) => (v.clone(), P_ATOM),
+        Expr::Const(c) => (
+            match c {
+                Const::Pi => "pi".into(),
+                Const::I => "1i".into(),
+                Const::Inf => "Inf".into(),
+                Const::NaN => "NaN".into(),
+            },
+            P_ATOM,
+        ),
+        Expr::Add(terms) => {
+            let ordered = ordered_terms(terms);
+            let mut out = String::new();
+            for (k, t) in ordered.iter().enumerate() {
+                let (c, _) = t.split_coeff();
+                let negative = c.is_neg();
+                let body = if negative { Expr::neg(t.clone()) } else { t.clone() };
+                let s = wrap(pr(&body, style), P_ADD + 1);
+                if k == 0 {
+                    if negative {
+                        out.push('-');
+                    }
+                    out.push_str(&s);
+                } else {
+                    out.push_str(if negative { " - " } else { " + " });
+                    out.push_str(&s);
+                }
+            }
+            (out, P_ADD)
+        }
+        Expr::Mul(_) | Expr::Pow(..) => {
+            if let Expr::Pow(b, x) = e {
+                if !x.as_num().map(|n| n.is_neg()).unwrap_or(false) {
+                    if let Some(Num::Rat(1, 2)) = x.as_num() {
+                        if style == Style::Code {
+                            return (format!("sqrt({})", pr(b, style).0), P_ATOM);
+                        }
+                    }
+                    let base = wrap(pr(b, style), P_POW + 1);
+                    let ex = match x.as_num() {
+                        Some(Num::Rat(p, 1)) if p >= 0 => p.to_string(),
+                        _ => format!("({})", pr(x, style).0),
+                    };
+                    let ex = if matches!(**x, Expr::Var(_) | Expr::Const(_)) { pr(x, style).0 } else { ex };
+                    return (format!("{base}{pow_op}{ex}"), P_POW);
+                }
+            }
+            let (coeff, num, den) = fraction(e);
+            let negative = coeff.is_neg();
+            let c = if negative { coeff.neg() } else { coeff };
+            let (cp, cq) = match c {
+                Num::Rat(p, q) => (Num::int(p), Num::int(q)),
+                f => (f, Num::int(1)),
+            };
+            let mut num_parts: Vec<String> = Vec::new();
+            if !cp.is_one() || num.is_empty() {
+                num_parts.push(num_text(cp, style));
+            }
+            for f in &num {
+                num_parts.push(wrap(pr(f, style), P_MUL));
+            }
+            let mut den_parts: Vec<String> = Vec::new();
+            if !cq.is_one() {
+                den_parts.push(num_text(cq, style));
+            }
+            for f in &den {
+                den_parts.push(wrap(pr(f, style), P_MUL + 1));
+            }
+            let mut s = num_parts.join(mul_op);
+            if !den_parts.is_empty() {
+                if num_parts.len() > 1 {
+                    s = format!("({s})");
+                }
+                let d = den_parts.join(mul_op);
+                let d = if den_parts.len() > 1 { format!("({d})") } else { d };
+                s = format!("{s}{div_op}{d}");
+            }
+            if negative {
+                s = format!("-{s}");
+            }
+            (s, P_MUL)
+        }
+        Expr::Fn(n, args) => {
+            let a: Vec<String> = args.iter().map(|x| pr(x, style).0).collect();
+            (format!("{n}({})", a.join(", ")), P_ATOM)
+        }
+        Expr::Rel(op, l, r) => {
+            let o = match op {
+                Rel::Eq => "==",
+                Rel::Ne => "~=",
+                Rel::Lt => "<",
+                Rel::Le => "<=",
+                Rel::Gt => ">",
+                Rel::Ge => ">=",
+            };
+            (format!("{} {o} {}", pr(l, style).0, pr(r, style).0), 0)
+        }
+    }
+}
+
+pub fn latex(e: &Expr) -> String {
+    lx(e).0
+}
+
+fn lwrap(s: (String, u8), min: u8) -> String {
+    if s.1 < min { format!("\\left({}\\right)", s.0) } else { s.0 }
+}
+
+fn lx(e: &Expr) -> (String, u8) {
+    match e {
+        Expr::Num(Num::Rat(p, 1)) => (p.to_string(), if *p < 0 { P_MUL } else { P_ATOM }),
+        Expr::Num(Num::Rat(p, q)) => (format!("{}\\frac{{{}}}{{{q}}}", if *p < 0 { "-" } else { "" }, p.abs()), P_MUL),
+        Expr::Num(Num::F(x)) => (fmt_g(*x, 16), P_ATOM),
+        Expr::Var(v) => (v.clone(), P_ATOM),
+        Expr::Const(Const::Pi) => ("\\pi ".into(), P_ATOM),
+        Expr::Const(Const::I) => ("\\mathrm{i}".into(), P_ATOM),
+        Expr::Const(Const::Inf) => ("\\infty ".into(), P_ATOM),
+        Expr::Const(Const::NaN) => ("\\mathrm{NaN}".into(), P_ATOM),
+        Expr::Add(terms) => {
+            let mut out = String::new();
+            for (k, t) in ordered_terms(terms).iter().enumerate() {
+                let negative = t.split_coeff().0.is_neg();
+                let body = if negative { Expr::neg(t.clone()) } else { t.clone() };
+                let s = lwrap(lx(&body), P_ADD + 1);
+                if k > 0 || negative {
+                    out.push_str(if negative { "-" } else { "+" });
+                }
+                out.push_str(&s);
+            }
+            (out, P_ADD)
+        }
+        Expr::Pow(b, x) if !x.as_num().map(|n| n.is_neg()).unwrap_or(false) => {
+            if let Some(Num::Rat(1, 2)) = x.as_num() {
+                return (format!("\\sqrt{{{}}}", lx(b).0), P_ATOM);
+            }
+            (format!("{{{}}}^{{{}}}", lwrap(lx(b), P_POW + 1), lx(x).0), P_POW)
+        }
+        Expr::Mul(_) | Expr::Pow(..) => {
+            let (coeff, num, den) = fraction(e);
+            let negative = coeff.is_neg();
+            let c = if negative { coeff.neg() } else { coeff };
+            let (cp, cq) = match c {
+                Num::Rat(p, q) => (p.to_string(), q),
+                Num::F(f) => (fmt_g(f, 16), 1),
+            };
+            let mut ns: Vec<String> = Vec::new();
+            if cp != "1" || num.is_empty() {
+                ns.push(cp);
+            }
+            ns.extend(num.iter().map(|f| lwrap(lx(f), P_MUL)));
+            let n = ns.join("\\,");
+            let mut ds: Vec<String> = Vec::new();
+            if cq != 1 {
+                ds.push(cq.to_string());
+            }
+            ds.extend(den.iter().map(|f| lwrap(lx(f), P_MUL)));
+            let s = if ds.is_empty() { n } else { format!("\\frac{{{n}}}{{{}}}", ds.join("\\,")) };
+            (if negative { format!("-{s}") } else { s }, P_MUL)
+        }
+        Expr::Fn(n, args) => {
+            let a: Vec<String> = args.iter().map(|x| lx(x).0).collect();
+            let name = match n.as_str() {
+                "sin" | "cos" | "tan" | "exp" | "log" | "sinh" | "cosh" | "tanh" => format!("\\{n}"),
+                "asin" => "\\arcsin".into(),
+                "acos" => "\\arccos".into(),
+                "atan" => "\\arctan".into(),
+                "abs" => return (format!("\\left|{}\\right|", a.join(",")), P_ATOM),
+                other => format!("\\mathrm{{{other}}}"),
+            };
+            (format!("{name}\\left({}\\right)", a.join(",")), P_ATOM)
+        }
+        Expr::Rel(op, l, r) => {
+            let o = match op {
+                Rel::Eq => "=",
+                Rel::Ne => "\\neq ",
+                Rel::Lt => "<",
+                Rel::Le => "\\le ",
+                Rel::Gt => ">",
+                Rel::Ge => "\\ge ",
+            };
+            (format!("{}{o}{}", lx(l).0, lx(r).0), 0)
+        }
+    }
+}
+
+impl std::fmt::Display for Expr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", print(self, Style::Matlab))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn x() -> Expr {
+        Expr::var("x")
+    }
+
+    #[test]
+    fn matlab_ordering_and_fractions() {
+        let p = Expr::add(vec![Expr::one(), Expr::mul(vec![Expr::int(2), x()]), Expr::pow(x(), Expr::int(2))]);
+        assert_eq!(p.to_string(), "x^2 + 2*x + 1");
+        let q = Expr::sub(Expr::pow(x(), Expr::int(2)), Expr::mul(vec![Expr::int(2), x()]));
+        assert_eq!(q.to_string(), "x^2 - 2*x");
+        assert_eq!(Expr::div(x(), Expr::int(2)).to_string(), "x/2");
+        assert_eq!(Expr::mul(vec![Expr::rat(3, 2), x()]).to_string(), "(3*x)/2");
+        assert_eq!(Expr::div(Expr::one(), x()).to_string(), "1/x");
+        assert_eq!(Expr::func("sqrt", vec![x()]).to_string(), "x^(1/2)");
+    }
+}

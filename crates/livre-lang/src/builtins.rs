@@ -1,44 +1,52 @@
-//! Built-in functions. `call` returns `Ok(None)` when the name is not a builtin.
+//! Built-in functions. `call` returns `Ok(None)` when the name is not a builtin. Type-specific
+//! families live in `builtins_text`, `builtins_plot`, `time`, `table` and `sym`.
 
+use crate::cplx::{poly_roots, C};
 use crate::display::{disp_value, fmt_g, NumFormat};
 use crate::error::{rt, LangError};
 use crate::format::sprintf;
-use crate::graphics::{self, Axes, Figure, LineStyle, Series, SeriesKind};
-use crate::interp::{hconcat, range_count, vconcat, Interpreter, OutputKind};
-use crate::ops;
+use crate::indexing::{self, hconcat, vconcat};
+use crate::interp::{range_count, Interpreter, OutputKind};
+use crate::nd::{self, Dims, IndexArg};
+use crate::ops::{self, broadcast, map_c};
 use crate::value::*;
 
 type R<T> = Result<T, LangError>;
-type Ret = R<Option<Vec<Value>>>;
+pub(crate) type Ret = R<Option<Vec<Value>>>;
 
 const NAMES: &[&str] = &[
-    "abs", "acos", "acosd", "all", "any", "area", "arrayfun", "asin", "asind", "assert", "atan", "atan2", "atand", "axis", "bar",
-    "blanks", "cat", "ceil", "cell", "cellfun", "char", "circshift", "class", "clc", "clear", "clf", "close", "colon", "contains",
-    "cos", "cosd", "cosh", "cross", "cumprod", "cumsum", "deal", "deg2rad", "det", "diag", "diff", "disp", "display", "dot",
-    "double", "drawnow", "endsWith", "eps", "error", "exist", "exp", "eye", "factorial", "false", "feval", "fieldnames",
-    "figure", "find", "fix", "flip", "fliplr", "flipud", "floor", "format", "fprintf", "func2str", "gamma", "gcd", "grid",
-    "histcounts", "hold", "horzcat", "hypot", "idivide", "Inf", "inf", "int2str", "interp1", "inv", "isa", "iscell", "iscellstr",
-    "ischar", "iscolumn", "isempty", "isequal", "isfield", "isfinite", "isinf", "islogical", "ismatrix", "ismember", "isnan",
-    "isnumeric", "isprime", "isreal", "isrow", "isscalar", "isspace", "isstring", "isstruct", "isvector", "lcm", "legend",
-    "length", "linspace", "log", "log10", "log1p", "log2", "logical", "logspace", "lower", "mat2str", "max", "mean", "median",
-    "meshgrid", "min", "mod", "NaN", "nan", "nchoosek", "ndims", "newline", "nnz", "norm", "num2cell", "num2str", "numel",
-    "ones", "pause", "pi", "plot", "polyfit", "polyval", "power", "primes", "prod", "rad2deg", "rand", "randi", "randn",
-    "randperm", "rem", "repmat", "reshape", "rmfield", "rng", "round", "scatter", "sign", "sin", "sind", "sinh", "size", "sort",
-    "sprintf", "sqrt", "stairs", "startsWith", "std", "str2double", "str2func", "str2num", "strcat", "strcmp", "strcmpi",
-    "string", "strjoin", "strlength", "strrep", "strsplit", "strtrim", "struct", "subplot", "sum", "tan", "tand", "tanh",
-    "tic", "title", "toc", "trace", "transpose", "trapz", "true", "unique", "upper", "var", "vertcat", "xlabel", "xlim",
-    "ylabel", "ylim", "zeros",
+    "abs", "acos", "acosd", "acosh", "all", "angle", "any", "arrayfun", "asin", "asind", "asinh", "assert", "atan", "atan2", "atand", "atanh", "cast",
+    "cat", "ceil", "cell", "cellfun", "circshift", "class", "clear", "complex", "conj", "cos", "cosd", "cosh", "cross", "cummax", "cummin", "cumprod",
+    "cumsum", "deal", "deg2rad", "det", "diag", "diff", "disp", "display", "dot", "double", "eig", "eps", "error", "exist", "exp", "expm1", "eye",
+    "factor", "factorial", "false", "feval", "fieldnames", "find", "fix", "flintmax", "flip", "fliplr", "flipud", "floor", "format", "func2str",
+    "gamma", "gcd", "horzcat", "hypot", "i", "idivide", "imag", "Inf", "inf", "int16", "int32", "int64", "int8", "interp1", "intmax", "intmin", "inv",
+    "isa", "iscell", "iscolumn", "iscomplex", "isempty", "isequal", "isfield", "isfinite", "isfloat", "isinf", "isinteger", "islogical", "ismatrix",
+    "ismember", "ismethod", "isnan", "isnumeric", "isobject", "isprime", "isprop", "isreal", "isrow", "isscalar", "isstruct", "isvector", "j", "kron",
+    "lcm", "length", "linspace", "log", "log10", "log1p", "log2", "logical", "logspace", "max", "mean", "median", "meshgrid", "methods", "min", "mod",
+    "mode", "NaN", "nan", "nchoosek", "ndgrid", "ndims", "nnz", "norm", "nthroot", "num2cell", "numel", "ones", "pause", "permute", "pi", "polyfit",
+    "polyval", "power", "primes", "prod", "properties", "rad2deg", "rand", "randi", "randn", "randperm", "real", "realmax", "realmin", "rem", "repmat",
+    "reshape", "rmfield", "rng", "roots", "round", "sign", "sin", "sind", "single", "sinh", "size", "sort", "sortrows", "sqrt", "squeeze", "std",
+    "str2func", "struct", "sum", "tan", "tand", "tanh", "tic", "toc", "trace", "transpose", "trapz", "true", "uint16", "uint32", "uint64", "uint8",
+    "unique", "var", "vertcat", "warning", "zeros", "histcounts", "addpath", "rmpath", "path", "pwd", "drawnow", "clc", "isspace", "fprintf",
+    "sprintf", "newline", "blanks", "accumarray", "cumtrapz", "validateattributes", "inputname", "nargchk", "narginchk", "isdiag", "istril",
+    "istriu", "issorted", "triu", "tril", "floor", "ctranspose", "uminus", "uplus", "plus", "minus", "times", "mtimes", "rdivide", "ldivide",
+    "mrdivide", "mldivide", "mpower", "eq", "ne", "lt", "le", "gt", "ge", "and", "or", "not", "xor", "colon", "isobject", "isstring",
 ];
 
 pub fn exists(name: &str) -> bool {
     NAMES.contains(&name)
+        || crate::builtins_text::NAMES.contains(&name)
+        || crate::builtins_plot::NAMES.contains(&name)
+        || crate::time::NAMES.contains(&name)
+        || crate::table::NAMES.contains(&name)
+        || crate::sym::NAMES.contains(&name)
 }
 
-fn one(v: Value) -> Ret {
+pub(crate) fn one(v: Value) -> Ret {
     Ok(Some(vec![v]))
 }
 
-fn none() -> Ret {
+pub(crate) fn none() -> Ret {
     Ok(Some(Vec::new()))
 }
 
@@ -50,126 +58,196 @@ fn mat(m: Matrix) -> Ret {
     one(Value::Num(m))
 }
 
-fn arg<'a>(args: &'a [Value], i: usize, fname: &str) -> R<&'a Value> {
+pub(crate) fn arg<'a>(args: &'a [Value], i: usize, fname: &str) -> R<&'a Value> {
     args.get(i).ok_or_else(|| LangError::new(format!("Not enough input arguments for '{fname}'."), 0))
 }
 
-fn m_arg(args: &[Value], i: usize, fname: &str) -> R<Matrix> {
-    arg(args, i, fname)?.to_matrix()
+pub(crate) fn m_arg(args: &[Value], i: usize, fname: &str) -> R<Matrix> {
+    match arg(args, i, fname)? {
+        Value::Num(m) => Ok(m.clone()),
+        Value::Sym(s) => s.to_matrix(),
+        other => rt(format!("Undefined function '{fname}' for input arguments of type '{}'.", other.class_name())),
+    }
 }
 
 fn bool_mat(m: &Matrix, f: impl Fn(f64) -> bool) -> Matrix {
-    Matrix::logical(m.rows, m.cols, m.data.iter().map(|&x| if f(x) { 1.0 } else { 0.0 }).collect())
+    Matrix::from_dims(m.dims.clone(), m.data.iter().map(|&x| if f(x) { 1.0 } else { 0.0 }).collect()).with_kind(Kind::Logical)
 }
 
-/// Parses size arguments: `()`, `(n)`, `(r, c)`, `([r c])`; trailing text options are ignored.
-fn size_args(args: &[Value]) -> R<(usize, usize)> {
+/// Trailing class name in constructor calls: `zeros(2, 'int8')`, `ones(3, 'like', x)`.
+fn class_option(args: &[Value]) -> R<(Vec<Value>, Kind)> {
+    let mut kind = Kind::Double;
+    let mut rest = Vec::new();
+    let mut i = 0;
+    while i < args.len() {
+        if args[i].is_text() {
+            let t = args[i].text()?;
+            if t.eq_ignore_ascii_case("like") {
+                if let Some(Value::Num(m)) = args.get(i + 1) {
+                    kind = m.kind;
+                }
+                i += 2;
+                continue;
+            }
+            if let Some(k) = Kind::from_name(&t) {
+                kind = k;
+            }
+            i += 1;
+            continue;
+        }
+        rest.push(args[i].clone());
+        i += 1;
+    }
+    Ok((rest, kind))
+}
+
+/// Parses size arguments: `()`, `(n)`, `(r, c, …)`, `([r c …])`.
+pub(crate) fn size_args(args: &[Value]) -> R<Dims> {
     let nums: Vec<&Value> = args.iter().filter(|a| !a.is_text()).collect();
+    let dim = |v: f64| -> R<usize> {
+        if v.is_nan() {
+            return rt("Size inputs must be integers.");
+        }
+        Ok(if v < 0.0 { 0 } else { v as usize })
+    };
     match nums.len() {
-        0 => Ok((1, 1)),
+        0 => Ok(vec![1, 1]),
         1 => {
             let m = nums[0].as_matrix()?;
             if m.numel() >= 2 {
-                Ok((dim_of(m.data[0])?, dim_of(m.data[1])?))
+                Ok(nd::normalize(m.data.iter().map(|&x| dim(x)).collect::<R<_>>()?))
             } else {
-                let n = dim_of(nums[0].scalar()?)?;
-                Ok((n, n))
+                let n = dim(nums[0].scalar()?)?;
+                Ok(vec![n, n])
             }
         }
-        _ => Ok((dim_of(nums[0].scalar()?)?, dim_of(nums[1].scalar()?)?)),
+        _ => Ok(nd::normalize(nums.iter().map(|v| dim(v.scalar()?)).collect::<R<_>>()?)),
     }
-}
-
-fn dim_of(v: f64) -> R<usize> {
-    if v.is_nan() {
-        return rt("Size inputs must be integers.");
-    }
-    Ok(if v < 0.0 { 0 } else { v as usize })
 }
 
 /// First non-singleton dimension (1-based).
-fn default_dim(m: &Matrix) -> usize {
-    if m.rows != 1 { 1 } else { 2 }
+fn default_dim(d: &[usize]) -> usize {
+    d.iter().position(|&x| x != 1).map(|p| p + 1).unwrap_or(1)
 }
 
 fn dim_arg(args: &[Value], i: usize, m: &Matrix) -> R<usize> {
     match args.get(i) {
         Some(v) if !v.is_text() && !matches!(v, Value::Num(x) if x.is_empty()) => {
-            let d = v.scalar()? as usize;
-            if d < 1 {
-                return rt("Dimension argument must be a positive integer.");
+            let d = v.scalar()?;
+            if d < 1.0 || d.fract() != 0.0 {
+                return rt("Dimension argument must be a positive integer scalar within indexing range.");
             }
-            Ok(d)
+            Ok(d as usize)
         }
-        _ => Ok(default_dim(m)),
+        _ => Ok(default_dim(&m.dims)),
     }
 }
 
-/// Applies `f` to each column (dim 1) or row (dim 2) slice.
+/// Positions of the slices along dimension `dim` (1-based): one Vec per output element.
+fn slices(d: &[usize], dim: usize) -> (Dims, Vec<Vec<usize>>) {
+    let k = dim - 1;
+    if k >= d.len() {
+        let n = nd::numel(d);
+        return (d.to_vec(), (0..n).map(|i| vec![i]).collect());
+    }
+    let stride: usize = d[..k].iter().product();
+    let len = d[k];
+    let outer: usize = d[k + 1..].iter().product();
+    let mut out_dims = d.to_vec();
+    out_dims[k] = 1;
+    let mut out = Vec::with_capacity(stride * outer);
+    for o in 0..outer {
+        for i in 0..stride {
+            out.push((0..len).map(|j| o * stride * len + j * stride + i).collect());
+        }
+    }
+    (nd::normalize(out_dims), out)
+}
+
+/// Applies `f` to each slice along `dim`.
 fn reduce(m: &Matrix, dim: usize, f: impl Fn(&[f64]) -> f64) -> Matrix {
-    if m.rows == 0 && m.cols == 0 {
+    if m.dims == [0, 0] {
         return Matrix::scalar(f(&[]));
     }
-    match dim {
-        1 => {
-            let data = (0..m.cols).map(|c| f(&m.data[c * m.rows..(c + 1) * m.rows])).collect();
-            Matrix::new(1, m.cols, data)
-        }
-        2 => {
-            let mut buf = vec![0.0; m.cols];
-            let data = (0..m.rows)
-                .map(|r| {
-                    for c in 0..m.cols {
-                        buf[c] = m.get(r, c);
-                    }
-                    f(&buf)
-                })
-                .collect();
-            Matrix::new(m.rows, 1, data)
-        }
-        _ => m.map(|x| f(&[x])),
-    }
+    let (dims, sl) = slices(&m.dims, dim);
+    let mut buf = Vec::new();
+    let data = sl
+        .iter()
+        .map(|s| {
+            buf.clear();
+            buf.extend(s.iter().map(|&p| m.data[p]));
+            f(&buf)
+        })
+        .collect();
+    Matrix::from_dims(dims, data)
 }
 
-/// Cumulative op along a dimension.
+fn reduce_c(m: &Matrix, dim: usize, f: impl Fn(&[C]) -> C) -> Matrix {
+    let (dims, sl) = slices(&m.dims, dim);
+    let mut re = Vec::with_capacity(sl.len());
+    let mut im = Vec::with_capacity(sl.len());
+    for s in &sl {
+        let v: Vec<C> = s.iter().map(|&p| C::new(m.data[p], m.im_at(p))).collect();
+        let z = f(&v);
+        re.push(z.re);
+        im.push(z.im);
+    }
+    Matrix::complex(dims, re, im)
+}
+
 fn cumulate(m: &Matrix, dim: usize, f: impl Fn(f64, f64) -> f64) -> Matrix {
     let mut out = m.clone();
-    out.kind = Kind::Double;
-    if dim == 1 {
-        for c in 0..m.cols {
-            for r in 1..m.rows {
-                let v = f(out.get(r - 1, c), m.get(r, c));
-                out.set(r, c, v);
-            }
-        }
-    } else {
-        for r in 0..m.rows {
-            for c in 1..m.cols {
-                let v = f(out.get(r, c - 1), m.get(r, c));
-                out.set(r, c, v);
-            }
+    out.kind = if m.kind.is_int() || m.kind == Kind::Single { m.kind } else { Kind::Double };
+    let (_, sl) = slices(&m.dims, dim);
+    for s in sl {
+        for w in 1..s.len() {
+            out.data[s[w]] = out.kind.cast(f(out.data[s[w - 1]], m.data[s[w]]));
         }
     }
     out
 }
 
 fn median_of(v: &[f64]) -> f64 {
-    if v.is_empty() {
+    if v.is_empty() || v.iter().any(|x| x.is_nan()) {
         return f64::NAN;
     }
     let mut s = v.to_vec();
-    s.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    s.sort_by(|a, b| a.partial_cmp(b).unwrap());
     let n = s.len();
     if n % 2 == 1 { s[n / 2] } else { (s[n / 2 - 1] + s[n / 2]) / 2.0 }
 }
 
-fn variance(v: &[f64]) -> f64 {
+fn mode_of(v: &[f64]) -> f64 {
+    let mut s: Vec<f64> = v.iter().copied().filter(|x| !x.is_nan()).collect();
+    if s.is_empty() {
+        return f64::NAN;
+    }
+    s.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let (mut best, mut best_n, mut i) = (s[0], 0, 0);
+    while i < s.len() {
+        let mut j = i;
+        while j < s.len() && s[j] == s[i] {
+            j += 1;
+        }
+        if j - i > best_n {
+            best_n = j - i;
+            best = s[i];
+        }
+        i = j;
+    }
+    best
+}
+
+fn variance(v: &[f64], w: f64) -> f64 {
     let n = v.len();
-    if n <= 1 {
+    if n == 0 {
+        return f64::NAN;
+    }
+    if n == 1 {
         return 0.0;
     }
     let mean = v.iter().sum::<f64>() / n as f64;
-    v.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / (n - 1) as f64
+    v.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / if w == 1.0 { n as f64 } else { (n - 1) as f64 }
 }
 
 fn gcd(a: f64, b: f64) -> f64 {
@@ -214,41 +292,135 @@ pub fn num2str_scalar(v: f64) -> String {
     fmt_g(v, digits)
 }
 
-fn text_list(v: &Value) -> R<Vec<String>> {
-    match v {
-        Value::Cell(c) => c.data.iter().map(|x| x.text()).collect(),
-        Value::Num(m) if m.kind == Kind::Char && m.rows > 1 => Ok((0..m.rows)
-            .map(|r| (0..m.cols).map(|c| char::from_u32(m.get(r, c) as u32).unwrap_or('?')).collect::<String>())
-            .collect()),
-        other => Ok(vec![other.text()?]),
-    }
-}
-
-/// Wraps strings in the same container shape as `like` (cell in, cell out).
-fn text_result(like: &Value, items: Vec<String>) -> Value {
-    match like {
-        Value::Cell(c) => Value::Cell(CellArray::new(c.rows, c.cols, items.into_iter().map(|s| Value::chars(&s)).collect())),
-        Value::Str(_) => Value::Str(items.into_iter().next().unwrap_or_default()),
-        _ => Value::chars(&items.into_iter().next().unwrap_or_default()),
-    }
-}
-
-fn values_equal(a: &Value, b: &Value) -> bool {
+pub(crate) fn values_equal(a: &Value, b: &Value) -> bool {
     match (a, b) {
-        (Value::Num(x), Value::Num(y)) => x.rows == y.rows && x.cols == y.cols && x.data == y.data,
-        (Value::Cell(x), Value::Cell(y)) => x.rows == y.rows && x.cols == y.cols && x.data.iter().zip(&y.data).all(|(p, q)| values_equal(p, q)),
+        (Value::Num(x), Value::Num(y)) => x.dims == y.dims && x.data == y.data && (0..x.numel()).all(|i| x.im_at(i) == y.im_at(i)),
+        (Value::Cell(x), Value::Cell(y)) => x.dims == y.dims && x.data.iter().zip(&y.data).all(|(p, q)| values_equal(p, q)),
         (Value::Struct(x), Value::Struct(y)) => {
-            x.fields.len() == y.fields.len() && x.fields.iter().all(|(n, v)| y.get(n).map(|w| values_equal(v, w)).unwrap_or(false))
+            x.dims == y.dims
+                && x.fields.len() == y.fields.len()
+                && x.fields.iter().all(|f| y.field_index(f).is_some())
+                && (0..x.elems.len()).all(|i| x.fields.iter().all(|f| values_equal(x.get_at(i, f).unwrap(), y.get_at(i, f).unwrap())))
         }
         (Value::Str(x), Value::Str(y)) => x == y,
-        (Value::Str(x), y) | (y, Value::Str(x)) if y.is_char() => y.text().map(|t| &t == x).unwrap_or(false),
+        (Value::Str(x), y) | (y, Value::Str(x)) if y.is_char() && x.is_scalar() => y.text().map(|t| x.data[0].as_deref() == Some(t.as_str())).unwrap_or(false),
+        (Value::Table(x), Value::Table(y)) => x.names == y.names && x.vars.iter().zip(&y.vars).all(|(p, q)| values_equal(p, q)),
         _ => a == b,
     }
 }
 
+/// Elementwise math with MATLAB's complex extensions of the real domain.
+fn unary_math(name: &str, m: &Matrix) -> Option<R<Matrix>> {
+    let real: Option<fn(f64) -> f64> = match name {
+        "floor" => Some(f64::floor),
+        "ceil" => Some(f64::ceil),
+        "fix" => Some(f64::trunc),
+        "sign" => Some(|x: f64| if x > 0.0 { 1.0 } else if x < 0.0 { -1.0 } else if x == 0.0 { 0.0 } else { f64::NAN }),
+        "sind" => Some(|x: f64| if (x % 180.0) == 0.0 { 0.0 } else { x.to_radians().sin() }),
+        "cosd" => Some(|x: f64| if ((x - 90.0) % 180.0) == 0.0 { 0.0 } else { x.to_radians().cos() }),
+        "tand" => Some(|x: f64| if (x % 180.0) == 0.0 { 0.0 } else { x.to_radians().tan() }),
+        "asind" => Some(|x: f64| x.asin().to_degrees()),
+        "acosd" => Some(|x: f64| x.acos().to_degrees()),
+        "atand" => Some(|x: f64| x.atan().to_degrees()),
+        "deg2rad" => Some(f64::to_radians),
+        "rad2deg" => Some(f64::to_degrees),
+        "gamma" => Some(gamma),
+        "factorial" => Some(|x: f64| gamma(x + 1.0).round()),
+        "expm1" => Some(f64::exp_m1),
+        "log1p" => Some(f64::ln_1p),
+        _ => None,
+    };
+    let int_ok = matches!(name, "abs" | "sign" | "floor" | "ceil" | "fix" | "round");
+    if m.kind.is_int() && !int_ok {
+        return Some(rt(format!("Undefined function '{name}' for input arguments of type '{}'.", m.kind.name())));
+    }
+    let keep = |out: Matrix| -> Matrix {
+        if m.kind.is_int() || m.kind == Kind::Single { out.cast_to(m.kind) } else { out }
+    };
+    if let Some(f) = real {
+        if m.is_complex() && matches!(name, "floor" | "ceil" | "fix") {
+            let mut out = m.map(f);
+            out.im = m.im.as_ref().map(|im| im.iter().map(|&x| f(x)).collect());
+            return Some(Ok(keep(out)));
+        }
+        return Some(Ok(keep(m.map(f))));
+    }
+    let cf: fn(C) -> C = match name {
+        "sin" => C::sin,
+        "cos" => C::cos,
+        "tan" => C::tan,
+        "sinh" => C::sinh,
+        "cosh" => C::cosh,
+        "tanh" => C::tanh,
+        "exp" => C::exp,
+        "log" => C::ln,
+        "sqrt" => C::sqrt,
+        "asin" => C::asin,
+        "acos" => C::acos,
+        "atan" => C::atan,
+        "log10" => |z: C| {
+            let l = z.ln();
+            C::new(l.re / std::f64::consts::LN_10, l.im / std::f64::consts::LN_10)
+        },
+        "log2" => |z: C| {
+            let l = z.ln();
+            C::new(l.re / std::f64::consts::LN_2, l.im / std::f64::consts::LN_2)
+        },
+        "asinh" => |z: C| z.add(z.mul(z).add(C::new(1.0, 0.0)).sqrt()).ln(),
+        "acosh" => |z: C| z.add(z.add(C::new(1.0, 0.0)).sqrt().mul(z.sub(C::new(1.0, 0.0)).sqrt())).ln(),
+        "atanh" => |z: C| {
+            let a = C::new(1.0, 0.0).add(z).ln().sub(C::new(1.0, 0.0).sub(z).ln());
+            C::new(a.re / 2.0, a.im / 2.0)
+        },
+        "abs" => {
+            if !m.is_complex() {
+                return Some(Ok(keep(m.map(f64::abs))));
+            }
+            return Some(Ok(Matrix::from_dims(m.dims.clone(), (0..m.numel()).map(|i| C::new(m.data[i], m.im_at(i)).abs()).collect())));
+        }
+        "round" => {
+            let mut out = m.map(f64::round);
+            out.im = m.im.as_ref().map(|im| im.iter().map(|x| x.round()).collect());
+            return Some(Ok(keep(out)));
+        }
+        _ => return None,
+    };
+    // Real inputs stay on the real fast path unless the result leaves the real line.
+    if !m.is_complex() {
+        let leaves = match name {
+            "sqrt" | "log" | "log10" | "log2" => m.data.iter().any(|&x| x < 0.0),
+            "asin" | "acos" | "atanh" => m.data.iter().any(|&x| x.abs() > 1.0),
+            "acosh" => m.data.iter().any(|&x| x < 1.0),
+            _ => false,
+        };
+        if !leaves {
+            let f: fn(f64) -> f64 = match name {
+                "sin" => f64::sin,
+                "cos" => f64::cos,
+                "tan" => f64::tan,
+                "sinh" => f64::sinh,
+                "cosh" => f64::cosh,
+                "tanh" => f64::tanh,
+                "exp" => f64::exp,
+                "log" => f64::ln,
+                "sqrt" => f64::sqrt,
+                "asin" => f64::asin,
+                "acos" => f64::acos,
+                "atan" => f64::atan,
+                "log10" => f64::log10,
+                "log2" => f64::log2,
+                "asinh" => f64::asinh,
+                "acosh" => f64::acosh,
+                _ => f64::atanh,
+            };
+            return Some(Ok(keep(m.map(f))));
+        }
+    }
+    Some(Ok(keep(map_c(m, cf))))
+}
+
 impl Interpreter {
     fn next_rand(&mut self) -> f64 {
-        // xorshift64*
         let mut x = self.rng_state;
         x ^= x >> 12;
         x ^= x << 25;
@@ -264,30 +436,7 @@ impl Interpreter {
         (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos()
     }
 
-    fn current_figure(&mut self) -> &mut Figure {
-        if self.current_figure.is_none() {
-            let id = self.next_figure_id;
-            self.next_figure_id += 1;
-            self.figures.push(Figure::new(id));
-            self.current_figure = Some(self.figures.len() - 1);
-        }
-        let i = self.current_figure.unwrap();
-        let id = self.figures[i].id;
-        self.mark_figure_dirty(id);
-        &mut self.figures[i]
-    }
-
-    fn add_series(&mut self, series: Vec<Series>) {
-        let ax = self.current_figure().axes_mut();
-        if !ax.hold {
-            let hold = ax.hold;
-            let grid = ax.grid;
-            *ax = Axes { hold, grid, ..Axes::default() };
-        }
-        ax.series.extend(series);
-    }
-
-    fn call_func_value(&mut self, f: &Value, args: Vec<Value>, nargout: usize) -> R<Vec<Value>> {
+    pub(crate) fn call_func_value(&mut self, f: &Value, args: Vec<Value>, nargout: usize) -> R<Vec<Value>> {
         match f {
             Value::Func(fv) => self.call_value(fv, args, nargout),
             v if v.is_text() => {
@@ -299,209 +448,124 @@ impl Interpreter {
     }
 }
 
-fn plot_series(args: &[Value], kind: SeriesKind) -> R<Vec<Series>> {
-    let mut out: Vec<Series> = Vec::new();
-    let mut i = 0;
-    let mut props: Vec<(String, Value)> = Vec::new();
-    while i < args.len() {
-        if args[i].is_text() {
-            // Name-value pairs end the data groups.
-            let name = args[i].text()?;
-            if graphics::parse_line_spec(&name).is_some() && !out.is_empty() && props.is_empty() {
-                i += 1;
-                continue;
-            }
-            match args.get(i + 1) {
-                Some(v) => props.push((name.to_lowercase(), v.clone())),
-                None => return rt(format!("Invalid parameter/value pair arguments ('{name}').")),
-            }
-            i += 2;
-            continue;
-        }
-        let a = args[i].to_matrix()?;
-        let (x, y) = match args.get(i + 1) {
-            Some(b) if !b.is_text() => {
-                i += 2;
-                (Some(a), b.to_matrix()?)
-            }
-            _ => {
-                i += 1;
-                (None, a)
-            }
-        };
-        let mut spec = None;
-        if let Some(s) = args.get(i) {
-            if s.is_text() {
-                if let Some(ls) = graphics::parse_line_spec(&s.text()?) {
-                    spec = Some(ls);
-                    i += 1;
-                }
-            }
-        }
-        // Columns of a matrix Y are separate series (rows if Y's rows don't match X).
-        let mut ys: Vec<Vec<f64>> = Vec::new();
-        if y.rows == 1 || y.cols == 1 {
-            ys.push(y.data.clone());
-        } else {
-            let use_rows = matches!(&x, Some(xm) if xm.is_vector() && xm.numel() == y.cols && xm.numel() != y.rows);
-            if use_rows {
-                for r in 0..y.rows {
-                    ys.push((0..y.cols).map(|c| y.get(r, c)).collect());
-                }
-            } else {
-                for c in 0..y.cols {
-                    ys.push(y.data[c * y.rows..(c + 1) * y.rows].to_vec());
-                }
-            }
-        }
-        for yv in ys {
-            let xv = match &x {
-                Some(xm) => xm.data.clone(),
-                None => (1..=yv.len()).map(|k| k as f64).collect(),
-            };
-            if xv.len() != yv.len() {
-                return rt("Vectors must be the same length.");
-            }
-            let mut s = Series::new(kind, xv, yv);
-            if let Some((c, st, mk)) = spec {
-                if c.is_some() {
-                    s.color = c;
-                }
-                if let Some(st) = st {
-                    s.line_style = st;
-                } else if mk.is_some() && kind == SeriesKind::Line {
-                    s.line_style = LineStyle::None;
-                }
-                if mk.is_some() {
-                    s.marker = mk;
-                }
-            }
-            out.push(s);
-        }
+/// Element `k` of any array as its own 1×1 value (for arrayfun/cellfun).
+fn element(v: &Value, k: usize, unwrap_cells: bool) -> R<Value> {
+    match v {
+        Value::Cell(c) if unwrap_cells => Ok(c.data[k].clone()),
+        Value::Func(_) | Value::Object(_) => Ok(v.clone()),
+        other => indexing::index(other, &[IndexArg::scalar(k)]),
     }
-    for (name, v) in props {
-        for s in out.iter_mut() {
-            match name.as_str() {
-                "linewidth" => s.line_width = v.scalar()? as f32,
-                "markersize" => s.marker_size = v.scalar()? as f32,
-                "displayname" => s.name = Some(v.text()?),
-                "color" | "markerfacecolor" | "facecolor" => {
-                    if v.is_text() {
-                        s.color = graphics::named_color(&v.text()?).or(s.color);
-                    } else {
-                        let m = v.to_matrix()?;
-                        if m.numel() >= 3 {
-                            let k = if m.data.iter().take(3).all(|&c| c <= 1.0) { 255.0 } else { 1.0 };
-                            s.color = Some([(m.data[0] * k) as u8, (m.data[1] * k) as u8, (m.data[2] * k) as u8]);
-                        }
-                    }
-                }
-                "linestyle" => {
-                    if let Some((_, Some(st), _)) = graphics::parse_line_spec(&v.text()?) {
-                        s.line_style = st;
-                    } else if v.text()? == "none" {
-                        s.line_style = LineStyle::None;
-                    }
-                }
-                "marker" => {
-                    if let Some((_, _, mk)) = graphics::parse_line_spec(&v.text()?) {
-                        s.marker = mk;
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-    Ok(out)
 }
 
 pub fn call(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize) -> Ret {
+    // Type families first.
+    if args.iter().any(|a| matches!(a, Value::Sym(_))) || crate::sym::NAMES.contains(&name) {
+        if let Some(r) = crate::sym::call(it, name, args.clone(), nargout)? {
+            return Ok(Some(r));
+        }
+    }
+    if crate::time::NAMES.contains(&name) {
+        if let Some(r) = crate::time::call(name, &args, nargout)? {
+            return Ok(Some(r));
+        }
+    }
+    if crate::table::NAMES.contains(&name) {
+        let names = std::mem::take(&mut it.arg_names);
+        if let Some(r) = crate::table::call(&names, name, &args, nargout)? {
+            return Ok(Some(r));
+        }
+    }
+    if let Some(r) = crate::builtins_text::call(it, name, &args, nargout)? {
+        return Ok(Some(r));
+    }
+    if let Some(r) = crate::builtins_plot::call(it, name, &args, nargout)? {
+        return Ok(Some(r));
+    }
+    if let Some(Value::Time(t)) = args.first() {
+        if let Some(r) = time_reduction(name, t, &args)? {
+            return Ok(Some(r));
+        }
+    }
     let a = &args;
-    // Elementwise unary math.
-    let unary: Option<fn(f64) -> f64> = match name {
-        "sin" => Some(f64::sin),
-        "cos" => Some(f64::cos),
-        "tan" => Some(f64::tan),
-        "asin" => Some(f64::asin),
-        "acos" => Some(f64::acos),
-        "atan" => Some(f64::atan),
-        "sinh" => Some(f64::sinh),
-        "cosh" => Some(f64::cosh),
-        "tanh" => Some(f64::tanh),
-        "sind" => Some(|x: f64| {
-            if (x % 180.0) == 0.0 { 0.0 } else { x.to_radians().sin() }
-        }),
-        "cosd" => Some(|x: f64| {
-            if ((x - 90.0) % 180.0) == 0.0 { 0.0 } else { x.to_radians().cos() }
-        }),
-        "tand" => Some(|x: f64| x.to_radians().tan()),
-        "asind" => Some(|x: f64| x.asin().to_degrees()),
-        "acosd" => Some(|x: f64| x.acos().to_degrees()),
-        "atand" => Some(|x: f64| x.atan().to_degrees()),
-        "deg2rad" => Some(f64::to_radians),
-        "rad2deg" => Some(f64::to_degrees),
-        "exp" => Some(f64::exp),
-        "log" => Some(f64::ln),
-        "log2" => Some(f64::log2),
-        "log10" => Some(f64::log10),
-        "log1p" => Some(f64::ln_1p),
-        "sqrt" => Some(f64::sqrt),
-        "abs" => Some(f64::abs),
-        "floor" => Some(f64::floor),
-        "ceil" => Some(f64::ceil),
-        "fix" => Some(f64::trunc),
-        "sign" => Some(|x: f64| if x > 0.0 { 1.0 } else if x < 0.0 { -1.0 } else { 0.0 }),
-        "gamma" => Some(gamma),
-        "factorial" => Some(|x: f64| gamma(x + 1.0).round()),
-        _ => None,
-    };
-    if let Some(f) = unary {
-        let m = m_arg(a, 0, name)?;
-        return mat(m.map(f));
+
+    // Elementwise math.
+    if let Some(Value::Num(m)) = a.first() {
+        if a.len() == 1 || matches!(name, "round") && a.len() == 1 {
+            if let Some(r) = unary_math(name, m) {
+                return mat(r?);
+            }
+        }
     }
 
     match name {
         // ---- constants ---------------------------------------------------------------
         "pi" => num(std::f64::consts::PI),
-        "eps" => num(f64::EPSILON),
-        "Inf" | "inf" => {
-            let (r, c) = size_args(a)?;
-            mat(Matrix::filled(r, c, f64::INFINITY))
-        }
-        "NaN" | "nan" => {
-            let (r, c) = size_args(a)?;
-            mat(Matrix::filled(r, c, f64::NAN))
+        "eps" => match a.first() {
+            Some(Value::Num(m)) if m.kind != Kind::Char => {
+                let x = m.data.first().copied().unwrap_or(1.0).abs();
+                num(if x == 0.0 { f64::from_bits(1) } else { 2f64.powf(x.log2().floor() - 52.0) })
+            }
+            _ => num(f64::EPSILON),
+        },
+        "i" | "j" => one(Value::Num(Matrix::complex_scalar(0.0, 1.0))),
+        "Inf" | "inf" | "NaN" | "nan" => {
+            let (rest, kind) = class_option(a)?;
+            let d = size_args(&rest)?;
+            let v = if name.eq_ignore_ascii_case("inf") { f64::INFINITY } else { f64::NAN };
+            mat(Matrix::filled_dims(d, v).cast_to(kind))
         }
         "true" | "false" => {
-            let (r, c) = size_args(a)?;
-            mat(Matrix::logical(r, c, vec![if name == "true" { 1.0 } else { 0.0 }; r * c]))
+            let d = size_args(a)?;
+            mat(Matrix::filled_dims(d, if name == "true" { 1.0 } else { 0.0 }).with_kind(Kind::Logical))
+        }
+        "intmax" | "intmin" => {
+            let cls = a.first().map(|v| v.text()).transpose()?.unwrap_or_else(|| "int32".into());
+            let Some(c) = IntClass::from_name(&cls) else { return rt(format!("Invalid class name '{cls}'.")) };
+            let (lo, hi) = c.range();
+            mat(Matrix::scalar(if name == "intmax" { hi } else { lo }).with_kind(Kind::Int(c)))
+        }
+        "realmax" | "realmin" | "flintmax" => {
+            let single = a.first().map(|v| v.text().map(|t| t == "single").unwrap_or(false)).unwrap_or(false);
+            let v = match (name, single) {
+                ("realmax", false) => f64::MAX,
+                ("realmax", true) => f32::MAX as f64,
+                ("realmin", false) => f64::MIN_POSITIVE,
+                ("realmin", true) => f32::MIN_POSITIVE as f64,
+                (_, false) => 9_007_199_254_740_992.0,
+                _ => 16_777_216.0,
+            };
+            mat(Matrix::scalar(v).cast_to(if single { Kind::Single } else { Kind::Double }))
         }
         "newline" => one(Value::chars("\n")),
 
         // ---- construction ------------------------------------------------------------
-        "zeros" | "ones" => {
-            let (r, c) = size_args(a)?;
-            mat(Matrix::filled(r, c, if name == "ones" { 1.0 } else { 0.0 }))
-        }
-        "eye" => {
-            let (r, c) = size_args(a)?;
-            let mut m = Matrix::zeros(r, c);
-            for i in 0..r.min(c) {
-                m.set(i, i, 1.0);
+        "zeros" | "ones" | "eye" => {
+            let (rest, kind) = class_option(a)?;
+            let d = size_args(&rest)?;
+            let mut m = Matrix::filled_dims(d.clone(), if name == "ones" { 1.0 } else { 0.0 });
+            if name == "eye" {
+                let (r, c) = (d[0], d[1..].iter().product::<usize>());
+                for i in 0..r.min(c) {
+                    m.set(i, i, 1.0);
+                }
             }
-            mat(m)
+            mat(m.cast_to(kind))
         }
         "rand" | "randn" => {
-            let (r, c) = size_args(a)?;
-            let data = (0..r * c).map(|_| if name == "rand" { it.next_rand() } else { it.next_randn() }).collect();
-            mat(Matrix::new(r, c, data))
+            let (rest, kind) = class_option(a)?;
+            let d = size_args(&rest)?;
+            let n = nd::numel(&d);
+            let data = (0..n).map(|_| if name == "rand" { it.next_rand() } else { it.next_randn() }).collect();
+            mat(Matrix::from_dims(d, data).cast_to(kind))
         }
         "randi" => {
             let lim = m_arg(a, 0, name)?;
             let (lo, hi) = if lim.numel() >= 2 { (lim.data[0], lim.data[1]) } else { (1.0, lim.data[0]) };
-            let (r, c) = size_args(&a[1..])?;
-            let data = (0..r * c).map(|_| (lo + (it.next_rand() * (hi - lo + 1.0)).floor()).min(hi)).collect();
-            mat(Matrix::new(r, c, data))
+            let (rest, kind) = class_option(&a[1..])?;
+            let d = size_args(&rest)?;
+            let n = nd::numel(&d);
+            let data = (0..n).map(|_| (lo + (it.next_rand() * (hi - lo + 1.0)).floor()).min(hi)).collect();
+            mat(Matrix::from_dims(d, data).cast_to(kind))
         }
         "randperm" => {
             let n = arg(a, 0, name)?.as_usize()?;
@@ -510,28 +574,39 @@ pub fn call(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize) 
                 let j = (it.next_rand() * (i + 1) as f64) as usize;
                 v.swap(i, j.min(i));
             }
+            if let Some(k) = a.get(1) {
+                v.truncate(k.as_usize()?);
+            }
             mat(Matrix::row(v))
         }
         "rng" => {
             if let Some(v) = a.first() {
                 if !v.is_text() {
                     it.rng_state = (v.scalar()? as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1;
+                } else if v.text()? == "default" {
+                    it.rng_state = 0x2545_F491_4F6C_DD1D;
                 }
             }
             none()
         }
         "linspace" => {
+            if let Some(Value::Time(t)) = a.first() {
+                let Value::Time(t2) = arg(a, 1, name)? else { return rt("linspace endpoints must both be datetimes.") };
+                let n = match a.get(2) {
+                    Some(v) => v.as_usize()?,
+                    None => 100,
+                };
+                let (x0, x1) = (t.data[0][0], t2.data[0][0]);
+                let ms = (0..n).map(|i| if n == 1 { x1 } else { x0 + (x1 - x0) * i as f64 / (n - 1) as f64 }).collect();
+                return one(Value::Time(t.with_ms(vec![1, n], ms)));
+            }
             let lo = arg(a, 0, name)?.scalar()?;
             let hi = arg(a, 1, name)?.scalar()?;
             let n = match a.get(2) {
                 Some(v) => v.scalar()?.floor().max(0.0) as usize,
                 None => 100,
             };
-            let data = if n == 1 {
-                vec![hi]
-            } else {
-                (0..n).map(|i| lo + (hi - lo) * i as f64 / (n - 1) as f64).collect()
-            };
+            let data = if n == 1 { vec![hi] } else { (0..n).map(|i| lo + (hi - lo) * i as f64 / (n - 1) as f64).collect() };
             mat(Matrix::row(data))
         }
         "logspace" => {
@@ -541,8 +616,7 @@ pub fn call(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize) 
                 Some(v) => v.as_usize()?,
                 None => 50,
             };
-            let data = (0..n).map(|i| 10f64.powf(lo + (hi - lo) * i as f64 / (n.max(2) - 1) as f64)).collect();
-            mat(Matrix::row(data))
+            mat(Matrix::row((0..n).map(|i| 10f64.powf(lo + (hi - lo) * i as f64 / (n.max(2) - 1) as f64)).collect()))
         }
         "colon" => {
             let lo = arg(a, 0, name)?.scalar()?;
@@ -550,66 +624,52 @@ pub fn call(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize) 
             let n = range_count(lo, step, hi);
             mat(Matrix::row((0..n).map(|i| lo + i as f64 * step).collect()))
         }
-        "meshgrid" => {
+        "meshgrid" | "ndgrid" => {
             let x = m_arg(a, 0, name)?;
             let y = if a.len() > 1 { m_arg(a, 1, name)? } else { x.clone() };
-            let (nr, nc) = (y.numel(), x.numel());
+            let (gx, gy) = if name == "meshgrid" { (x, y) } else { (y, x) };
+            let (nr, nc) = (gy.numel(), gx.numel());
             let mut xx = Matrix::zeros(nr, nc);
             let mut yy = Matrix::zeros(nr, nc);
             for c in 0..nc {
                 for r in 0..nr {
-                    xx.set(r, c, x.data[c]);
-                    yy.set(r, c, y.data[r]);
+                    xx.set(r, c, gx.data[c]);
+                    yy.set(r, c, gy.data[r]);
                 }
+            }
+            if name == "ndgrid" {
+                return Ok(Some(vec![Value::Num(yy.transpose()), Value::Num(xx.transpose())]));
             }
             Ok(Some(vec![Value::Num(xx), Value::Num(yy)]))
         }
         "repmat" => {
             let v = arg(a, 0, name)?;
-            let (rm, cm) = size_args(&a[1..])?;
-            let (r, c) = v.dims();
-            let get = |i: usize| -> Value {
-                match v {
-                    Value::Num(m) => Value::Num(Matrix::scalar(m.data[i]).with_kind(m.kind)),
-                    Value::Cell(cell) => cell.data[i].clone(),
-                    other => other.clone(),
-                }
+            let reps = size_args(&a[1..])?;
+            let src = v.dims();
+            let n = src.len().max(reps.len());
+            let pad = |d: &[usize]| {
+                let mut x = d.to_vec();
+                x.resize(n, 1);
+                x
             };
-            let _ = get;
-            match v {
-                Value::Num(m) => {
-                    let mut out = Matrix::zeros(r * rm, c * cm).with_kind(m.kind);
-                    for bc in 0..cm {
-                        for br in 0..rm {
-                            for cc in 0..c {
-                                for rr in 0..r {
-                                    out.set(br * r + rr, bc * c + cc, m.get(rr, cc));
-                                }
-                            }
-                        }
-                    }
-                    mat(out)
+            let (sd, rd) = (pad(&src), pad(&reps));
+            // Build by concatenating copies along each dimension.
+            let mut cur = v.clone();
+            for k in 0..n {
+                if rd[k] != 1 {
+                    let copies = vec![cur.clone(); rd[k]];
+                    cur = if rd[k] == 0 {
+                        let mut d = cur.dims();
+                        d.resize(n, 1);
+                        d[k] = 0;
+                        indexing::index(&cur, &[IndexArg::List { ix: vec![], dims: vec![0, 0], from_mask: false }])?
+                    } else {
+                        indexing::concat(copies, k)?
+                    };
                 }
-                Value::Cell(cell) => {
-                    let mut out = CellArray::empty(r * rm, c * cm);
-                    let rows = r * rm;
-                    for bc in 0..cm {
-                        for br in 0..rm {
-                            for cc in 0..c {
-                                for rr in 0..r {
-                                    out.data[(bc * c + cc) * rows + br * r + rr] = cell.data[cc * r + rr].clone();
-                                }
-                            }
-                        }
-                    }
-                    one(Value::Cell(out))
-                }
-                Value::Str(s) => {
-                    let s = s.repeat(rm.max(1) * cm.max(1));
-                    one(Value::Str(s))
-                }
-                _ => rt("repmat is not supported for this type."),
             }
+            let _ = sd;
+            one(cur)
         }
         "reshape" => {
             let v = arg(a, 0, name)?;
@@ -628,116 +688,337 @@ pub fn call(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize) 
                 }
             }
             let known: usize = dims.iter().flatten().product();
-            let dims: Vec<usize> = dims.iter().map(|d| d.unwrap_or(if known == 0 { 0 } else { n / known })).collect();
-            if dims.len() < 2 || dims[0] * dims[1] != n || dims[2..].iter().any(|&d| d != 1) {
+            let dims: Dims = dims.iter().map(|d| d.unwrap_or(if known == 0 { 0 } else { n / known })).collect();
+            if nd::numel(&dims) != n {
                 return rt("Number of elements must not change. Use [] as one of the size inputs to automatically calculate the appropriate size for that dimension.");
             }
-            match v {
-                Value::Num(m) => mat(Matrix::new(dims[0], dims[1], m.data.clone()).with_kind(m.kind)),
-                Value::Cell(c) => one(Value::Cell(CellArray::new(dims[0], dims[1], c.data.clone()))),
-                _ => rt("reshape is not supported for this type."),
+            let dims = nd::normalize(dims);
+            one(match v {
+                Value::Num(m) => Value::Num(m.clone().reshaped(dims)),
+                Value::Cell(c) => Value::Cell(CellArray::from_dims(dims, c.data.clone())),
+                Value::Str(s) => Value::Str(StrArray::from_dims(dims, s.data.clone())),
+                Value::Struct(s) => Value::Struct(StructArray { dims, ..s.clone() }),
+                Value::Sym(s) => Value::Sym(crate::sym::SymArray::from_dims(dims, s.data.clone())),
+                Value::Time(t) => Value::Time(TimeArray { dims, ..t.clone() }),
+                other => return rt(format!("reshape is not supported for class '{}'.", other.class_name())),
+            })
+        }
+        "permute" => {
+            let v = arg(a, 0, name)?;
+            let order: Vec<usize> = m_arg(a, 1, name)?.data.iter().map(|&x| (x as usize).saturating_sub(1)).collect();
+            one(match v {
+                Value::Num(m) => {
+                    let (d, re) = nd::permute(&m.dims, &m.data, &order)?;
+                    let mut out = Matrix::from_dims(d.clone(), re).with_kind(m.kind);
+                    if let Some(im) = &m.im {
+                        out.im = Some(nd::permute(&m.dims, im, &order)?.1);
+                    }
+                    Value::Num(out)
+                }
+                Value::Cell(c) => {
+                    let (d, data) = nd::permute(&c.dims, &c.data, &order)?;
+                    Value::Cell(CellArray::from_dims(d, data))
+                }
+                other => return rt(format!("permute is not supported for class '{}'.", other.class_name())),
+            })
+        }
+        "squeeze" => {
+            let v = arg(a, 0, name)?;
+            let d = v.dims();
+            if d.len() <= 2 {
+                return one(v.clone());
             }
+            let nd2: Dims = d.into_iter().filter(|&x| x != 1).collect();
+            let call_args = vec![v.clone(), Value::Num(Matrix::row(nd::normalize(nd2).iter().map(|&x| x as f64).collect()))];
+            call(it, "reshape", call_args, 1)
         }
         "cell" => {
-            let (r, c) = size_args(a)?;
-            one(Value::Cell(CellArray::empty(r, c)))
+            let d = size_args(a)?;
+            let n = nd::numel(&d);
+            one(Value::Cell(CellArray::from_dims(d, vec![Value::empty(); n])))
         }
         "struct" => {
-            let mut s = Struct::default();
-            for pair in a.chunks(2) {
-                let k = pair[0].text()?;
-                let v = pair.get(1).cloned().unwrap_or_else(Value::empty);
-                // struct('a', {x}) stores x (scalar struct only).
-                let v = match v {
-                    Value::Cell(c) if c.data.len() == 1 => c.data[0].clone(),
-                    other => other,
-                };
-                s.set(&k, v);
+            if a.is_empty() {
+                return one(Value::Struct(StructArray::scalar()));
             }
-            one(Value::Struct(s))
+            // Cell values create a struct array of the cells' size (MATLAB semantics).
+            let mut fields = Vec::new();
+            let mut values = Vec::new();
+            for pair in a.chunks(2) {
+                fields.push(pair[0].text()?);
+                values.push(pair.get(1).cloned().unwrap_or_else(Value::empty));
+            }
+            let mut dims: Option<Dims> = None;
+            for v in &values {
+                if let Value::Cell(c) = v {
+                    if c.data.len() != 1 {
+                        match &dims {
+                            Some(d) if *d != c.dims => return rt("Array dimensions of input cell arrays must match."),
+                            _ => dims = Some(c.dims.clone()),
+                        }
+                    }
+                }
+            }
+            let dims = dims.unwrap_or_else(|| vec![1, 1]);
+            let n = nd::numel(&dims);
+            let elems = (0..n)
+                .map(|k| {
+                    values
+                        .iter()
+                        .map(|v| match v {
+                            Value::Cell(c) if c.data.len() == 1 => c.data[0].clone(),
+                            Value::Cell(c) => c.data[k].clone(),
+                            other => other.clone(),
+                        })
+                        .collect()
+                })
+                .collect();
+            one(Value::Struct(StructArray { dims, fields, elems }))
         }
         "blanks" => one(Value::chars(&" ".repeat(arg(a, 0, name)?.as_usize()?))),
         "diag" => {
             let m = m_arg(a, 0, name)?;
+            let k = match a.get(1) {
+                Some(v) => v.scalar()? as i64,
+                None => 0,
+            };
             if m.is_vector() {
-                let n = m.numel();
-                let mut out = Matrix::zeros(n, n);
-                for i in 0..n {
-                    out.set(i, i, m.data[i]);
+                let n = m.numel() + k.unsigned_abs() as usize;
+                let mut out = Matrix::zeros(n, n).with_kind(m.kind);
+                for i in 0..m.numel() {
+                    let (r, c) = if k >= 0 { (i, i + k as usize) } else { (i + (-k) as usize, i) };
+                    out.set(r, c, m.data[i]);
                 }
                 mat(out)
             } else {
-                let n = m.rows.min(m.cols);
-                mat(Matrix::col((0..n).map(|i| m.get(i, i)).collect()))
+                let mut d = Vec::new();
+                for i in 0..m.rows() {
+                    let c = i as i64 + k;
+                    if c >= 0 && (c as usize) < m.cols() {
+                        d.push(m.get(i, c as usize));
+                    }
+                }
+                mat(Matrix::col(d).with_kind(m.kind))
             }
+        }
+        "triu" | "tril" => {
+            let m = m_arg(a, 0, name)?;
+            let k = match a.get(1) {
+                Some(v) => v.scalar()? as i64,
+                None => 0,
+            };
+            let mut out = m.clone();
+            for c in 0..m.cols() {
+                for r in 0..m.rows() {
+                    let keep = if name == "triu" { c as i64 - r as i64 >= k } else { c as i64 - r as i64 <= k };
+                    if !keep {
+                        out.set(r, c, 0.0);
+                    }
+                }
+            }
+            mat(out)
+        }
+        "kron" => {
+            let x = m_arg(a, 0, name)?;
+            let y = m_arg(a, 1, name)?;
+            let (r1, c1, r2, c2) = (x.rows(), x.cols(), y.rows(), y.cols());
+            let mut out = Matrix::zeros(r1 * r2, c1 * c2);
+            for i in 0..r1 {
+                for j in 0..c1 {
+                    for k in 0..r2 {
+                        for l in 0..c2 {
+                            out.set(i * r2 + k, j * c2 + l, x.get(i, j) * y.get(k, l));
+                        }
+                    }
+                }
+            }
+            mat(out)
         }
         "horzcat" => one(hconcat(args)?),
         "vertcat" => one(vconcat(args)?),
         "cat" => {
-            let d = arg(a, 0, name)?.scalar()?;
-            let rest = args[1..].to_vec();
-            one(if d == 1.0 { vconcat(rest)? } else { hconcat(rest)? })
+            let d = arg(a, 0, name)?.as_usize()?;
+            if d == 0 {
+                return rt("Dimension must be a positive integer.");
+            }
+            one(indexing::concat(args[1..].to_vec(), d - 1)?)
+        }
+        "complex" => {
+            let re = m_arg(a, 0, name)?;
+            let im = match a.get(1) {
+                Some(_) => m_arg(a, 1, name)?,
+                None => Matrix::filled_dims(re.dims.clone(), 0.0),
+            };
+            let r = broadcast(&re, &im, |x, _| x)?;
+            let i = broadcast(&re, &im, |_, y| y)?;
+            // complex() keeps an all-zero imaginary part (unlike arithmetic results).
+            let mut m = Matrix::from_dims(r.dims, r.data);
+            m.im = Some(i.data);
+            mat(m)
         }
 
-        // ---- size & type queries ------------------------------------------------------
-        "size" => {
-            let v = arg(a, 0, name)?;
-            let (r, c) = v.dims();
-            if let Some(d) = a.get(1) {
-                let d = d.scalar()?;
-                return num(if d == 1.0 { r as f64 } else if d == 2.0 { c as f64 } else { 1.0 });
+        // ---- complex parts -------------------------------------------------------------
+        "real" => {
+            let m = m_arg(a, 0, name)?;
+            mat(Matrix::from_dims(m.dims.clone(), m.data.clone()).with_kind(if m.kind == Kind::Logical || m.kind == Kind::Char { Kind::Double } else { m.kind }))
+        }
+        "imag" => {
+            let m = m_arg(a, 0, name)?;
+            mat(Matrix::from_dims(m.dims.clone(), m.im.clone().unwrap_or_else(|| vec![0.0; m.numel()])).with_kind(if m.kind.is_int() || m.kind == Kind::Single { m.kind } else { Kind::Double }))
+        }
+        "conj" => {
+            let mut m = m_arg(a, 0, name)?;
+            if let Some(im) = m.im.as_mut() {
+                im.iter_mut().for_each(|x| *x = -*x);
             }
-            if nargout >= 2 {
-                let mut out = vec![Value::num(r as f64), Value::num(c as f64)];
-                for _ in 2..nargout {
-                    out.push(Value::num(1.0));
+            mat(m)
+        }
+        "angle" => {
+            let m = m_arg(a, 0, name)?;
+            mat(Matrix::from_dims(m.dims.clone(), (0..m.numel()).map(|i| m.im_at(i).atan2(m.data[i])).collect()))
+        }
+        "isreal" => one(Value::bool(!matches!(arg(a, 0, name)?, Value::Num(m) if m.is_complex()))),
+        "iscomplex" => one(Value::bool(matches!(arg(a, 0, name)?, Value::Num(m) if m.is_complex()))),
+
+        // ---- numeric classes -----------------------------------------------------------
+        "double" | "single" | "int8" | "int16" | "int32" | "int64" | "uint8" | "uint16" | "uint32" | "uint64" | "logical" => {
+            let kind = Kind::from_name(name).unwrap();
+            match arg(a, 0, name)? {
+                Value::Num(m) => {
+                    if kind == Kind::Logical {
+                        if m.data.iter().any(|x| x.is_nan()) {
+                            return rt("NaN's cannot be converted to logicals.");
+                        }
+                        if m.is_complex() {
+                            return rt("Conversion to logical from complex is not possible.");
+                        }
+                    }
+                    mat(m.clone().cast_to(kind))
                 }
-                return Ok(Some(out));
+                Value::Str(s) if kind == Kind::Double => mat(Matrix::from_dims(s.dims.clone(), s.data.iter().map(|x| x.as_deref().and_then(|t| t.trim().parse().ok()).unwrap_or(f64::NAN)).collect())),
+                Value::Time(t) if kind == Kind::Double => mat(crate::time::to_numeric(t)),
+                other => rt(format!("Conversion to {name} from {} is not possible.", other.class_name())),
             }
-            mat(Matrix::row(vec![r as f64, c as f64]))
         }
-        "numel" => num(arg(a, 0, name)?.numel() as f64),
-        "length" => {
-            let (r, c) = arg(a, 0, name)?.dims();
-            num(if r == 0 || c == 0 { 0.0 } else { r.max(c) as f64 })
+        "cast" => {
+            let cls = arg(a, 1, name)?.text()?;
+            call(it, &cls, vec![arg(a, 0, name)?.clone()], 1)
         }
-        "ndims" => num(2.0),
-        "isempty" => one(Value::bool(arg(a, 0, name)?.numel() == 0 && !matches!(a[0], Value::Str(_) | Value::Struct(_) | Value::Func(_)))),
-        "isscalar" => one(Value::bool(arg(a, 0, name)?.numel() == 1)),
-        "isvector" => {
-            let (r, c) = arg(a, 0, name)?.dims();
-            one(Value::bool((r == 1 || c == 1) && r * c >= 1))
-        }
-        "isrow" => one(Value::bool(arg(a, 0, name)?.dims().0 == 1)),
-        "iscolumn" => one(Value::bool(arg(a, 0, name)?.dims().1 == 1)),
-        "ismatrix" => one(Value::bool(true)),
-        "class" => one(Value::chars(arg(a, 0, name)?.class_name())),
+        "class" => one(Value::chars(&arg(a, 0, name)?.class_name())),
         "isa" => {
             let cls = arg(a, 1, name)?.text()?;
             let v = arg(a, 0, name)?;
-            let hit = v.class_name() == cls || (cls == "numeric" && matches!(v, Value::Num(m) if m.kind == Kind::Double)) || (cls == "float" && v.class_name() == "double");
+            let hit = match v {
+                Value::Object(o) => o.class.is_a(&cls),
+                Value::Num(m) => {
+                    m.kind.name() == cls
+                        || (cls == "numeric" && !matches!(m.kind, Kind::Logical | Kind::Char))
+                        || (cls == "float" && m.kind.is_float())
+                        || (cls == "integer" && m.kind.is_int())
+                }
+                other => other.class_name() == cls,
+            };
             one(Value::bool(hit))
         }
-        "isnumeric" => one(Value::bool(matches!(arg(a, 0, name)?, Value::Num(m) if m.kind == Kind::Double))),
-        "ischar" => one(Value::bool(arg(a, 0, name)?.is_char())),
-        "isstring" => one(Value::bool(matches!(arg(a, 0, name)?, Value::Str(_)))),
-        "iscell" => one(Value::bool(matches!(arg(a, 0, name)?, Value::Cell(_)))),
-        "iscellstr" => one(Value::bool(matches!(arg(a, 0, name)?, Value::Cell(c) if c.data.iter().all(|v| v.is_char())))),
-        "isstruct" => one(Value::bool(matches!(arg(a, 0, name)?, Value::Struct(_)))),
+        "isnumeric" => one(Value::bool(matches!(arg(a, 0, name)?, Value::Num(m) if !matches!(m.kind, Kind::Logical | Kind::Char)))),
+        "isfloat" => one(Value::bool(matches!(arg(a, 0, name)?, Value::Num(m) if m.kind.is_float()))),
+        "isinteger" => one(Value::bool(matches!(arg(a, 0, name)?, Value::Num(m) if m.kind.is_int()))),
         "islogical" => one(Value::bool(matches!(arg(a, 0, name)?, Value::Num(m) if m.kind == Kind::Logical))),
-        "isreal" => one(Value::bool(true)),
-        "isfield" => {
-            let ok = match arg(a, 0, name)? {
-                Value::Struct(s) => s.get(&arg(a, 1, name)?.text()?).is_some(),
-                _ => false,
+        "iscell" => one(Value::bool(matches!(arg(a, 0, name)?, Value::Cell(_)))),
+        "isstruct" => one(Value::bool(matches!(arg(a, 0, name)?, Value::Struct(_)))),
+        "isobject" => one(Value::bool(matches!(arg(a, 0, name)?, Value::Object(_)))),
+        "isstring" => one(Value::bool(matches!(arg(a, 0, name)?, Value::Str(_)))),
+        "idivide" => {
+            let x = m_arg(a, 0, name)?;
+            let y = m_arg(a, 1, name)?;
+            let kind = ops::arith_kind(x.kind, y.kind)?;
+            if !kind.is_int() {
+                return rt("At least one argument must belong to an integer class.");
+            }
+            let mode = a.get(2).map(|v| v.text()).transpose()?.unwrap_or_else(|| "fix".into());
+            let f = match mode.as_str() {
+                "floor" => f64::floor,
+                "ceil" => f64::ceil,
+                "round" => f64::round,
+                _ => f64::trunc,
             };
+            mat(broadcast(&x, &y, |p, q| f(p / q))?.cast_to(kind))
+        }
+
+        // ---- size & shape --------------------------------------------------------------
+        "size" => {
+            let v = arg(a, 0, name)?;
+            let d = v.dims();
+            if let Some(k) = a.get(1) {
+                let ks = k.to_matrix()?;
+                let vals: Vec<f64> = ks.data.iter().map(|&x| *d.get(x as usize - 1).unwrap_or(&1) as f64).collect();
+                return if vals.len() == 1 { num(vals[0]) } else { mat(Matrix::row(vals)) };
+            }
+            if nargout >= 2 {
+                let mut out: Vec<Value> = (0..nargout).map(|k| Value::num(*d.get(k).unwrap_or(&1) as f64)).collect();
+                // The last output folds the remaining dimensions.
+                if nargout < d.len() {
+                    out[nargout - 1] = Value::num(d[nargout - 1..].iter().product::<usize>() as f64);
+                }
+                return Ok(Some(out));
+            }
+            mat(Matrix::row(d.iter().map(|&x| x as f64).collect()))
+        }
+        "numel" => num(arg(a, 0, name)?.numel() as f64),
+        "length" => {
+            let d = arg(a, 0, name)?.dims();
+            num(if d.iter().any(|&x| x == 0) { 0.0 } else { *d.iter().max().unwrap() as f64 })
+        }
+        "ndims" => num(arg(a, 0, name)?.dims().len() as f64),
+        "isempty" => one(Value::bool(match arg(a, 0, name)? {
+            Value::Func(_) | Value::Object(_) => false,
+            Value::Table(t) => t.nrows == 0 || t.vars.is_empty(),
+            v => v.numel() == 0,
+        })),
+        "isscalar" => one(Value::bool(arg(a, 0, name)?.numel() == 1)),
+        "isvector" => {
+            let d = arg(a, 0, name)?.dims();
+            one(Value::bool(d.len() == 2 && (d[0] == 1 || d[1] == 1) && d[0] * d[1] >= 1))
+        }
+        "isrow" => {
+            let d = arg(a, 0, name)?.dims();
+            one(Value::bool(d.len() == 2 && d[0] == 1))
+        }
+        "iscolumn" => {
+            let d = arg(a, 0, name)?.dims();
+            one(Value::bool(d.len() == 2 && d[1] == 1))
+        }
+        "ismatrix" => one(Value::bool(arg(a, 0, name)?.dims().len() == 2)),
+        "isdiag" | "istriu" | "istril" => {
+            let m = m_arg(a, 0, name)?;
+            let ok = (0..m.cols()).all(|c| (0..m.rows()).all(|r| {
+                let v = m.get(r, c);
+                match name {
+                    "isdiag" => r == c || v == 0.0,
+                    "istriu" => r <= c || v == 0.0,
+                    _ => r >= c || v == 0.0,
+                }
+            }));
             one(Value::bool(ok))
+        }
+        "issorted" => {
+            let m = m_arg(a, 0, name)?;
+            one(Value::bool(m.data.windows(2).all(|w| w[0] <= w[1])))
+        }
+        "isfield" => {
+            let Value::Struct(s) = arg(a, 0, name)? else { return one(Value::bool(false)) };
+            match arg(a, 1, name)? {
+                Value::Cell(c) => mat(Matrix::from_dims(c.dims.clone(), c.data.iter().map(|f| f.text().map(|t| s.field_index(&t).is_some()).unwrap_or(false) as u8 as f64).collect()).with_kind(Kind::Logical)),
+                f => one(Value::bool(s.field_index(&f.text()?).is_some())),
+            }
         }
         "isnan" => mat(bool_mat(&m_arg(a, 0, name)?, f64::is_nan)),
         "isinf" => mat(bool_mat(&m_arg(a, 0, name)?, f64::is_infinite)),
-        "isfinite" => mat(bool_mat(&m_arg(a, 0, name)?, f64::is_finite)),
+        "isfinite" => {
+            let m = m_arg(a, 0, name)?;
+            mat(Matrix::from_dims(m.dims.clone(), (0..m.numel()).map(|i| (m.data[i].is_finite() && m.im_at(i).is_finite()) as u8 as f64).collect()).with_kind(Kind::Logical))
+        }
         "isprime" => mat(bool_mat(&m_arg(a, 0, name)?, is_prime)),
-        "isspace" => mat(bool_mat(&m_arg(a, 0, name)?, |x| char::from_u32(x as u32).map(|c| c.is_whitespace()).unwrap_or(false))),
         "isequal" => {
             let first = arg(a, 0, name)?;
             one(Value::bool(a[1..].iter().all(|b| values_equal(first, b))))
@@ -746,303 +1027,111 @@ pub fn call(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize) 
             let n = arg(a, 0, name)?.text()?;
             num(if it.get_var(&n).is_some() { 1.0 } else if exists(&n) { 5.0 } else if it.has_function(&n) { 2.0 } else { 0.0 })
         }
-        "fieldnames" => match arg(a, 0, name)? {
-            Value::Struct(s) => {
-                let names: Vec<Value> = s.fields.iter().map(|(n, _)| Value::chars(n)).collect();
-                let n = names.len();
-                one(Value::Cell(CellArray::new(n, if n == 0 { 0 } else { 1 }, names)))
+        "fieldnames" | "properties" => match arg(a, 0, name)? {
+            Value::Struct(s) => one(Value::Cell(CellArray::col(s.fields.iter().map(|n| Value::chars(n)).collect()))),
+            Value::Object(o) => one(Value::Cell(CellArray::col(o.class.props.iter().filter(|p| !p.hidden).map(|p| Value::chars(&p.name)).collect()))),
+            Value::Table(t) => one(Value::Cell(CellArray::col(t.names.iter().map(|n| Value::chars(n)).collect()))),
+            v if v.is_text() => {
+                let cls = v.text()?;
+                match it.find_class(&cls) {
+                    Some(c) => one(Value::Cell(CellArray::col(c.props.iter().filter(|p| !p.hidden).map(|p| Value::chars(&p.name)).collect()))),
+                    None => rt(format!("No class '{cls}'.")),
+                }
             }
-            _ => rt("Invalid input argument of type 'double'. Input must be a structure or a Java or COM object."),
+            _ => rt("Invalid input argument. Input must be a structure or an object."),
         },
+        "methods" => {
+            let class = match arg(a, 0, name)? {
+                Value::Object(o) => o.class.clone(),
+                v => {
+                    let cls = v.text()?;
+                    it.find_class(&cls).ok_or_else(|| LangError::new(format!("No class '{cls}'."), 0))?
+                }
+            };
+            let mut ms: Vec<String> = class.methods.keys().filter(|m| !m.contains('.')).cloned().collect();
+            ms.push(class.name.clone());
+            ms.sort();
+            ms.dedup();
+            one(Value::Cell(CellArray::col(ms.iter().map(|m| Value::chars(m)).collect())))
+        }
+        "isprop" | "ismethod" => {
+            let Value::Object(o) = arg(a, 0, name)? else { return one(Value::bool(false)) };
+            let n = arg(a, 1, name)?.text()?;
+            one(Value::bool(if name == "isprop" { o.class.prop_index(&n).is_some() } else { o.class.method(&n).is_some() }))
+        }
         "rmfield" => match arg(a, 0, name)? {
             Value::Struct(s) => {
-                let f = arg(a, 1, name)?.text()?;
                 let mut s = s.clone();
-                s.fields.retain(|(n, _)| *n != f);
+                let names: Vec<String> = match arg(a, 1, name)? {
+                    Value::Cell(c) => c.data.iter().map(|v| v.text()).collect::<R<_>>()?,
+                    v => vec![v.text()?],
+                };
+                for f in names {
+                    if !s.remove_field(&f) {
+                        return rt(format!("A field named '{f}' doesn't exist."));
+                    }
+                }
                 one(Value::Struct(s))
             }
             _ => rt("rmfield requires a struct."),
         },
 
-        // ---- conversion ----------------------------------------------------------------
-        "double" => match arg(a, 0, name)? {
-            Value::Num(m) => mat(Matrix::new(m.rows, m.cols, m.data.clone())),
-            Value::Str(s) => num(s.trim().parse().unwrap_or(f64::NAN)),
-            _ => rt("Conversion to double is not possible."),
-        },
-        "logical" => {
-            let m = m_arg(a, 0, name)?;
-            if m.data.iter().any(|x| x.is_nan()) {
-                return rt("NaN's cannot be converted to logicals.");
-            }
-            mat(bool_mat(&m, |x| x != 0.0))
-        }
-        "char" => match arg(a, 0, name)? {
-            Value::Num(m) => mat(Matrix::new(m.rows, m.cols, m.data.clone()).with_kind(Kind::Char)),
-            Value::Str(s) => one(Value::chars(s)),
-            Value::Cell(c) => {
-                let items: Vec<String> = c.data.iter().map(|v| v.text()).collect::<R<_>>()?;
-                let w = items.iter().map(|s| s.chars().count()).max().unwrap_or(0);
-                let mut m = Matrix::zeros(items.len(), w).with_kind(Kind::Char);
-                for (r, s) in items.iter().enumerate() {
-                    let chars: Vec<char> = s.chars().collect();
-                    for col in 0..w {
-                        m.set(r, col, *chars.get(col).unwrap_or(&' ') as u32 as f64);
-                    }
-                }
-                mat(m)
-            }
-            _ => rt("Conversion to char is not possible."),
-        },
-        "string" => match arg(a, 0, name)? {
-            Value::Num(m) if m.kind == Kind::Char => one(Value::Str(m.to_string_lossy())),
-            Value::Num(m) if m.is_scalar() => one(Value::Str(if m.kind == Kind::Logical {
-                (if m.data[0] != 0.0 { "true" } else { "false" }).to_string()
-            } else {
-                num2str_scalar(m.data[0])
-            })),
-            Value::Str(s) => one(Value::Str(s.clone())),
-            _ => rt("Only scalars and text can be converted to string in this version."),
-        },
-        "num2str" => {
-            let v = arg(a, 0, name)?;
-            if v.is_text() {
-                return one(Value::chars(&v.text()?));
-            }
-            let m = v.to_matrix()?;
-            if let Some(f) = a.get(1) {
-                if f.is_text() {
-                    return one(Value::chars(&sprintf(&f.text()?, &a[..1])?));
-                }
-                let p = f.as_usize()?;
-                let parts: Vec<String> = m.data.iter().map(|&x| fmt_g(x, p)).collect();
-                return one(Value::chars(&parts.join("  ")));
-            }
-            if m.is_scalar() {
-                return one(Value::chars(&num2str_scalar(m.data[0])));
-            }
-            // Rows joined by two spaces, right-aligned per column width.
-            let cells: Vec<String> = m.data.iter().map(|&x| num2str_scalar(x)).collect();
-            let w = cells.iter().map(|s| s.len()).max().unwrap_or(0);
-            let lines: Vec<String> = (0..m.rows)
-                .map(|r| (0..m.cols).map(|c| format!("{:>w$}", cells[c * m.rows + r])).collect::<Vec<_>>().join("  "))
-                .collect();
-            if lines.len() == 1 {
-                one(Value::chars(&lines[0]))
-            } else {
-                let cell = Value::Cell(CellArray::new(lines.len(), 1, lines.iter().map(|l| Value::chars(l)).collect()));
-                call(it, "char", vec![cell], 1)
-            }
-        }
-        "int2str" => {
-            let m = m_arg(a, 0, name)?.map(f64::round);
-            call(it, "num2str", vec![Value::Num(m)], 1)
-        }
-        "mat2str" => {
-            let v = arg(a, 0, name)?;
-            if v.is_char() {
-                return one(Value::chars(&format!("'{}'", v.text()?)));
-            }
-            let m = v.to_matrix()?;
-            let f = |x: f64| -> String {
-                if m.kind == Kind::Logical {
-                    (if x != 0.0 { "true" } else { "false" }).into()
-                } else {
-                    fmt_g(x, 15)
-                }
-            };
-            if m.is_scalar() {
-                return one(Value::chars(&f(m.data[0])));
-            }
-            let rows: Vec<String> = (0..m.rows).map(|r| (0..m.cols).map(|c| f(m.get(r, c))).collect::<Vec<_>>().join(" ")).collect();
-            one(Value::chars(&format!("[{}]", rows.join(";"))))
-        }
-        "str2double" => {
-            let parse = |s: &str| s.trim().parse::<f64>().unwrap_or(f64::NAN);
-            match arg(a, 0, name)? {
-                Value::Cell(c) => mat(Matrix::new(c.rows, c.cols, c.data.iter().map(|v| v.text().map(|s| parse(&s)).unwrap_or(f64::NAN)).collect())),
-                v if v.is_text() => num(parse(&v.text()?)),
-                _ => num(f64::NAN),
-            }
-        }
-        "str2num" => {
-            let s = arg(a, 0, name)?.text()?;
-            let prog = crate::parser::parse(&format!("__str2num__ = [{s}];"));
-            let mut sub = Interpreter::new();
-            match prog {
-                Ok(p) if sub.run(&p.body).is_ok() => one(sub.get_var("__str2num__").cloned().unwrap_or_else(Value::empty)),
-                _ => one(Value::empty()),
-            }
-        }
-        "num2cell" => {
-            let m = m_arg(a, 0, name)?;
-            let data = m.data.iter().map(|&x| Value::Num(Matrix::scalar(x).with_kind(m.kind))).collect();
-            one(Value::Cell(CellArray::new(m.rows, m.cols, data)))
-        }
-        "func2str" => match arg(a, 0, name)? {
-            Value::Func(f) => one(Value::chars(&crate::display::func_text(f))),
-            _ => rt("Input must be a function handle."),
-        },
-        "str2func" => {
-            let s = arg(a, 0, name)?.text()?;
-            if s.starts_with('@') {
-                let prog = crate::parser::parse(&format!("__f__ = {s};")).map_err(|e| LangError::new(e.message, 0))?;
-                let mut sub = Interpreter::new();
-                sub.run(&prog.body)?;
-                one(sub.get_var("__f__").cloned().unwrap_or_else(Value::empty))
-            } else {
-                one(Value::Func(FuncValue::Named(s)))
-            }
-        }
-
-        // ---- strings -------------------------------------------------------------------
-        "sprintf" => {
-            let f = arg(a, 0, name)?.text()?;
-            let s = sprintf(&f, &a[1..])?;
-            one(if matches!(a[0], Value::Str(_)) { Value::Str(s) } else { Value::chars(&s) })
-        }
-        "fprintf" => {
-            let mut rest: &[Value] = a;
-            if let Some(Value::Num(m)) = rest.first() {
-                if m.kind != Kind::Char && m.is_scalar() && rest.len() >= 2 {
-                    rest = &rest[1..];
-                }
-            }
-            let f = arg(rest, 0, name)?.text()?;
-            let s = sprintf(&f, &rest[1..])?;
-            it.emit(OutputKind::Text(s));
-            none()
-        }
-        "disp" => {
-            let v = arg(a, 0, name)?;
-            let mut s = disp_value(v, it.format);
-            if !(v.numel() == 0 && matches!(v, Value::Num(_))) {
-                s.push('\n');
-            }
-            it.emit(OutputKind::Text(s));
-            none()
-        }
-        "display" => {
-            let v = arg(a, 0, name)?;
-            let text = crate::display::display_value("ans", v, it.format);
-            it.emit(OutputKind::Value { name: "ans".into(), text });
-            none()
-        }
-        "upper" | "lower" => {
-            let v = arg(a, 0, name)?;
-            let items = text_list(v)?.into_iter().map(|s| if name == "upper" { s.to_uppercase() } else { s.to_lowercase() }).collect();
-            one(text_result(v, items))
-        }
-        "strtrim" => {
-            let v = arg(a, 0, name)?;
-            let items = text_list(v)?.into_iter().map(|s| s.trim().to_string()).collect();
-            one(text_result(v, items))
-        }
-        "strrep" => {
-            let v = arg(a, 0, name)?;
-            let from = arg(a, 1, name)?.text()?;
-            let to = arg(a, 2, name)?.text()?;
-            let items = text_list(v)?.into_iter().map(|s| s.replace(&from, &to)).collect();
-            one(text_result(v, items))
-        }
-        "strcat" => {
-            if a.iter().any(|v| matches!(v, Value::Str(_))) {
-                let mut s = String::new();
-                for v in a {
-                    s.push_str(&v.text()?);
-                }
-                return one(Value::Str(s));
-            }
-            let mut s = String::new();
-            for v in a {
-                // strcat removes trailing whitespace of char inputs.
-                s.push_str(v.text()?.trim_end());
-            }
-            one(Value::chars(&s))
-        }
-        "strcmp" | "strcmpi" => {
-            let x = arg(a, 0, name)?;
-            let y = arg(a, 1, name)?;
-            let eq = |p: &Value, q: &Value| -> bool {
-                match (p.text(), q.text()) {
-                    (Ok(s), Ok(t)) if p.is_text() && q.is_text() => {
-                        if name == "strcmpi" { s.to_lowercase() == t.to_lowercase() } else { s == t }
-                    }
-                    _ => false,
-                }
-            };
-            match (x, y) {
-                (Value::Cell(c), other) | (other, Value::Cell(c)) if !matches!(other, Value::Cell(_)) => {
-                    mat(Matrix::logical(c.rows, c.cols, c.data.iter().map(|v| if eq(v, other) { 1.0 } else { 0.0 }).collect()))
-                }
-                (Value::Cell(c), Value::Cell(d)) => mat(Matrix::logical(
-                    c.rows,
-                    c.cols,
-                    c.data.iter().zip(&d.data).map(|(p, q)| if eq(p, q) { 1.0 } else { 0.0 }).collect(),
-                )),
-                _ => one(Value::bool(eq(x, y))),
-            }
-        }
-        "strsplit" => {
-            let s = arg(a, 0, name)?.text()?;
-            let parts: Vec<Value> = match a.get(1) {
-                Some(d) => {
-                    let d = crate::format::process_escapes(&d.text()?);
-                    s.split(d.as_str()).map(Value::chars).collect()
-                }
-                None => s.split_whitespace().map(Value::chars).collect(),
-            };
-            one(Value::Cell(CellArray::row(parts)))
-        }
-        "strjoin" => {
-            let items = text_list(arg(a, 0, name)?)?;
-            let d = match a.get(1) {
-                Some(d) => crate::format::process_escapes(&d.text()?),
-                None => " ".into(),
-            };
-            one(Value::chars(&items.join(&d)))
-        }
-        "contains" | "startsWith" | "endsWith" => {
-            let v = arg(a, 0, name)?;
-            let pats = text_list(arg(a, 1, name)?)?;
-            let test = |s: &str| -> bool {
-                pats.iter().any(|p| match name {
-                    "contains" => s.contains(p.as_str()),
-                    "startsWith" => s.starts_with(p.as_str()),
-                    _ => s.ends_with(p.as_str()),
-                })
-            };
-            match v {
-                Value::Cell(c) => mat(Matrix::logical(c.rows, c.cols, c.data.iter().map(|x| if x.text().map(|s| test(&s)).unwrap_or(false) { 1.0 } else { 0.0 }).collect())),
-                other => one(Value::bool(test(&other.text()?))),
-            }
-        }
-        "strlength" => num(arg(a, 0, name)?.text()?.chars().count() as f64),
-
-        // ---- reductions & array ops ----------------------------------------------------
-        "sum" | "prod" | "mean" | "median" | "std" | "var" | "any" | "all" | "nnz" => {
+        // ---- reductions --------------------------------------------------------------------
+        "sum" | "prod" | "mean" | "median" | "mode" | "std" | "var" | "any" | "all" | "nnz" => {
             let m = m_arg(a, 0, name)?;
             if name == "nnz" {
-                return num(m.data.iter().filter(|&&x| x != 0.0).count() as f64);
+                return num((0..m.numel()).filter(|&i| m.data[i] != 0.0 || m.im_at(i) != 0.0).count() as f64);
             }
             let dim_index = if matches!(name, "std" | "var") { 2 } else { 1 };
-            let dim = dim_arg(a, dim_index, &m)?;
+            let all_dims = a.get(dim_index).map(|v| v.text().map(|t| t == "all").unwrap_or(false)).unwrap_or(false);
+            let m = if all_dims { m.clone().reshaped(vec![m.numel(), 1]) } else { m };
+            let dim = if all_dims { 1 } else { dim_arg(a, dim_index, &m)? };
+            let omit = a.iter().any(|v| v.text().map(|t| t == "omitnan").unwrap_or(false));
+            let filt = |v: &[f64]| -> Vec<f64> { if omit { v.iter().copied().filter(|x| !x.is_nan()).collect() } else { v.to_vec() } };
+            let w = if matches!(name, "std" | "var") { a.get(1).and_then(|v| v.scalar().ok()).unwrap_or(0.0) } else { 0.0 };
+            if m.is_complex() && matches!(name, "sum" | "mean" | "prod") {
+                let out = reduce_c(&m, dim, |v| match name {
+                    "sum" => v.iter().fold(C::new(0.0, 0.0), |acc, z| acc.add(*z)),
+                    "prod" => v.iter().fold(C::new(1.0, 0.0), |acc, z| acc.mul(*z)),
+                    _ => {
+                        let s = v.iter().fold(C::new(0.0, 0.0), |acc, z| acc.add(*z));
+                        C::new(s.re / v.len() as f64, s.im / v.len() as f64)
+                    }
+                });
+                return mat(out);
+            }
             let r = match name {
-                "sum" => reduce(&m, dim, |v| v.iter().sum()),
-                "prod" => reduce(&m, dim, |v| v.iter().product()),
-                "mean" => reduce(&m, dim, |v| if v.is_empty() { f64::NAN } else { v.iter().sum::<f64>() / v.len() as f64 }),
-                "median" => reduce(&m, dim, median_of),
-                "std" => reduce(&m, dim, |v| variance(v).sqrt()),
-                "var" => reduce(&m, dim, variance),
-                "any" => reduce(&m, dim, |v| if v.iter().any(|&x| x != 0.0 && !x.is_nan()) { 1.0 } else { 0.0 }).with_kind(Kind::Logical),
-                _ => reduce(&m, dim, |v| if v.iter().all(|&x| x != 0.0) { 1.0 } else { 0.0 }).with_kind(Kind::Logical),
+                "sum" => reduce(&m, dim, |v| filt(v).iter().sum()),
+                "prod" => reduce(&m, dim, |v| filt(v).iter().product()),
+                "mean" => reduce(&m, dim, |v| {
+                    let v = filt(v);
+                    if v.is_empty() { f64::NAN } else { v.iter().sum::<f64>() / v.len() as f64 }
+                }),
+                "median" => reduce(&m, dim, |v| median_of(&filt(v))),
+                "mode" => reduce(&m, dim, mode_of),
+                "std" => reduce(&m, dim, |v| variance(&filt(v), w).sqrt()),
+                "var" => reduce(&m, dim, |v| variance(&filt(v), w)),
+                "any" => reduce(&m, dim, |v| v.iter().any(|&x| x != 0.0 && !x.is_nan()) as u8 as f64).with_kind(Kind::Logical),
+                _ => reduce(&m, dim, |v| v.iter().all(|&x| x != 0.0) as u8 as f64).with_kind(Kind::Logical),
+            };
+            // sum/prod of integers stay in the integer class; single stays single.
+            let r = match (name, m.kind) {
+                ("sum" | "prod", k @ (Kind::Int(_) | Kind::Single)) => r.cast_to(k),
+                ("mean" | "median" | "mode" | "std" | "var", Kind::Single) => r.cast_to(Kind::Single),
+                ("mode", k @ Kind::Int(_)) => r.cast_to(k),
+                _ => r,
             };
             mat(r)
         }
-        "cumsum" | "cumprod" => {
+        "cumsum" | "cumprod" | "cummax" | "cummin" => {
             let m = m_arg(a, 0, name)?;
             let dim = dim_arg(a, 1, &m)?;
-            mat(if name == "cumsum" { cumulate(&m, dim, |p, x| p + x) } else { cumulate(&m, dim, |p, x| p * x) })
+            mat(match name {
+                "cumsum" => cumulate(&m, dim, |p, x| p + x),
+                "cumprod" => cumulate(&m, dim, |p, x| p * x),
+                "cummax" => cumulate(&m, dim, f64::max),
+                _ => cumulate(&m, dim, f64::min),
+            })
         }
         "max" | "min" => {
             let is_max = name == "max";
@@ -1050,93 +1139,135 @@ pub fn call(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize) 
             if a.len() >= 2 && !matches!(&a[1], Value::Num(m) if m.is_empty()) {
                 let x = m_arg(a, 0, name)?;
                 let y = m_arg(a, 1, name)?;
-                return mat(ops::broadcast(&x, &y, |p, q| {
-                    if p.is_nan() { q } else if q.is_nan() { p } else if better(q, p) { q } else { p }
-                })?);
+                let kind = ops::arith_kind(x.kind, y.kind).unwrap_or(Kind::Double);
+                return mat(broadcast(&x, &y, |p, q| if p.is_nan() { q } else if q.is_nan() { p } else if better(q, p) { q } else { p })?.cast_to(kind));
             }
             let m = m_arg(a, 0, name)?;
             if m.is_empty() {
                 return Ok(Some(vec![Value::empty(), Value::empty()]));
             }
-            let dim = dim_arg(a, 2, &m)?;
-            let pick = |v: &[f64]| -> (f64, f64) {
+            let all_dims = a.get(2).map(|v| v.text().map(|t| t == "all").unwrap_or(false)).unwrap_or(false);
+            let m = if all_dims { m.clone().reshaped(vec![m.numel(), 1]) } else { m };
+            let dim = if all_dims { 1 } else { dim_arg(a, 2, &m)? };
+            // Complex values compare by magnitude.
+            let key: Vec<f64> = (0..m.numel()).map(|i| if m.is_complex() { C::new(m.data[i], m.im_at(i)).abs() } else { m.data[i] }).collect();
+            let (dims, sl) = slices(&m.dims, dim);
+            let mut pos = Vec::with_capacity(sl.len());
+            let mut idx = Vec::with_capacity(sl.len());
+            for s in &sl {
                 let mut bi = 0;
                 let mut bv = f64::NAN;
-                for (i, &x) in v.iter().enumerate() {
+                for (k, &p) in s.iter().enumerate() {
+                    let x = key[p];
                     if x.is_nan() {
                         continue;
                     }
                     if bv.is_nan() || better(x, bv) {
                         bv = x;
-                        bi = i;
+                        bi = k;
                     }
                 }
-                (bv, (bi + 1) as f64)
-            };
-            let vals = reduce(&m, dim, |v| pick(v).0);
-            let idx = reduce(&m, dim, |v| pick(v).1);
-            Ok(Some(vec![Value::Num(vals), Value::Num(idx)]))
+                pos.push(s[bi]);
+                idx.push((bi + 1) as f64);
+            }
+            let vals = m.gather(&pos, dims.clone());
+            Ok(Some(vec![Value::Num(vals), Value::Num(Matrix::from_dims(dims, idx))]))
         }
         "sort" => {
-            let m = m_arg(a, 0, name)?;
+            let v = arg(a, 0, name)?;
             let desc = a.iter().skip(1).any(|v| v.text().map(|s| s.eq_ignore_ascii_case("descend")).unwrap_or(false));
-            let dim = if m.rows == 1 { 2 } else { 1 };
-            let mut vals = m.clone();
-            let mut idx = Matrix::zeros(m.rows, m.cols);
-            let sort_slice = |v: &mut Vec<(f64, usize)>| {
-                v.sort_by(|p, q| {
-                    let o = p.0.partial_cmp(&q.0).unwrap_or_else(|| p.0.is_nan().cmp(&q.0.is_nan()));
-                    if desc { o.reverse() } else { o }
-                });
+            if let Value::Cell(_) | Value::Str(_) = v {
+                return crate::builtins_text::sort_text(v, desc);
+            }
+            let m = m_arg(a, 0, name)?;
+            let dim = match a.get(1) {
+                Some(d) if !d.is_text() => d.as_usize()?,
+                _ => default_dim(&m.dims),
             };
-            if dim == 2 {
-                let mut v: Vec<(f64, usize)> = m.data.iter().copied().zip(0..).collect();
-                sort_slice(&mut v);
-                for (k, (x, i)) in v.into_iter().enumerate() {
-                    vals.data[k] = x;
-                    idx.data[k] = (i + 1) as f64;
-                }
-            } else {
-                for c in 0..m.cols {
-                    let mut v: Vec<(f64, usize)> = (0..m.rows).map(|r| (m.get(r, c), r)).collect();
-                    sort_slice(&mut v);
-                    for (r, (x, i)) in v.into_iter().enumerate() {
-                        vals.set(r, c, x);
-                        idx.set(r, c, (i + 1) as f64);
-                    }
+            let key: Vec<f64> = (0..m.numel()).map(|i| if m.is_complex() { C::new(m.data[i], m.im_at(i)).abs() } else { m.data[i] }).collect();
+            let (_, sl) = slices(&m.dims, dim);
+            let mut order = vec![0usize; m.numel()];
+            let mut idx = Matrix::filled_dims(m.dims.clone(), 0.0);
+            for s in &sl {
+                let mut v: Vec<(f64, usize)> = s.iter().enumerate().map(|(k, &p)| (key[p], k)).collect();
+                v.sort_by(|p, q| {
+                    let o = match (p.0.is_nan(), q.0.is_nan()) {
+                        (true, true) => std::cmp::Ordering::Equal,
+                        (true, false) => std::cmp::Ordering::Greater,
+                        (false, true) => std::cmp::Ordering::Less,
+                        _ => p.0.partial_cmp(&q.0).unwrap(),
+                    };
+                    if desc && !(p.0.is_nan() || q.0.is_nan()) { o.reverse() } else { o }
+                });
+                for (j, (_, k)) in v.into_iter().enumerate() {
+                    order[s[j]] = s[k];
+                    idx.data[s[j]] = (k + 1) as f64;
                 }
             }
-            Ok(Some(vec![Value::Num(vals), Value::Num(idx)]))
+            let mut sorted = m.gather(&order, m.dims.clone());
+            sorted.kind = m.kind;
+            Ok(Some(vec![Value::Num(sorted), Value::Num(idx)]))
+        }
+        "sortrows" => {
+            let m = m_arg(a, 0, name)?;
+            let cols: Vec<(usize, bool)> = match a.get(1) {
+                Some(v) if !v.is_text() => v.to_matrix()?.data.iter().map(|&c| ((c.abs() as usize).saturating_sub(1), c < 0.0)).collect(),
+                _ => (0..m.cols()).map(|c| (c, false)).collect(),
+            };
+            let desc_all = a.iter().any(|v| v.text().map(|t| t == "descend").unwrap_or(false));
+            let mut order: Vec<usize> = (0..m.rows()).collect();
+            order.sort_by(|&x, &y| {
+                for &(c, d) in &cols {
+                    let o = m.get(x, c).partial_cmp(&m.get(y, c)).unwrap_or(std::cmp::Ordering::Equal);
+                    let o = if d || desc_all { o.reverse() } else { o };
+                    if o != std::cmp::Ordering::Equal {
+                        return o;
+                    }
+                }
+                std::cmp::Ordering::Equal
+            });
+            let rows = IndexArg::List { ix: order.clone(), dims: vec![order.len(), 1], from_mask: false };
+            let sorted = indexing::index(&Value::Num(m), &[rows, IndexArg::All])?;
+            Ok(Some(vec![sorted, Value::Num(Matrix::col(order.iter().map(|&i| (i + 1) as f64).collect()))]))
         }
         "unique" => {
             let v = arg(a, 0, name)?;
-            if let Value::Cell(c) = v {
-                let mut items: Vec<String> = c.data.iter().map(|x| x.text()).collect::<R<_>>()?;
-                items.sort();
-                items.dedup();
-                let n = items.len();
-                return one(Value::Cell(CellArray::new(n, 1, items.iter().map(|s| Value::chars(s)).collect())));
+            if let Value::Cell(_) | Value::Str(_) = v {
+                return crate::builtins_text::unique_text(v);
             }
-            let m = v.to_matrix()?;
-            let mut d = m.data.clone();
-            d.sort_by(|p, q| p.partial_cmp(q).unwrap_or(std::cmp::Ordering::Equal));
-            d.dedup();
-            let out = if m.rows == 1 { Matrix::row(d) } else { Matrix::col(d) };
-            mat(out.with_kind(m.kind))
+            let m = m_arg(a, 0, name)?;
+            let stable = a.iter().any(|v| v.text().map(|t| t == "stable").unwrap_or(false));
+            let mut seen: Vec<f64> = Vec::new();
+            let mut first_idx = Vec::new();
+            for (i, &x) in m.data.iter().enumerate() {
+                if !seen.iter().any(|&y| y == x || (x.is_nan() && false)) {
+                    seen.push(x);
+                    first_idx.push((i + 1) as f64);
+                }
+            }
+            if !stable {
+                let mut pairs: Vec<(f64, f64)> = seen.into_iter().zip(first_idx).collect();
+                pairs.sort_by(|p, q| p.0.partial_cmp(&q.0).unwrap_or(std::cmp::Ordering::Equal));
+                seen = pairs.iter().map(|p| p.0).collect();
+                first_idx = pairs.iter().map(|p| p.1).collect();
+            }
+            let ic: Vec<f64> = m.data.iter().map(|x| (seen.iter().position(|y| y == x).unwrap_or(0) + 1) as f64).collect();
+            let out = if m.dims.len() == 2 && m.dims[0] == 1 { Matrix::row(seen) } else { Matrix::col(seen) };
+            Ok(Some(vec![Value::Num(out.with_kind(m.kind)), Value::Num(Matrix::col(first_idx)), Value::Num(Matrix::col(ic))]))
         }
         "ismember" => {
             let x = arg(a, 0, name)?;
             let set = arg(a, 1, name)?;
-            if x.is_text() || matches!(x, Value::Cell(_)) {
-                let pool = text_list(set)?;
-                return match x {
-                    Value::Cell(c) => mat(Matrix::logical(c.rows, c.cols, c.data.iter().map(|v| if v.text().map(|s| pool.contains(&s)).unwrap_or(false) { 1.0 } else { 0.0 }).collect())),
-                    _ => one(Value::bool(pool.contains(&x.text()?))),
-                };
+            if x.is_text() || matches!(x, Value::Cell(_) | Value::Str(_)) {
+                return crate::builtins_text::ismember_text(x, set);
             }
             let xm = x.to_matrix()?;
             let sm = set.to_matrix()?;
-            mat(bool_mat(&xm, |v| sm.data.contains(&v)))
+            let loc: Vec<f64> = xm.data.iter().map(|v| sm.data.iter().position(|s| s == v).map(|p| (p + 1) as f64).unwrap_or(0.0)).collect();
+            Ok(Some(vec![
+                Value::Num(Matrix::from_dims(xm.dims.clone(), loc.iter().map(|&l| (l > 0.0) as u8 as f64).collect()).with_kind(Kind::Logical)),
+                Value::Num(Matrix::from_dims(xm.dims.clone(), loc)),
+            ]))
         }
         "find" => {
             let m = m_arg(a, 0, name)?;
@@ -1144,45 +1275,66 @@ pub fn call(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize) 
                 Some(v) => v.as_usize()?,
                 None => usize::MAX,
             };
-            let ix: Vec<usize> = m.data.iter().enumerate().filter(|(_, &x)| x != 0.0).map(|(i, _)| i).take(limit).collect();
+            let last = a.get(2).map(|v| v.text().map(|t| t == "last").unwrap_or(false)).unwrap_or(false);
+            let mut ix: Vec<usize> = (0..m.numel()).filter(|&i| m.data[i] != 0.0 || m.im_at(i) != 0.0).collect();
+            if last {
+                let skip = ix.len().saturating_sub(limit);
+                ix = ix[skip..].to_vec();
+            } else {
+                ix.truncate(limit);
+            }
             if nargout >= 2 {
-                let rows: Vec<f64> = ix.iter().map(|&i| (i % m.rows.max(1) + 1) as f64).collect();
-                let cols: Vec<f64> = ix.iter().map(|&i| (i / m.rows.max(1) + 1) as f64).collect();
-                return Ok(Some(vec![Value::Num(Matrix::col(rows)), Value::Num(Matrix::col(cols))]));
+                let rows = m.rows().max(1);
+                let r: Vec<f64> = ix.iter().map(|&i| (i % rows + 1) as f64).collect();
+                let c: Vec<f64> = ix.iter().map(|&i| (i / rows + 1) as f64).collect();
+                let vals = m.gather(&ix, vec![ix.len(), 1]);
+                return Ok(Some(vec![Value::Num(Matrix::col(r)), Value::Num(Matrix::col(c)), Value::Num(vals)]));
             }
             let data: Vec<f64> = ix.iter().map(|&i| (i + 1) as f64).collect();
-            mat(if m.rows == 1 { Matrix::row(data) } else { Matrix::col(data) })
+            mat(if m.dims.len() == 2 && m.dims[0] == 1 { Matrix::row(data) } else { Matrix::col(data) })
         }
         "diff" => {
             let m = m_arg(a, 0, name)?;
-            if m.rows == 1 || m.cols == 1 {
-                let d: Vec<f64> = m.data.windows(2).map(|w| w[1] - w[0]).collect();
-                return mat(if m.rows == 1 { Matrix::row(d) } else { Matrix::col(d) });
-            }
-            let mut out = Matrix::zeros(m.rows.saturating_sub(1), m.cols);
-            for c in 0..m.cols {
-                for r in 1..m.rows {
-                    out.set(r - 1, c, m.get(r, c) - m.get(r - 1, c));
+            let order = match a.get(1) {
+                Some(v) => v.as_usize()?,
+                None => 1,
+            };
+            let mut cur = m;
+            for _ in 0..order {
+                let dim = default_dim(&cur.dims);
+                let (_, sl) = slices(&cur.dims, dim);
+                let mut d = cur.dims.clone();
+                d[dim - 1] = d[dim - 1].saturating_sub(1);
+                let mut out = vec![0.0; nd::numel(&d)];
+                let (_, out_sl) = slices(&d, dim);
+                for (s, o) in sl.iter().zip(out_sl.iter()) {
+                    for k in 1..s.len() {
+                        out[o[k - 1]] = cur.data[s[k]] - cur.data[s[k - 1]];
+                    }
                 }
+                cur = Matrix::from_dims(d, out);
             }
-            mat(out)
+            mat(cur)
         }
-        "trapz" => {
+        "trapz" | "cumtrapz" => {
             let (x, y) = if a.len() >= 2 { (Some(m_arg(a, 0, name)?), m_arg(a, 1, name)?) } else { (None, m_arg(a, 0, name)?) };
-            let mut s = 0.0;
+            let mut acc = 0.0;
+            let mut out = vec![0.0];
             for i in 1..y.numel() {
                 let dx = x.as_ref().map(|x| x.data[i] - x.data[i - 1]).unwrap_or(1.0);
-                s += dx * (y.data[i] + y.data[i - 1]) / 2.0;
+                acc += dx * (y.data[i] + y.data[i - 1]) / 2.0;
+                out.push(acc);
             }
-            num(s)
+            if name == "trapz" { num(acc) } else { mat(Matrix::from_dims(y.dims.clone(), out)) }
         }
         "dot" => {
             let x = m_arg(a, 0, name)?;
             let y = m_arg(a, 1, name)?;
             if x.numel() != y.numel() {
-                return rt("Vectors must be the same length.");
+                return rt("A and B must be the same size.");
             }
-            num(x.data.iter().zip(&y.data).map(|(p, q)| p * q).sum())
+            let s = (0..x.numel()).fold(C::new(0.0, 0.0), |acc, i| acc.add(C::new(x.data[i], -x.im_at(i)).mul(C::new(y.data[i], y.im_at(i)))));
+            mat(Matrix::complex(vec![1, 1], vec![s.re], vec![s.im]))
         }
         "cross" => {
             let x = m_arg(a, 0, name)?;
@@ -1192,81 +1344,118 @@ pub fn call(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize) 
             }
             let (p, q) = (&x.data, &y.data);
             let d = vec![p[1] * q[2] - p[2] * q[1], p[2] * q[0] - p[0] * q[2], p[0] * q[1] - p[1] * q[0]];
-            mat(if x.rows == 1 { Matrix::row(d) } else { Matrix::col(d) })
+            mat(if x.dims[0] == 1 { Matrix::row(d) } else { Matrix::col(d) })
         }
         "norm" => {
             let m = m_arg(a, 0, name)?;
+            let mag: Vec<f64> = (0..m.numel()).map(|i| C::new(m.data[i], m.im_at(i)).abs()).collect();
             let p = a.get(1);
             if m.is_vector() || m.is_empty() {
                 let pv = match p {
-                    Some(v) if v.is_text() => {
-                        if v.text()?.eq_ignore_ascii_case("inf") { f64::INFINITY } else { 2.0 }
-                    }
+                    Some(v) if v.is_text() => if v.text()?.eq_ignore_ascii_case("inf") { f64::INFINITY } else { 2.0 },
                     Some(v) => v.scalar()?,
                     None => 2.0,
                 };
                 let n = if pv.is_infinite() {
-                    m.data.iter().fold(0.0f64, |acc, x| acc.max(x.abs()))
+                    mag.iter().fold(0.0f64, |acc, x| acc.max(*x))
                 } else if pv == 1.0 {
-                    m.data.iter().map(|x| x.abs()).sum()
+                    mag.iter().sum()
                 } else {
-                    m.data.iter().map(|x| x.abs().powf(pv)).sum::<f64>().powf(1.0 / pv)
+                    mag.iter().map(|x| x.powf(pv)).sum::<f64>().powf(1.0 / pv)
                 };
                 return num(n);
             }
             if matches!(p, Some(v) if v.text().map(|s| s == "fro").unwrap_or(false)) {
-                return num(m.data.iter().map(|x| x * x).sum::<f64>().sqrt());
+                return num(mag.iter().map(|x| x * x).sum::<f64>().sqrt());
             }
-            // 2-norm: sqrt of the largest eigenvalue of A'A by power iteration.
-            let ata = ops::matmul(&m.transpose(), &m)?;
-            let mut v = Matrix::col(vec![1.0; ata.cols]);
-            let mut lambda = 0.0;
-            for _ in 0..500 {
-                let w = ops::matmul(&ata, &v)?;
-                let nw = w.data.iter().map(|x| x * x).sum::<f64>().sqrt();
-                if nw == 0.0 {
-                    break;
-                }
-                let next = nw;
-                v = w.map(|x| x / nw);
-                if (next - lambda).abs() <= 1e-14 * next {
-                    lambda = next;
-                    break;
-                }
-                lambda = next;
-            }
-            num(lambda.sqrt())
+            let real = Matrix::from_dims(m.dims.clone(), m.data.clone());
+            let ata = ops::matmul(&real.transpose(), &real)?;
+            num(sym_eigs(&ata).into_iter().fold(0.0f64, f64::max).max(0.0).sqrt())
         }
         "det" => num(ops::det(&m_arg(a, 0, name)?)?),
-        "inv" => mat(ops::inv(&m_arg(a, 0, name)?)?),
+        "inv" => mat(ops::inv_any(&m_arg(a, 0, name)?)?),
         "trace" => {
             let m = m_arg(a, 0, name)?;
-            num((0..m.rows.min(m.cols)).map(|i| m.get(i, i)).sum())
+            num((0..m.rows().min(m.cols())).map(|i| m.get(i, i)).sum())
         }
-        "transpose" => mat(m_arg(a, 0, name)?.transpose()),
+        "transpose" => one(ops::unary(crate::ast::UnOp::Transpose, arg(a, 0, name)?)?),
+        "ctranspose" => one(ops::unary(crate::ast::UnOp::CTranspose, arg(a, 0, name)?)?),
+        "eig" => {
+            let m = m_arg(a, 0, name)?;
+            if m.rows() != m.cols() {
+                return rt("Input matrix must be square.");
+            }
+            let n = m.rows();
+            let symmetric = !m.is_complex() && (0..n).all(|i| (0..n).all(|j| (m.get(i, j) - m.get(j, i)).abs() <= 1e-12 * (m.get(i, j).abs() + 1.0)));
+            if symmetric {
+                let (vals, vecs) = jacobi_eig(&m);
+                if nargout >= 2 {
+                    let mut d = Matrix::zeros(n, n);
+                    for i in 0..n {
+                        d.set(i, i, vals[i]);
+                    }
+                    return Ok(Some(vec![Value::Num(vecs), Value::Num(d)]));
+                }
+                return mat(Matrix::col(vals));
+            }
+            if nargout >= 2 {
+                return rt("Eigenvectors of nonsymmetric matrices are not supported in this version.");
+            }
+            // Characteristic polynomial (Faddeev–LeVerrier), then its roots.
+            let coeffs = char_poly(&Matrix::from_dims(m.dims.clone(), m.data.clone()))?;
+            let mut roots = poly_roots(&coeffs.iter().map(|&c| C::new(c, 0.0)).collect::<Vec<_>>());
+            roots.sort_by(|p, q| p.re.partial_cmp(&q.re).unwrap_or(std::cmp::Ordering::Equal).then(p.im.partial_cmp(&q.im).unwrap_or(std::cmp::Ordering::Equal)));
+            mat(Matrix::complex(vec![n, 1], roots.iter().map(|z| z.re).collect(), roots.iter().map(|z| z.im).collect()))
+        }
+        "roots" => {
+            let p = m_arg(a, 0, name)?;
+            let c: Vec<C> = (0..p.numel()).map(|i| C::new(p.data[i], p.im_at(i))).collect();
+            let r = poly_roots(&c);
+            let n = r.len();
+            mat(Matrix::complex(vec![n, if n == 0 { 0 } else { 1 }], r.iter().map(|z| z.re).collect(), r.iter().map(|z| z.im).collect()))
+        }
         "fliplr" | "flipud" | "flip" => {
             let v = arg(a, 0, name)?;
-            let (r, c) = v.dims();
-            let lr = name == "fliplr" || (name == "flip" && r == 1);
-            let map = |i: usize| -> usize {
-                let (rr, cc) = (i % r.max(1), i / r.max(1));
-                if lr { (c - 1 - cc) * r + rr } else { cc * r + (r - 1 - rr) }
+            let d = v.dims();
+            let dim = match (name, a.get(1)) {
+                ("fliplr", _) => 2,
+                ("flipud", _) => 1,
+                (_, Some(k)) => k.as_usize()?,
+                _ => default_dim(&d),
             };
-            match v {
-                Value::Num(m) => mat(Matrix::new(r, c, (0..m.numel()).map(|i| m.data[map(i)]).collect()).with_kind(m.kind)),
-                Value::Cell(cell) => one(Value::Cell(CellArray::new(r, c, (0..cell.data.len()).map(|i| cell.data[map(i)].clone()).collect()))),
-                other => one(other.clone()),
+            let (_, sl) = slices(&d, dim);
+            let mut order = vec![0usize; nd::numel(&d)];
+            for s in &sl {
+                for (k, &p) in s.iter().enumerate() {
+                    order[p] = s[s.len() - 1 - k];
+                }
             }
+            let ix = IndexArg::List { ix: order, dims: vec![1, nd::numel(&d)], from_mask: false };
+            let flat = indexing::index(v, &[ix])?;
+            one(match flat {
+                Value::Num(m) => Value::Num(m.reshaped(d)),
+                Value::Cell(c) => Value::Cell(CellArray::from_dims(d, c.data)),
+                Value::Str(s) => Value::Str(StrArray::from_dims(d, s.data)),
+                other => other,
+            })
         }
         "circshift" => {
             let m = m_arg(a, 0, name)?;
             let k = arg(a, 1, name)?.scalar()? as i64;
-            let n = m.numel() as i64;
-            if n == 0 {
-                return mat(m);
+            let dim = match a.get(2) {
+                Some(d) => d.as_usize()?,
+                None => default_dim(&m.dims),
+            };
+            let (_, sl) = slices(&m.dims, dim);
+            let mut out = m.clone();
+            for s in sl {
+                let n = s.len() as i64;
+                for (j, &p) in s.iter().enumerate() {
+                    let src = (((j as i64 - k) % n + n) % n) as usize;
+                    out.data[p] = m.data[s[src]];
+                }
             }
-            let data = (0..n).map(|i| m.data[(((i - k) % n + n) % n) as usize]).collect();
-            mat(Matrix::new(m.rows, m.cols, data).with_kind(m.kind))
+            mat(out)
         }
         "round" => {
             let m = m_arg(a, 0, name)?;
@@ -1277,16 +1466,23 @@ pub fn call(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize) 
             let f = 10f64.powf(digits);
             mat(m.map(|x| (x * f).round() / f))
         }
-        "mod" | "rem" | "atan2" | "hypot" | "power" | "idivide" | "gcd" | "lcm" | "nchoosek" => {
+        "nthroot" => {
+            let x = m_arg(a, 0, name)?;
+            let n = m_arg(a, 1, name)?;
+            mat(broadcast(&x, &n, |v, k| if v < 0.0 && k % 2.0 == 1.0 { -(-v).powf(1.0 / k) } else { v.powf(1.0 / k) })?)
+        }
+        "mod" | "rem" | "atan2" | "hypot" | "power" | "gcd" | "lcm" | "nchoosek" => {
             let x = m_arg(a, 0, name)?;
             let y = m_arg(a, 1, name)?;
+            if name == "power" {
+                return mat(ops::num_binary(crate::ast::BinOp::Pow, &x, &y)?);
+            }
+            let kind = ops::arith_kind(x.kind, y.kind).unwrap_or(Kind::Double);
             let f: fn(f64, f64) -> f64 = match name {
-                "mod" => |p, q| if q == 0.0 { p } else { p - (p / q).floor() * q },
-                "rem" => |p, q| if q == 0.0 { p } else { p - (p / q).trunc() * q },
+                "mod" => |p, q| if q == 0.0 { p } else { let r = p - (p / q).floor() * q; if r != 0.0 && (r < 0.0) != (q < 0.0) { r + q } else { r } },
+                "rem" => |p, q| if q == 0.0 { f64::NAN } else { p - (p / q).trunc() * q },
                 "atan2" => f64::atan2,
                 "hypot" => f64::hypot,
-                "power" => f64::powf,
-                "idivide" => |p, q| (p / q).trunc(),
                 "gcd" => gcd,
                 "lcm" => |p, q| if p == 0.0 || q == 0.0 { 0.0 } else { (p * q).abs() / gcd(p, q) },
                 _ => |n, k| {
@@ -1297,7 +1493,15 @@ pub fn call(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize) 
                     r.round()
                 },
             };
-            mat(ops::broadcast(&x, &y, f)?)
+            mat(broadcast(&x, &y, f)?.cast_to(kind))
+        }
+        "factor" => {
+            let n = arg(a, 0, name)?.scalar()?;
+            if n < 0.0 || n.fract() != 0.0 {
+                return rt("Input must be a non-negative integer.");
+            }
+            let fs = crate::sym::algebra::prime_factors(n as i128);
+            mat(Matrix::row(fs.into_iter().map(|f| f as f64).collect()))
         }
         "primes" => {
             let n = arg(a, 0, name)?.scalar()?;
@@ -1326,6 +1530,7 @@ pub fn call(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize) 
             let x = m_arg(a, 0, name)?;
             let y = m_arg(a, 1, name)?;
             let xi = m_arg(a, 2, name)?;
+            let method = a.get(3).map(|v| v.text()).transpose()?.unwrap_or_else(|| "linear".into());
             let n = x.numel();
             mat(xi.map(|q| {
                 if n < 2 || q < x.data[0] || q > x.data[n - 1] || q.is_nan() {
@@ -1333,12 +1538,25 @@ pub fn call(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize) 
                 }
                 let k = x.data.partition_point(|&v| v <= q).clamp(1, n - 1);
                 let (x0, x1, y0, y1) = (x.data[k - 1], x.data[k], y.data[k - 1], y.data[k]);
-                if x1 == x0 { y0 } else { y0 + (y1 - y0) * (q - x0) / (x1 - x0) }
+                match method.as_str() {
+                    "nearest" => if q - x0 < x1 - q { y0 } else { y1 },
+                    "previous" => if q == x1 { y1 } else { y0 },
+                    "next" => if q == x0 { y0 } else { y1 },
+                    _ => if x1 == x0 { y0 } else { y0 + (y1 - y0) * (q - x0) / (x1 - x0) },
+                }
             }))
         }
         "histcounts" => {
             let m = m_arg(a, 0, name)?;
-            let edges = m_arg(a, 1, name)?;
+            let edges = match a.get(1) {
+                Some(e) if e.numel() > 1 => e.to_matrix()?,
+                other => {
+                    let nbins = other.map(|v| v.as_usize()).transpose()?.unwrap_or(10).max(1);
+                    let lo = m.data.iter().cloned().fold(f64::INFINITY, f64::min);
+                    let hi = m.data.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+                    Matrix::row((0..=nbins).map(|k| lo + (hi - lo) * k as f64 / nbins as f64).collect())
+                }
+            };
             let ne = edges.numel();
             let mut counts = vec![0.0; ne.saturating_sub(1)];
             for &v in &m.data {
@@ -1350,7 +1568,18 @@ pub fn call(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize) 
                     }
                 }
             }
-            mat(Matrix::row(counts))
+            Ok(Some(vec![Value::Num(Matrix::row(counts)), Value::Num(edges)]))
+        }
+        "accumarray" => {
+            let subs = m_arg(a, 0, name)?;
+            let vals = m_arg(a, 1, name)?;
+            let n = subs.data.iter().cloned().fold(0.0, f64::max) as usize;
+            let mut out = vec![0.0; n];
+            for (i, &s) in subs.data.iter().enumerate() {
+                let v = if vals.numel() == 1 { vals.data[0] } else { vals.data[i] };
+                out[s as usize - 1] += v;
+            }
+            mat(Matrix::col(out))
         }
 
         // ---- functional ------------------------------------------------------------------
@@ -1362,64 +1591,97 @@ pub fn call(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize) 
             if a.len() == 1 {
                 return Ok(Some(vec![a[0].clone(); nargout.max(1)]));
             }
+            if nargout > a.len() {
+                return rt("The number of outputs should match the number of inputs.");
+            }
             Ok(Some(args.clone()))
+        }
+        "func2str" => match arg(a, 0, name)? {
+            Value::Func(f) => one(Value::chars(&crate::display::func_text(f))),
+            _ => rt("Input must be a function handle."),
+        },
+        "str2func" => {
+            let s = arg(a, 0, name)?.text()?;
+            if s.starts_with('@') {
+                let e = crate::parser::parse_expr(&s)?;
+                one(it.eval(&e)?)
+            } else {
+                one(Value::Func(FuncValue::Named(s)))
+            }
         }
         "arrayfun" | "cellfun" => {
             let f = arg(a, 0, name)?.clone();
             let mut uniform = true;
+            let mut error_handler = None;
             let mut inputs: Vec<Value> = Vec::new();
             let mut i = 1;
             while i < a.len() {
-                if a[i].is_text() && a[i].text()?.eq_ignore_ascii_case("UniformOutput") {
-                    uniform = a.get(i + 1).map(|v| v.is_true()).transpose()?.unwrap_or(true);
-                    i += 2;
-                    continue;
+                if a[i].is_text() && !matches!(a[i], Value::Cell(_)) {
+                    let t = a[i].text()?;
+                    if t.eq_ignore_ascii_case("UniformOutput") {
+                        uniform = a.get(i + 1).map(|v| v.is_true()).transpose()?.unwrap_or(true);
+                        i += 2;
+                        continue;
+                    }
+                    if t.eq_ignore_ascii_case("ErrorHandler") {
+                        error_handler = a.get(i + 1).cloned();
+                        i += 2;
+                        continue;
+                    }
                 }
                 inputs.push(a[i].clone());
                 i += 1;
             }
+            let _ = error_handler;
             let Some(first) = inputs.first() else { return rt("Not enough input arguments.") };
-            let (r, c) = first.dims();
-            let n = r * c;
-            let mut results: Vec<Value> = Vec::with_capacity(n);
+            let dims = first.dims();
+            let n = nd::numel(&dims);
+            let nout = nargout.max(1);
+            let mut results: Vec<Vec<Value>> = vec![Vec::with_capacity(n); nout];
             for k in 0..n {
-                let call_args: Vec<Value> = inputs
-                    .iter()
-                    .map(|v| match v {
-                        Value::Cell(cell) if name == "cellfun" => cell.data[k].clone(),
-                        Value::Num(m) => Value::Num(Matrix::scalar(m.data[k]).with_kind(m.kind)),
-                        Value::Cell(cell) => Value::Cell(CellArray::new(1, 1, vec![cell.data[k].clone()])),
-                        other => other.clone(),
-                    })
-                    .collect();
-                // cellfun('isempty', c) style names.
-                let out = it.call_func_value(&f, call_args, 1)?;
-                match out.into_iter().next() {
-                    Some(v) => results.push(v),
-                    None if !uniform => results.push(Value::empty()),
-                    None => return rt("The function must return a value when UniformOutput is true."),
-                }
-            }
-            if uniform {
-                let mut data = Vec::with_capacity(n);
-                let mut kind = Kind::Double;
-                for (k, v) in results.iter().enumerate() {
-                    match v {
-                        Value::Num(m) if m.numel() == 1 => {
-                            if k == 0 {
-                                kind = m.kind;
-                            } else if kind != m.kind {
-                                kind = Kind::Double;
-                            }
-                            data.push(m.data[0]);
-                        }
-                        _ => return rt("Non-scalar in Uniform output, at index ".to_string() + &(k + 1).to_string() + ", output 1. Set 'UniformOutput' to false."),
+                let call_args = inputs.iter().map(|v| element(v, k, name == "cellfun")).collect::<R<Vec<_>>>()?;
+                let out = it.call_func_value(&f, call_args, nout)?;
+                if out.len() < nout && (uniform || nargout > 0) {
+                    if out.is_empty() && nargout == 0 && !uniform {
+                        results[0].push(Value::empty());
+                        continue;
                     }
+                    if out.is_empty() && nargout == 0 {
+                        continue;
+                    }
+                    return rt("The function must return a value when UniformOutput is true.");
                 }
-                mat(Matrix::new(r, c, data).with_kind(kind))
-            } else {
-                one(Value::Cell(CellArray::new(r, c, results)))
+                for (j, v) in out.into_iter().take(nout).enumerate() {
+                    results[j].push(v);
+                }
             }
+            let mut outs = Vec::new();
+            for res in results {
+                if res.is_empty() && nargout == 0 && n > 0 {
+                    return none();
+                }
+                if uniform {
+                    let mut data = Vec::with_capacity(n);
+                    let mut kind = None;
+                    for (k, v) in res.iter().enumerate() {
+                        match v {
+                            Value::Num(m) if m.numel() == 1 && !m.is_complex() => {
+                                kind = Some(match kind {
+                                    None => m.kind,
+                                    Some(prev) if prev == m.kind => prev,
+                                    _ => Kind::Double,
+                                });
+                                data.push(m.data[0]);
+                            }
+                            _ => return rt(format!("Non-scalar in Uniform output, at index {}, output 1. Set 'UniformOutput' to false.", k + 1)),
+                        }
+                    }
+                    outs.push(Value::Num(Matrix::from_dims(dims.clone(), data).with_kind(kind.unwrap_or(Kind::Double))));
+                } else {
+                    outs.push(Value::Cell(CellArray::from_dims(dims.clone(), res)));
+                }
+            }
+            Ok(Some(outs))
         }
 
         // ---- session & errors --------------------------------------------------------------
@@ -1435,7 +1697,19 @@ pub fn call(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize) 
             it.emit(OutputKind::Text(format!("Elapsed time is {t:.6} seconds.\n")));
             none()
         }
-        "pause" | "drawnow" | "clc" => none(),
+        "pause" | "drawnow" | "clc" | "validateattributes" | "narginchk" | "nargchk" => none(),
+        "addpath" => {
+            for v in a {
+                if let Ok(p) = v.text() {
+                    for part in p.split(';').filter(|s| !s.is_empty()) {
+                        it.add_path(std::path::PathBuf::from(part));
+                    }
+                }
+            }
+            none()
+        }
+        "rmpath" | "path" => none(),
+        "pwd" => one(Value::chars(&std::env::current_dir().map(|p| p.display().to_string()).unwrap_or_default())),
         "clear" => {
             if a.is_empty() || a.iter().any(|v| v.text().map(|s| s == "all" || s == "variables").unwrap_or(false)) {
                 it.clear_current_scope();
@@ -1460,9 +1734,34 @@ pub fn call(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize) 
             it.format = if mode.eq_ignore_ascii_case("long") { NumFormat::Long } else { NumFormat::Short };
             none()
         }
+        "disp" => {
+            let v = arg(a, 0, name)?;
+            if let Value::Object(o) = v {
+                if let Some(f) = o.class.method("disp").cloned() {
+                    let class = o.class.clone();
+                    it.call_method(&f, &class, vec![v.clone()], 0)?;
+                    return none();
+                }
+                let values = it.object_values(o)?;
+                let text = crate::class::format_object("", o, &values, it.format);
+                it.emit(OutputKind::Text(text.trim_start_matches(" = \n").to_string() + "\n"));
+                return none();
+            }
+            let mut s = disp_value(v, it.format);
+            if !(v.numel() == 0 && matches!(v, Value::Num(_))) {
+                s.push('\n');
+            }
+            it.emit(OutputKind::Text(s));
+            none()
+        }
+        "display" => {
+            let v = arg(a, 0, name)?;
+            let text = crate::display::display_value("ans", v, it.format);
+            it.emit(OutputKind::Value { name: "ans".into(), text });
+            none()
+        }
         "error" => {
             let mut parts: &[Value] = a;
-            // error('pkg:id', 'message %d', x)
             if parts.len() >= 2 {
                 if let Ok(id) = parts[0].text() {
                     if id.contains(':') && !id.contains(' ') && parts[1].is_text() {
@@ -1490,7 +1789,7 @@ pub fn call(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize) 
             }
             if let Some(f) = parts.first() {
                 let t = f.text()?;
-                if t == "off" || t == "on" {
+                if t == "off" || t == "on" || t == "query" {
                     return none();
                 }
                 let msg = if parts.len() > 1 { sprintf(&t, &parts[1..])? } else { t };
@@ -1508,177 +1807,153 @@ pub fn call(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize) 
             }
             none()
         }
+        "inputname" => one(Value::chars("")),
 
-        // ---- graphics ----------------------------------------------------------------------
-        "figure" => {
-            let id = match a.first() {
-                Some(v) if !v.is_text() => Some(v.scalar()? as u32),
-                _ => None,
+        // ---- operator function forms -------------------------------------------------------
+        "plus" | "minus" | "times" | "mtimes" | "rdivide" | "ldivide" | "mrdivide" | "mldivide" | "mpower" | "eq" | "ne" | "lt" | "le" | "gt"
+        | "ge" | "and" | "or" => {
+            use crate::ast::BinOp::*;
+            let op = match name {
+                "plus" => Add,
+                "minus" => Sub,
+                "times" => Mul,
+                "mtimes" => MatMul,
+                "rdivide" => Div,
+                "ldivide" => LeftDiv,
+                "mrdivide" => MatDiv,
+                "mldivide" => MatLeftDiv,
+                "mpower" => MatPow,
+                "eq" => Eq,
+                "ne" => Ne,
+                "lt" => Lt,
+                "le" => Le,
+                "gt" => Gt,
+                "ge" => Ge,
+                "and" => And,
+                _ => Or,
             };
-            let idx = match id.and_then(|id| it.figures.iter().position(|f| f.id == id)) {
-                Some(i) => i,
-                None => {
-                    let id = id.unwrap_or(it.next_figure_id);
-                    it.next_figure_id = it.next_figure_id.max(id + 1);
-                    it.figures.push(Figure::new(id));
-                    it.figures.len() - 1
-                }
-            };
-            it.current_figure = Some(idx);
-            let id = it.figures[idx].id;
-            if nargout >= 1 {
-                return num(id as f64);
-            }
-            none()
+            one(it.binary(op, arg(a, 0, name)?.clone(), arg(a, 1, name)?.clone())?)
         }
-        "close" => {
-            let all = a.iter().any(|v| v.text().map(|s| s == "all").unwrap_or(false));
-            if all {
-                it.close_all_figures();
-            } else if let Some(i) = it.current_figure {
-                it.figures.remove(i);
-                it.current_figure = if it.figures.is_empty() { None } else { Some(it.figures.len() - 1) };
-            }
-            none()
+        "xor" => {
+            let x = m_arg(a, 0, name)?;
+            let y = m_arg(a, 1, name)?;
+            mat(broadcast(&x, &y, |p, q| ((p != 0.0) != (q != 0.0)) as u8 as f64)?.with_kind(Kind::Logical))
         }
-        "clf" => {
-            let f = it.current_figure();
-            *f = Figure::new(f.id);
-            none()
-        }
-        "subplot" => {
-            let (m, n, p) = if a.len() == 1 {
-                let v = a[0].scalar()? as usize;
-                (v / 100, (v / 10) % 10, v % 10)
-            } else {
-                (arg(a, 0, name)?.as_usize()?, arg(a, 1, name)?.as_usize()?, arg(a, 2, name)?.as_usize()?)
-            };
-            if m == 0 || n == 0 || p == 0 || p > m * n {
-                return rt("Index exceeds number of subplots.");
-            }
-            let f = it.current_figure();
-            if f.grid != (m, n) {
-                f.grid = (m, n);
-                f.axes = vec![Axes::default(); m * n];
-            }
-            f.current_axes = p - 1;
-            none()
-        }
-        "hold" => {
-            let mode = a.first().map(|v| v.text()).transpose()?;
-            let ax = it.current_figure().axes_mut();
-            ax.hold = match mode.as_deref() {
-                Some("on") | Some("all") => true,
-                Some("off") => false,
-                _ => !ax.hold,
-            };
-            none()
-        }
-        "grid" => {
-            let mode = a.first().map(|v| v.text()).transpose()?;
-            let ax = it.current_figure().axes_mut();
-            ax.grid = match mode.as_deref() {
-                Some("on") | Some("minor") => true,
-                Some("off") => false,
-                _ => !ax.grid,
-            };
-            none()
-        }
-        "title" | "xlabel" | "ylabel" => {
-            let text = match a.first() {
-                Some(Value::Cell(c)) => text_list(&Value::Cell(c.clone()))?.join("\n"),
-                Some(v) => v.text()?,
-                None => String::new(),
-            };
-            let ax = it.current_figure().axes_mut();
-            match name {
-                "title" => ax.title = text,
-                "xlabel" => ax.xlabel = text,
-                _ => ax.ylabel = text,
-            }
-            none()
-        }
-        "legend" => {
-            let mut names: Vec<String> = Vec::new();
-            let mut show = true;
-            for v in a {
-                match v {
-                    Value::Cell(_) => names.extend(text_list(v)?),
-                    other => {
-                        let t = other.text()?;
-                        match t.as_str() {
-                            "off" => show = false,
-                            "show" | "boxoff" | "boxon" => {}
-                            "Location" | "location" | "Orientation" => break,
-                            _ => names.push(t),
-                        }
-                    }
-                }
-            }
-            let ax = it.current_figure().axes_mut();
-            if !show {
-                ax.legend = None;
-            } else if names.is_empty() {
-                ax.legend = Some(ax.series.iter().enumerate().map(|(i, s)| s.name.clone().unwrap_or_else(|| format!("data{}", i + 1))).collect());
-            } else {
-                ax.legend = Some(names);
-            }
-            none()
-        }
-        "axis" | "xlim" | "ylim" => {
-            let Some(v) = a.first() else { return none() };
-            if v.is_text() {
-                let ax = it.current_figure().axes_mut();
-                if v.text()? == "auto" {
-                    ax.xlim = None;
-                    ax.ylim = None;
-                }
-                return none();
-            }
-            let m = v.to_matrix()?;
-            let ax = it.current_figure().axes_mut();
-            match name {
-                "xlim" if m.numel() >= 2 => ax.xlim = Some((m.data[0], m.data[1])),
-                "ylim" if m.numel() >= 2 => ax.ylim = Some((m.data[0], m.data[1])),
-                "axis" if m.numel() >= 4 => {
-                    ax.xlim = Some((m.data[0], m.data[1]));
-                    ax.ylim = Some((m.data[2], m.data[3]));
-                }
-                _ => {}
-            }
-            none()
-        }
-        "plot" | "scatter" | "bar" | "stairs" | "area" => {
-            let kind = match name {
-                "plot" => SeriesKind::Line,
-                "scatter" => SeriesKind::Scatter,
-                "bar" => SeriesKind::Bar,
-                "stairs" => SeriesKind::Stairs,
-                _ => SeriesKind::Area,
-            };
-            // scatter(x, y, sz) takes a numeric marker size third.
-            let mut args2 = args.clone();
-            let mut size = None;
-            if kind == SeriesKind::Scatter && args2.len() >= 3 && !args2[2].is_text() {
-                size = Some(args2.remove(2).scalar()?);
-            }
-            if kind == SeriesKind::Scatter && args2.len() >= 3 && !args2[2].is_text() {
-                args2.remove(2);
-            }
-            let mut series = plot_series(&args2, kind)?;
-            if args2.iter().any(|v| v.text().map(|s| s == "filled").unwrap_or(false)) {
-                series.retain(|_| true);
-            }
-            if let Some(sz) = size {
-                for s in series.iter_mut() {
-                    s.marker_size = (sz.sqrt() as f32).max(2.0);
-                }
-            }
-            it.add_series(series);
-            none()
-        }
+        "not" => one(ops::unary(crate::ast::UnOp::Not, arg(a, 0, name)?)?),
+        "uminus" => one(ops::unary(crate::ast::UnOp::Neg, arg(a, 0, name)?)?),
+        "uplus" => one(arg(a, 0, name)?.clone()),
         _ => Ok(None),
     }
+}
+
+/// min/max/sort/mean/diff/sum on datetime and duration arrays.
+fn time_reduction(name: &str, t: &TimeArray, args: &[Value]) -> Ret {
+    use crate::time::TimeKind;
+    if t.kind == TimeKind::CalDuration {
+        return Ok(None);
+    }
+    let m = crate::time::to_numeric(t);
+    let wrap = |mm: Matrix| -> Value { Value::Time(t.with_ms(mm.dims.clone(), mm.data)) };
+    match name {
+        "min" | "max" | "sort" | "mean" | "median" if args.len() == 1 || name == "sort" => {
+            let mut rest = vec![Value::Num(m)];
+            rest.extend(args[1..].iter().cloned());
+            let mut it = Interpreter::new();
+            let r = call(&mut it, name, rest, 2)?.unwrap_or_default();
+            let mut out: Vec<Value> = Vec::new();
+            for (k, v) in r.into_iter().enumerate() {
+                out.push(if k == 0 { wrap(v.to_matrix()?) } else { v });
+            }
+            Ok(Some(out))
+        }
+        "diff" => {
+            let d: Vec<f64> = m.data.windows(2).map(|w| w[1] - w[0]).collect();
+            let n = d.len();
+            let dims = if m.dims[0] == 1 { vec![1, n] } else { vec![n, 1] };
+            Ok(Some(vec![Value::Time(crate::time::TimeArray::durations(dims, d, "hh:mm:ss"))]))
+        }
+        "sum" if t.kind == TimeKind::Duration => Ok(Some(vec![wrap(Matrix::scalar(m.data.iter().sum()))])),
+        "abs" if t.kind == TimeKind::Duration => Ok(Some(vec![wrap(m.map(f64::abs))])),
+        _ => Ok(None),
+    }
+}
+
+/// Eigen-decomposition of a real symmetric matrix by cyclic Jacobi rotations.
+fn jacobi_eig(m: &Matrix) -> (Vec<f64>, Matrix) {
+    let n = m.rows();
+    let mut a = Matrix::from_dims(m.dims.clone(), m.data.clone());
+    let mut v = ops::identity(n);
+    for _ in 0..100 {
+        let off: f64 = (0..n).flat_map(|i| (0..n).filter(move |&j| j != i).map(move |j| (i, j))).map(|(i, j)| a.get(i, j).powi(2)).sum();
+        if off < 1e-22 {
+            break;
+        }
+        for p in 0..n {
+            for q in p + 1..n {
+                let apq = a.get(p, q);
+                if apq.abs() < 1e-300 {
+                    continue;
+                }
+                let theta = (a.get(q, q) - a.get(p, p)) / (2.0 * apq);
+                let t = theta.signum() / (theta.abs() + (theta * theta + 1.0).sqrt());
+                let t = if theta == 0.0 { 1.0 } else { t };
+                let c = 1.0 / (t * t + 1.0).sqrt();
+                let s = t * c;
+                for k in 0..n {
+                    let (akp, akq) = (a.get(k, p), a.get(k, q));
+                    a.set(k, p, c * akp - s * akq);
+                    a.set(k, q, s * akp + c * akq);
+                }
+                for k in 0..n {
+                    let (apk, aqk) = (a.get(p, k), a.get(q, k));
+                    a.set(p, k, c * apk - s * aqk);
+                    a.set(q, k, s * apk + c * aqk);
+                }
+                for k in 0..n {
+                    let (vkp, vkq) = (v.get(k, p), v.get(k, q));
+                    v.set(k, p, c * vkp - s * vkq);
+                    v.set(k, q, s * vkp + c * vkq);
+                }
+            }
+        }
+    }
+    // Ascending eigenvalues with matching vectors (MATLAB's order for symmetric input).
+    let mut order: Vec<usize> = (0..n).collect();
+    order.sort_by(|&i, &j| a.get(i, i).partial_cmp(&a.get(j, j)).unwrap_or(std::cmp::Ordering::Equal));
+    let vals = order.iter().map(|&i| a.get(i, i)).collect();
+    let mut vecs = Matrix::zeros(n, n);
+    for (c, &i) in order.iter().enumerate() {
+        // Normalize sign so the largest component is positive.
+        let col: Vec<f64> = (0..n).map(|r| v.get(r, i)).collect();
+        let big = col.iter().cloned().fold(0.0f64, |acc, x| if x.abs() > acc.abs() { x } else { acc });
+        let s = if big < 0.0 { -1.0 } else { 1.0 };
+        for r in 0..n {
+            vecs.set(r, c, s * col[r]);
+        }
+    }
+    (vals, vecs)
+}
+
+fn sym_eigs(m: &Matrix) -> Vec<f64> {
+    jacobi_eig(m).0
+}
+
+/// Characteristic polynomial coefficients (highest degree first).
+fn char_poly(a: &Matrix) -> R<Vec<f64>> {
+    let n = a.rows();
+    let mut coeffs = vec![1.0];
+    let mut mk = Matrix::zeros(n, n);
+    let id = ops::identity(n);
+    let mut c = 1.0;
+    for k in 1..=n {
+        // M_k = A M_{k-1} + c_{k-1} I ; c_k = -tr(A M_k)/k
+        let am = ops::matmul(a, &mk)?;
+        mk = broadcast(&am, &id, |x, y| x + c * y)?;
+        let amk = ops::matmul(a, &mk)?;
+        c = -(0..n).map(|i| amk.get(i, i)).sum::<f64>() / k as f64;
+        coeffs.push(c);
+    }
+    Ok(coeffs)
 }
 
 /// Lanczos approximation of the gamma function.

@@ -33,7 +33,7 @@ Clicking the gutter bar left of a section runs that section.
 
 | Crate | Purpose |
 |---|---|
-| `crates/livre-lang` | Lexer, parser, tree-walking interpreter, values, display formatting, ~200 builtins, figure model |
+| `crates/livre-lang` | Lexer, parser, interpreter, N-D values, MATLAB display, ~400 builtins, classdef, datetime/duration, tables, Symbolic Math, figure model |
 | `crates/livre-doc` | Live script document model; `.mlx` (OPC/ZIP + WordprocessingML) and `.m` reader/writer |
 | `crates/livre-app` | eframe/egui desktop app: custom title bar, command bar, document editor, inline/right outputs, plots, workspace browser, light/dark skins |
 
@@ -58,11 +58,32 @@ cargo test --workspace
 `livre-doc/tests/matlab_samples.rs` round-trips the live scripts shipped with a local MATLAB
 install when one is present.
 
+## Language
+
+MATLAB compatibility is a requirement: behavior follows MATLAB's documented semantics and
+display (spec section 5). Supported:
+
+- N-D arrays of every type, with implicit expansion and `end`/`:` indexing.
+- `double`, `single`, `logical`, `char` and `int8`…`uint64` with MATLAB's saturation and class
+  combination rules; complex numbers (`3 + 4i`, complex-valued `sqrt`/`log`/`roots`, …).
+- String arrays, cell arrays, struct arrays (`s(2).f`, `[s.f]`), function handles.
+- `classdef` classes and function files from the script's folder: properties (defaults,
+  `Constant`, `Dependent` with `get.` methods), methods, `Static` methods, constructors,
+  inheritance with `obj@Super(...)`, handle vs value semantics, operator overloading.
+- `datetime`, `duration`, `calendarDuration` (arithmetic, components, `between`, ranges, time
+  axes in plots) and `table` (indexing, Properties, sorting, CSV `readtable`/`writetable`).
+- Symbolic Math: `syms`, exact rationals, `diff`, `int`, `limit`, `taylor`, `solve`
+  (polynomials and linear systems), `simplify`, `expand`, `factor`, `collect`, `subs`,
+  `matlabFunction`, `fplot`, symbolic matrices.
+
+Try `examples/features.m` (it uses `examples/Point.m`).
+
 ## Proof-of-concept limits
 
-- Language: 2-D double/logical/char arrays, strings, cells, scalar structs, function handles.
-  No complex numbers, integer types, N-D arrays, struct arrays, string arrays, classes, or
-  `datetime`/tables.
+- Known language gaps are listed in the spec (section 6): `int64` beyond 2^53, IANA time zones
+  and daylight saving, object arrays, property `set.` methods and validation, events,
+  enumerations, packages, regular expressions, and symbolic integration/solving beyond the
+  documented rules.
 - Live controls inside `.mlx` files load as plain code (their current value) and are not
   interactive; saved outputs in `output.xml` are not restored (re-run to regenerate) and are
   not written.

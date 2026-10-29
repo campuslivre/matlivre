@@ -1,16 +1,21 @@
-//! Tree-walking interpreter with a MATLAB-style base workspace, local functions, and
-//! streamed outputs (text, values, figures, errors) anchored to source lines.
+//! Tree-walking interpreter with a MATLAB-style base workspace, local and path functions,
+//! classdef classes, and streamed outputs (text, values, figures, errors) anchored to lines.
 
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
 use crate::ast::*;
+use crate::class::{ClassDef, Object};
 use crate::display::{display_value, summary, NumFormat};
 use crate::error::{rt, LangError};
 use crate::graphics::Figure;
+use crate::indexing::{self, to_index_arg};
+use crate::nd::{self, Dims, IndexArg};
 use crate::ops;
 use crate::value::*;
 
@@ -43,7 +48,7 @@ pub struct VarInfo {
     pub bytes: usize,
 }
 
-enum Flow {
+pub(crate) enum Flow {
     Normal,
     Break,
     Continue,
@@ -55,17 +60,13 @@ struct Frame {
     globals: HashSet<String>,
 }
 
-/// One index argument after evaluation, as zero-based positions.
-#[derive(Debug, Clone)]
-pub enum IndexArg {
-    All,
-    List { ix: Vec<usize>, rows: usize, cols: usize, from_mask: bool },
-}
-
 enum Resolved {
     Paren(Vec<IndexArg>),
     Brace(Vec<IndexArg>),
     Field(String),
+    /// Table subscripts (row/variable names allowed).
+    TableParen(Vec<Value>),
+    TableBrace(Vec<Value>),
 }
 
 pub struct Interpreter {
@@ -73,6 +74,13 @@ pub struct Interpreter {
     frames: Vec<Frame>,
     global_vars: HashMap<String, Value>,
     functions: HashMap<String, Rc<Function>>,
+    search_path: Vec<PathBuf>,
+    path_functions: HashMap<String, Rc<Function>>,
+    path_scripts: HashMap<String, Rc<Program>>,
+    classes: HashMap<String, Rc<ClassDef>>,
+    not_on_path: HashSet<String>,
+    /// Class whose method is executing (for `obj@Super` and `method@Super`).
+    class_stack: Vec<Rc<ClassDef>>,
     pub format: NumFormat,
     pub(crate) figures: Vec<Figure>,
     pub(crate) current_figure: Option<usize>,
@@ -86,6 +94,8 @@ pub struct Interpreter {
     pub(crate) rng_state: u64,
     end_stack: Vec<f64>,
     depth: usize,
+    /// Source names of the arguments of the builtin being called (`table` uses them).
+    pub(crate) arg_names: Vec<Option<String>>,
 }
 
 impl Default for Interpreter {
@@ -101,6 +111,12 @@ impl Interpreter {
             frames: Vec::new(),
             global_vars: HashMap::new(),
             functions: HashMap::new(),
+            search_path: Vec::new(),
+            path_functions: HashMap::new(),
+            path_scripts: HashMap::new(),
+            classes: HashMap::new(),
+            not_on_path: HashSet::new(),
+            class_stack: Vec::new(),
             format: NumFormat::Short,
             figures: Vec::new(),
             current_figure: None,
@@ -114,6 +130,7 @@ impl Interpreter {
             rng_state: 0x2545_F491_4F6C_DD1D,
             end_stack: Vec::new(),
             depth: 0,
+            arg_names: Vec::new(),
         }
     }
 
@@ -124,6 +141,27 @@ impl Interpreter {
 
     pub fn set_cancel_flag(&mut self, flag: Arc<AtomicBool>) {
         self.cancel = Some(flag);
+    }
+
+    /// Folders searched for function and classdef files (`name.m`). Clears cached lookups so
+    /// edited files are picked up.
+    pub fn set_search_path(&mut self, dirs: Vec<PathBuf>) {
+        self.search_path = dirs;
+        self.reset_path_cache();
+    }
+
+    pub fn add_path(&mut self, dir: PathBuf) {
+        if !self.search_path.contains(&dir) {
+            self.search_path.insert(0, dir);
+        }
+        self.not_on_path.clear();
+    }
+
+    pub fn reset_path_cache(&mut self) {
+        self.path_functions.clear();
+        self.path_scripts.clear();
+        self.classes.clear();
+        self.not_on_path.clear();
     }
 
     /// Registers local functions (replacing earlier definitions with the same name).
@@ -165,6 +203,7 @@ impl Interpreter {
     /// Runs top-level statements in the base workspace.
     pub fn run(&mut self, body: &[Stmt]) -> R<()> {
         self.frames.clear();
+        self.class_stack.clear();
         for s in body {
             let r = self.exec(s);
             match r {
@@ -175,6 +214,7 @@ impl Interpreter {
                 Ok(_) => self.flush_outputs(),
                 Err(mut e) => {
                     self.frames.clear();
+                    self.class_stack.clear();
                     self.depth = 0;
                     self.end_stack.clear();
                     if e.line == 0 {
@@ -215,7 +255,6 @@ impl Interpreter {
         if let Some(f) = self.flush.as_mut() {
             f(out);
         } else {
-            // No sink: keep them for `take_outputs`.
             self.pending = out;
         }
     }
@@ -286,8 +325,8 @@ impl Interpreter {
         self.frame_mut().vars.clear();
     }
 
-    pub fn has_function(&self, name: &str) -> bool {
-        self.functions.contains_key(name) || crate::builtins::exists(name)
+    pub fn has_function(&mut self, name: &str) -> bool {
+        self.functions.contains_key(name) || crate::builtins::exists(name) || self.find_class(name).is_some() || self.find_path_function(name).is_some()
     }
 
     /// Snapshot of the base workspace for the variable browser.
@@ -298,21 +337,103 @@ impl Interpreter {
             .into_iter()
             .map(|n| {
                 let v = &self.base.vars[n];
-                let (r, c) = v.dims();
-                VarInfo {
-                    name: n.clone(),
-                    class: v.class_name().to_string(),
-                    size: crate::display::size_text(r, c),
-                    value: summary(v, self.format),
-                    bytes: approx_bytes(v),
-                }
+                VarInfo { name: n.clone(), class: v.class_name(), size: nd::size_text(&v.dims()), value: summary(v, self.format), bytes: approx_bytes(v) }
             })
             .collect()
     }
 
+    // ---- search path -------------------------------------------------------------------
+
+    fn read_path_file(&self, name: &str) -> Option<(PathBuf, String)> {
+        if name.is_empty() || !name.chars().all(|c| c.is_alphanumeric() || c == '_') {
+            return None;
+        }
+        for dir in &self.search_path {
+            let p = dir.join(format!("{name}.m"));
+            if let Ok(src) = std::fs::read_to_string(&p) {
+                return Some((p, src));
+            }
+            // Class folders: @Name/Name.m
+            let p = dir.join(format!("@{name}")).join(format!("{name}.m"));
+            if let Ok(src) = std::fs::read_to_string(&p) {
+                return Some((p, src));
+            }
+        }
+        None
+    }
+
+    /// Loads (once) a function or script file from the search path.
+    fn find_path_function(&mut self, name: &str) -> Option<Rc<Function>> {
+        if let Some(f) = self.path_functions.get(name) {
+            return Some(f.clone());
+        }
+        if self.not_on_path.contains(name) || self.classes.contains_key(name) {
+            return None;
+        }
+        let Some((_, src)) = self.read_path_file(name) else {
+            self.not_on_path.insert(name.to_string());
+            return None;
+        };
+        if crate::class::is_classdef(&src) {
+            return None;
+        }
+        let prog = crate::parser::parse(&src).ok()?;
+        if prog.functions.is_empty() {
+            self.path_scripts.insert(name.to_string(), Rc::new(prog));
+            return None;
+        }
+        let main = prog.functions[0].clone();
+        // Subfunctions are visible to the file's main function (registered globally here).
+        for f in &prog.functions[1..] {
+            self.path_functions.entry(f.name.clone()).or_insert_with(|| f.clone());
+        }
+        self.path_functions.insert(name.to_string(), main.clone());
+        Some(main)
+    }
+
+    /// Loads (once) a classdef class from the search path, with its superclasses.
+    pub(crate) fn find_class(&mut self, name: &str) -> Option<Rc<ClassDef>> {
+        if let Some(c) = self.classes.get(name) {
+            return Some(c.clone());
+        }
+        if self.not_on_path.contains(name) || self.path_functions.contains_key(name) {
+            return None;
+        }
+        let Some((_, src)) = self.read_path_file(name) else {
+            self.not_on_path.insert(name.to_string());
+            return None;
+        };
+        if !crate::class::is_classdef(&src) {
+            return None;
+        }
+        let ast = match crate::class::parse_classdef(&src) {
+            Ok(a) => a,
+            Err(e) => {
+                self.emit(OutputKind::Warning(format!("Could not load class '{name}': {}", e.message)));
+                self.not_on_path.insert(name.to_string());
+                return None;
+            }
+        };
+        let mut supers = Vec::new();
+        for s in &ast.supers {
+            if s == "handle" {
+                continue;
+            }
+            match self.find_class(s) {
+                Some(c) => supers.push(c),
+                None => {
+                    self.emit(OutputKind::Warning(format!("Superclass '{s}' of '{name}' was not found.")));
+                }
+            }
+        }
+        let def = Rc::new(ClassDef::build(ast, &supers));
+        self.classes.insert(name.to_string(), def.clone());
+        Some(def)
+    }
+
     // ---- statements --------------------------------------------------------------------
 
-    fn exec_block(&mut self, body: &[Stmt]) -> R<Flow> {
+    pub(crate) fn exec_block(&mut self, body: &[Stmt]) -> R<Flow> {
         for s in body {
             match self.exec(s)? {
                 Flow::Normal => {}
@@ -336,14 +457,48 @@ impl Interpreter {
         })
     }
 
+    /// Emits the display of `name = v`, honoring `disp`/`display` overloads of objects.
+    fn show(&mut self, name: &str, v: &Value) -> R<()> {
+        if let Value::Object(o) = v {
+            if let Some(f) = o.class.method("display").cloned() {
+                self.call_method(&f, &o.class.clone(), vec![v.clone()], 0)?;
+                return Ok(());
+            }
+            if let Some(f) = o.class.method("disp").cloned() {
+                self.emit(OutputKind::Text(format!("{name} = \n")));
+                self.call_method(&f, &o.class.clone(), vec![v.clone()], 0)?;
+                return Ok(());
+            }
+            let values = self.object_values(o)?;
+            let text = crate::class::format_object(name, o, &values, self.format);
+            self.emit(OutputKind::Value { name: name.to_string(), text });
+            return Ok(());
+        }
+        let text = display_value(name, v, self.format);
+        self.emit(OutputKind::Value { name: name.to_string(), text });
+        Ok(())
+    }
+
+    /// Property values with Dependent ones computed through their `get.` methods.
+    pub(crate) fn object_values(&mut self, o: &Object) -> R<Vec<Value>> {
+        let mut values = o.props.borrow().clone();
+        for (i, p) in o.class.props.iter().enumerate() {
+            if p.dependent {
+                if let Some(g) = o.class.method(&format!("get.{}", p.name)).cloned() {
+                    values[i] = self.call_method(&g, &o.class.clone(), vec![Value::Object(o.clone())], 1)?.into_iter().next().unwrap_or_else(Value::empty);
+                }
+            }
+        }
+        Ok(values)
+    }
+
     fn exec_inner(&mut self, s: &Stmt) -> R<Flow> {
         match &s.kind {
             StmtKind::Expr { expr, print } => {
                 if let Expr::Ident(name) = expr {
-                    if let Some(v) = self.get_var(name) {
+                    if let Some(v) = self.get_var(name).cloned() {
                         if *print {
-                            let text = display_value(name, v, self.format);
-                            self.emit(OutputKind::Value { name: name.clone(), text });
+                            self.show(name, &v)?;
                         }
                         return Ok(Flow::Normal);
                     }
@@ -351,8 +506,7 @@ impl Interpreter {
                 let vals = self.eval_multi(expr, 0)?;
                 if let Some(v) = vals.into_iter().next() {
                     if *print {
-                        let text = display_value("ans", &v, self.format);
-                        self.emit(OutputKind::Value { name: "ans".into(), text });
+                        self.show("ans", &v)?;
                     }
                     self.set_var("ans", v);
                 }
@@ -363,12 +517,9 @@ impl Interpreter {
                     self.assign(&lhs[0], v)?;
                 } else {
                     let vals = self.eval_multi(rhs, lhs.len())?;
-                    if vals.len() < lhs.len() {
-                        // Only an error if a requested output is actually missing.
-                        let needed = lhs.iter().rposition(|l| !matches!(l, LValue::Tilde)).map_or(0, |i| i + 1);
-                        if vals.len() < needed {
-                            return rt("Too many output arguments.");
-                        }
+                    let needed = lhs.iter().rposition(|l| !matches!(l, LValue::Tilde)).map_or(0, |i| i + 1);
+                    if vals.len() < needed {
+                        return rt("Too many output arguments.");
                     }
                     for (l, v) in lhs.iter().zip(vals) {
                         self.assign(l, v)?;
@@ -377,9 +528,8 @@ impl Interpreter {
                 if *print {
                     for l in lhs {
                         if let LValue::Target { name, .. } = l {
-                            if let Some(v) = self.get_var(name) {
-                                let text = display_value(name, v, self.format);
-                                self.emit(OutputKind::Value { name: name.clone(), text });
+                            if let Some(v) = self.get_var(name).cloned() {
+                                self.show(name, &v)?;
                             }
                         }
                     }
@@ -390,8 +540,7 @@ impl Interpreter {
                 let vals = self.call_function(name, argv, 0)?;
                 if let Some(v) = vals.into_iter().next() {
                     if *print {
-                        let text = display_value("ans", &v, self.format);
-                        self.emit(OutputKind::Value { name: "ans".into(), text });
+                        self.show("ans", &v)?;
                     }
                     self.set_var("ans", v);
                 }
@@ -441,9 +590,10 @@ impl Interpreter {
                         return Err(e);
                     }
                     if let Some(name) = catch_var {
-                        let mut st = Struct::default();
+                        let mut st = StructArray::scalar();
                         st.set("message", Value::chars(&e.message));
                         st.set("identifier", Value::chars(""));
+                        st.set("stack", Value::Struct(StructArray::empty_with(vec!["file".into(), "name".into(), "line".into()])));
                         self.set_var(name, Value::Struct(st));
                     }
                     return self.exec_block(catch_body);
@@ -483,43 +633,41 @@ impl Interpreter {
     fn exec_for(&mut self, var: &str, iter: &Expr, body: &[Stmt]) -> R<Flow> {
         // Numeric ranges iterate without materializing the vector.
         if let Expr::Range(a, step, b) = iter {
-            let start = self.eval(a)?.scalar()?;
-            let step = match step {
-                Some(s) => self.eval(s)?.scalar()?,
-                None => 1.0,
-            };
-            let stop = self.eval(b)?.scalar()?;
-            let n = range_count(start, step, stop);
-            for i in 0..n {
-                self.set_var(var, Value::num(start + i as f64 * step));
-                self.check_cancel()?;
-                match self.exec_block(body)? {
-                    Flow::Break => break,
-                    Flow::Return => return Ok(Flow::Return),
-                    _ => {}
+            let start_v = self.eval(a)?;
+            if matches!(start_v, Value::Num(_)) {
+                let start = start_v.scalar()?;
+                let step = match step {
+                    Some(s) => self.eval(s)?.scalar()?,
+                    None => 1.0,
+                };
+                let stop = self.eval(b)?.scalar()?;
+                let n = range_count(start, step, stop);
+                for i in 0..n {
+                    self.set_var(var, Value::num(start + i as f64 * step));
+                    self.check_cancel()?;
+                    match self.exec_block(body)? {
+                        Flow::Break => break,
+                        Flow::Return => return Ok(Flow::Return),
+                        _ => {}
+                    }
+                    self.loop_pass_flush();
                 }
-                self.loop_pass_flush();
+                return Ok(Flow::Normal);
             }
-            return Ok(Flow::Normal);
         }
         let v = self.eval(iter)?;
-        let (rows, cols) = v.dims();
-        let items: Vec<Value> = match &v {
-            Value::Num(m) => (0..cols)
-                .map(|c| {
-                    let col: Vec<f64> = (0..rows).map(|r| m.get(r, c)).collect();
-                    Value::Num(Matrix::new(rows, 1, col).with_kind(m.kind))
-                })
-                .collect(),
-            Value::Cell(cell) => (0..cols)
-                .map(|c| {
-                    let col: Vec<Value> = (0..rows).map(|r| cell.data[c * rows + r].clone()).collect();
-                    Value::Cell(CellArray::new(rows, 1, col))
-                })
-                .collect(),
-            other => vec![other.clone()],
+        let cols = match &v {
+            Value::Func(_) | Value::Object(_) | Value::Table(_) => 1,
+            other => {
+                let (r, c) = other.dims2();
+                if r == 0 { 0 } else { c }
+            }
         };
-        for item in items {
+        for c in 0..cols {
+            let item = match &v {
+                Value::Func(_) | Value::Object(_) | Value::Table(_) => v.clone(),
+                other => indexing::index(other, &[IndexArg::All, IndexArg::scalar(c)])?,
+            };
             self.set_var(var, item);
             self.check_cancel()?;
             match self.exec_block(body)? {
@@ -542,31 +690,37 @@ impl Interpreter {
             self.set_var(name, rhs);
             return Ok(());
         }
-        // Pass 1: evaluate index arguments against the current sub-value dims (for `end`).
+        // Pass 1: evaluate subscripts against the current sub-value (for `end`).
         let mut resolved = Vec::with_capacity(chain.len());
         for (k, acc) in chain.iter().enumerate() {
             let r = match acc {
                 Accessor::Field(f) => Resolved::Field(f.clone()),
                 Accessor::DynField(e) => Resolved::Field(self.eval(e)?.text()?),
                 Accessor::Paren(args) | Accessor::Brace(args) => {
-                    let dims = self.dims_at(name, &resolved[..k]);
-                    let idx = self.eval_index_args(args, dims)?;
-                    if matches!(acc, Accessor::Paren(_)) { Resolved::Paren(idx) } else { Resolved::Brace(idx) }
+                    let (dims, is_table) = self.sub_info(name, &resolved[..k]);
+                    let paren = matches!(acc, Accessor::Paren(_));
+                    if is_table {
+                        let vals = self.eval_raw_args(args, &dims)?;
+                        if paren { Resolved::TableParen(vals) } else { Resolved::TableBrace(vals) }
+                    } else {
+                        let idx = self.eval_index_args(args, &dims)?;
+                        if paren { Resolved::Paren(idx) } else { Resolved::Brace(idx) }
+                    }
                 }
             };
             resolved.push(r);
         }
-        // Pass 2: take the value out, mutate it, and put it back.
-        // Hot path: `x(i) = v` on a numeric array mutates in place (validation happens
-        // before any write, so an error leaves the variable untouched).
+        // Hot path: `x(i) = v` on a numeric array mutates in place.
         if let ([Resolved::Paren(idx)], Value::Num(r)) = (resolved.as_slice(), &rhs) {
-            if !is_delete_rhs(&rhs) {
-                let in_place = !self.frame().globals.contains(name.as_str());
-                if in_place {
-                    if let Some(Value::Num(m)) = self.frame_mut().vars.get_mut(name.as_str()) {
-                        let kind = if m.is_empty() { r.kind } else if m.kind == r.kind { m.kind } else { Kind::Double };
-                        assign_generic(&mut m.rows, &mut m.cols, &mut m.data, idx, (r.rows, r.cols, r.data.clone()), 0.0)?;
-                        m.kind = kind;
+            let deleting = r.dims == [0, 0] && r.kind != Kind::Char;
+            if !deleting && !r.is_complex() && !self.frame().globals.contains(name.as_str()) {
+                if let Some(Value::Num(m)) = self.frame_mut().vars.get_mut(name.as_str()) {
+                    if !m.is_complex() && (m.kind == r.kind || (m.kind != Kind::Logical && !m.is_empty())) {
+                        let kind = m.kind;
+                        let data: Vec<f64> = r.data.iter().map(|&x| kind.cast(x)).collect();
+                        let mut dims = m.dims.clone();
+                        nd::assign(&mut dims, &mut m.data, idx, &r.dims, data, 0.0)?;
+                        m.dims = dims;
                         return Ok(());
                     }
                 }
@@ -575,7 +729,7 @@ impl Interpreter {
         // General path: on error the variable is restored from this snapshot.
         let cur = self.take_var(name);
         let snapshot = cur.clone();
-        match apply_assign(cur, &resolved, rhs) {
+        match self.apply_assign(cur, &resolved, rhs) {
             Ok(v) => {
                 self.set_var(name, v);
                 Ok(())
@@ -589,27 +743,164 @@ impl Interpreter {
         }
     }
 
-    /// Dims of the sub-value reached by `path` from variable `name` (0×0 if absent).
-    fn dims_at(&self, name: &str, path: &[Resolved]) -> (usize, usize) {
-        let mut cur = match self.get_var(name) {
-            Some(v) => v,
-            None => return (0, 0),
+    /// Dims of the sub-value reached by `path` from variable `name`, and whether it is a table.
+    fn sub_info(&self, name: &str, path: &[Resolved]) -> (Dims, bool) {
+        let Some(mut cur) = self.get_var(name).cloned() else {
+            return (vec![0, 0], false);
         };
         for p in path {
-            match (p, cur) {
-                (Resolved::Field(f), Value::Struct(s)) => match s.get(f) {
-                    Some(v) => cur = v,
-                    None => return (0, 0),
+            let next = match (p, &cur) {
+                (Resolved::Field(f), Value::Struct(s)) if s.elems.len() == 1 => s.get(f).cloned(),
+                (Resolved::Field(f), Value::Object(o)) => o.get(f),
+                (Resolved::Field(f), Value::Table(t)) => t.var(f).cloned(),
+                (Resolved::Brace(idx), Value::Cell(c)) => match nd::index_plan(&c.dims, idx) {
+                    Ok((pos, _)) if pos.len() == 1 => Some(c.data[pos[0]].clone()),
+                    _ => None,
                 },
-                (Resolved::Brace(idx), Value::Cell(c)) => match linear_positions(c.rows, c.cols, idx) {
-                    Ok(pos) if pos.len() == 1 && pos[0] < c.data.len() => cur = &c.data[pos[0]],
-                    _ => return (0, 0),
+                (Resolved::Paren(idx), Value::Struct(s)) => match nd::index_plan(&s.dims, idx) {
+                    Ok((pos, _)) if pos.len() == 1 => Some(Value::Struct(s.element(pos[0]))),
+                    _ => None,
                 },
-                (Resolved::Paren(_), v @ Value::Struct(_)) => cur = v,
-                _ => return (0, 0),
+                _ => None,
+            };
+            match next {
+                Some(v) => cur = v,
+                None => return (vec![0, 0], false),
             }
         }
-        cur.dims()
+        let is_table = matches!(cur, Value::Table(_));
+        (cur.dims(), is_table)
+    }
+
+    fn apply_assign(&mut self, cur: Option<Value>, chain: &[Resolved], rhs: Value) -> R<Value> {
+        let Some((first, rest)) = chain.split_first() else {
+            return Ok(rhs);
+        };
+        match first {
+            Resolved::Field(f) => match cur {
+                None => {
+                    let mut s = StructArray::scalar();
+                    let new = self.apply_assign(None, rest, rhs)?;
+                    s.set(f, new);
+                    Ok(Value::Struct(s))
+                }
+                Some(Value::Num(m)) if m.is_empty() => self.apply_assign(None, chain, rhs),
+                Some(Value::Struct(mut s)) => {
+                    if s.elems.len() != 1 {
+                        return rt("Scalar structure required for this assignment.");
+                    }
+                    let sub = s.get(f).cloned();
+                    let new = self.apply_assign(sub, rest, rhs)?;
+                    s.set(f, new);
+                    Ok(Value::Struct(s))
+                }
+                Some(Value::Object(o)) => {
+                    if o.class.prop_index(f).is_none() {
+                        return rt(format!("Unrecognized property '{f}' for class '{}'.", o.class.name));
+                    }
+                    let sub = o.get(f);
+                    let new = self.apply_assign(sub, rest, rhs)?;
+                    Ok(Value::Object(o.set(f, new)?))
+                }
+                Some(Value::Table(mut t)) => {
+                    if f == "Properties" {
+                        let sub = Some(t.properties());
+                        let new = self.apply_assign(sub, rest, rhs)?;
+                        t.set_properties(&new)?;
+                    } else {
+                        let sub = t.var(f).cloned();
+                        let new = self.apply_assign(sub, rest, rhs)?;
+                        t.set_var(f, new)?;
+                    }
+                    Ok(Value::Table(t))
+                }
+                Some(Value::Time(t)) => {
+                    let sub = Some(t.get_prop(f)?);
+                    let new = self.apply_assign(sub, rest, rhs)?;
+                    Ok(Value::Time(t.set_prop(f, &new)?))
+                }
+                Some(other) => rt(format!("Unable to perform assignment because dot indexing is not supported for variables of this type ({}).", other.class_name())),
+            },
+            Resolved::Brace(idx) => {
+                let cell = match cur {
+                    None => Value::Cell(CellArray::from_dims(vec![0, 0], Vec::new())),
+                    Some(Value::Num(m)) if m.is_empty() => Value::Cell(CellArray::from_dims(vec![0, 0], Vec::new())),
+                    Some(c @ Value::Cell(_)) => c,
+                    Some(other) => return rt(format!("Brace indexing is not supported for variables of this type ({}).", other.class_name())),
+                };
+                let new = if rest.is_empty() {
+                    rhs
+                } else {
+                    let sub = match &cell {
+                        Value::Cell(c) => match nd::index_plan(&c.dims, idx) {
+                            Ok((pos, _)) if pos.len() == 1 => Some(c.data[pos[0]].clone()),
+                            _ => None,
+                        },
+                        _ => None,
+                    };
+                    self.apply_assign(sub, rest, rhs)?
+                };
+                indexing::assign(Some(cell), idx, Value::Cell(CellArray::new(1, 1, vec![new])))
+            }
+            Resolved::Paren(idx) => {
+                if rest.is_empty() {
+                    return indexing::assign(cur, idx, rhs);
+                }
+                match cur {
+                    Some(v @ (Value::Object(_) | Value::Cell(_))) => {
+                        if nd::index_plan(&[1, 1], idx).map(|(p, _)| p == vec![0]).unwrap_or(false) {
+                            self.apply_assign(Some(v), rest, rhs)
+                        } else {
+                            rt("Indexing into object arrays is not supported in this version.")
+                        }
+                    }
+                    Some(Value::Num(m)) if !m.is_empty() => rt(format!("Unable to perform assignment into a value of class '{}'.", m.kind.name())),
+                    Some(other @ (Value::Str(_) | Value::Func(_) | Value::Time(_) | Value::Table(_) | Value::Sym(_))) => {
+                        rt(format!("Unable to perform assignment into a value of class '{}'.", other.class_name()))
+                    }
+                    // s(k).f = v on a struct array, growing it as needed.
+                    cur => {
+                        let mut s = match cur {
+                            Some(Value::Struct(s)) => s,
+                            _ => StructArray::empty_with(Vec::new()),
+                        };
+                        let existing = match nd::index_plan(&s.dims, idx) {
+                            Ok((pos, _)) if pos.len() == 1 => Some(Value::Struct(s.element(pos[0]))),
+                            _ => None,
+                        };
+                        let template = existing.unwrap_or_else(|| {
+                            let mut e = StructArray::scalar();
+                            for f in &s.fields {
+                                e.set(f, Value::empty());
+                            }
+                            Value::Struct(e)
+                        });
+                        let new = self.apply_assign(Some(template), rest, rhs)?;
+                        let Value::Struct(ns) = new else {
+                            return rt("Unable to perform assignment because the indexed value is not a struct.");
+                        };
+                        for f in &ns.fields {
+                            s.add_field(f);
+                        }
+                        indexing::assign(Some(Value::Struct(s)), idx, Value::Struct(ns))
+                    }
+                }
+            }
+            Resolved::TableParen(args) => {
+                let Some(Value::Table(t)) = cur else { unreachable!() };
+                if !rest.is_empty() {
+                    return rt("Use T.Var(rows) to assign into part of a table variable.");
+                }
+                Ok(Value::Table(Box::new(t.assign_paren(args.clone(), rhs)?)))
+            }
+            Resolved::TableBrace(args) => {
+                let Some(Value::Table(t)) = cur else { unreachable!() };
+                if !rest.is_empty() {
+                    return rt("Nested indexing after T{...} is not supported in assignments.");
+                }
+                Ok(Value::Table(Box::new(t.assign_brace(args.clone(), rhs)?)))
+            }
+        }
     }
 
     // ---- expressions -------------------------------------------------------------------
@@ -617,8 +908,9 @@ impl Interpreter {
     pub fn eval(&mut self, e: &Expr) -> R<Value> {
         match e {
             Expr::Num(n) => Ok(Value::num(*n)),
+            Expr::Imag(n) => Ok(Value::Num(Matrix::complex_scalar(0.0, *n))),
             Expr::Chars(s) => Ok(Value::chars(s)),
-            Expr::Str(s) => Ok(Value::Str(s.clone())),
+            Expr::Str(s) => Ok(Value::string(s.clone())),
             Expr::Binary(op, a, b) => {
                 match op {
                     BinOp::AndAnd => {
@@ -641,21 +933,54 @@ impl Interpreter {
                 }
                 let l = self.eval(a)?;
                 let r = self.eval(b)?;
-                ops::binary(*op, &l, &r)
+                self.binary(*op, l, r)
             }
             Expr::Unary(op, x) => {
                 let v = self.eval(x)?;
+                if let Value::Object(o) = &v {
+                    let name = match op {
+                        UnOp::Neg => "uminus",
+                        UnOp::Plus => "uplus",
+                        UnOp::Not => "not",
+                        UnOp::CTranspose => "ctranspose",
+                        UnOp::Transpose => "transpose",
+                    };
+                    if let Some(f) = o.class.method(name).cloned() {
+                        let class = o.class.clone();
+                        return first(self.call_method(&f, &class, vec![v.clone()], 1)?, name);
+                    }
+                    if matches!(op, UnOp::CTranspose | UnOp::Transpose) {
+                        return Ok(v);
+                    }
+                    return rt(format!("Undefined function '{name}' for input arguments of type '{}'.", o.class.name));
+                }
                 ops::unary(*op, &v)
             }
             Expr::Range(a, step, b) => {
-                let start = self.eval(a)?.scalar()?;
-                let step = match step {
-                    Some(s) => self.eval(s)?.scalar()?,
+                let start = self.eval(a)?;
+                let step_v = match step {
+                    Some(s) => Some(self.eval(s)?),
+                    None => None,
+                };
+                let stop = self.eval(b)?;
+                if matches!(start, Value::Time(_)) || matches!(step_v, Some(Value::Time(_))) {
+                    return crate::time::range(&start, step_v.as_ref(), &stop);
+                }
+                if matches!(start, Value::Sym(_)) || matches!(stop, Value::Sym(_)) {
+                    return rt("Colon operands must be real numeric scalars.");
+                }
+                let kind = match &start {
+                    Value::Num(m) if m.kind.is_int() || m.kind == Kind::Single => m.kind,
+                    _ => Kind::Double,
+                };
+                let start = start.scalar()?;
+                let step = match step_v {
+                    Some(s) => s.scalar()?,
                     None => 1.0,
                 };
-                let stop = self.eval(b)?.scalar()?;
+                let stop = stop.scalar()?;
                 let n = range_count(start, step, stop);
-                Ok(Value::Num(Matrix::new(if n == 0 { 1 } else { 1 }, n, (0..n).map(|i| start + i as f64 * step).collect())))
+                Ok(Value::Num(Matrix::new(1, n, (0..n).map(|i| start + i as f64 * step).collect()).cast_to(kind)))
             }
             Expr::End => match self.end_stack.last() {
                 Some(v) => Ok(Value::num(*v)),
@@ -693,7 +1018,50 @@ impl Interpreter {
         }
     }
 
-    /// Evaluates an expression that may yield several values (function outputs, `c{:}`).
+    /// Binary operator with object overloading.
+    pub(crate) fn binary(&mut self, op: BinOp, l: Value, r: Value) -> R<Value> {
+        if matches!(l, Value::Object(_)) || matches!(r, Value::Object(_)) {
+            let name = match op {
+                BinOp::Add => "plus",
+                BinOp::Sub => "minus",
+                BinOp::Mul => "times",
+                BinOp::MatMul => "mtimes",
+                BinOp::Div => "rdivide",
+                BinOp::MatDiv => "mrdivide",
+                BinOp::LeftDiv => "ldivide",
+                BinOp::MatLeftDiv => "mldivide",
+                BinOp::Pow => "power",
+                BinOp::MatPow => "mpower",
+                BinOp::Eq => "eq",
+                BinOp::Ne => "ne",
+                BinOp::Lt => "lt",
+                BinOp::Le => "le",
+                BinOp::Gt => "gt",
+                BinOp::Ge => "ge",
+                BinOp::And | BinOp::AndAnd => "and",
+                BinOp::Or | BinOp::OrOr => "or",
+            };
+            for side in [&l, &r] {
+                if let Value::Object(o) = side {
+                    if let Some(f) = o.class.method(name).cloned() {
+                        let class = o.class.clone();
+                        return first(self.call_method(&f, &class, vec![l.clone(), r.clone()], 1)?, name);
+                    }
+                }
+            }
+            if let (Value::Object(a), Value::Object(b)) = (&l, &r) {
+                if a.class.is_handle && matches!(op, BinOp::Eq | BinOp::Ne) {
+                    return Ok(Value::bool((Rc::ptr_eq(&a.props, &b.props)) == (op == BinOp::Eq)));
+                }
+            }
+            let cls = if let Value::Object(o) = &l { o.class.name.clone() } else if let Value::Object(o) = &r { o.class.name.clone() } else { String::new() };
+            return rt(format!("Undefined function '{name}' for input arguments of type '{cls}'."));
+        }
+        ops::binary(op, &l, &r)
+    }
+
+    /// Evaluates an expression that may yield several values (function outputs, `c{:}`,
+    /// `s.f` on a struct array).
     pub fn eval_multi(&mut self, e: &Expr, nargout: usize) -> R<Vec<Value>> {
         match e {
             Expr::Ident(name) => {
@@ -702,56 +1070,173 @@ impl Interpreter {
                 }
                 self.call_function(name, Vec::new(), nargout)
             }
+            Expr::SuperRef { name, class } => self.super_call(name, class, Vec::new(), nargout),
             Expr::Index(base, args) => {
-                if let Expr::Ident(name) = base.as_ref() {
-                    if self.get_var(name).is_none() {
+                match base.as_ref() {
+                    Expr::Ident(name) if self.get_var(name).is_none() => {
+                        if name == "table" {
+                            self.arg_names = args.iter().map(|a| if let Expr::Ident(n) = a { Some(n.clone()) } else { None }).collect();
+                        }
                         let argv = self.eval_args(args)?;
                         return self.call_function(name, argv, nargout);
                     }
+                    Expr::SuperRef { name, class } => {
+                        let argv = self.eval_args(args)?;
+                        return self.super_call(name, class, argv, nargout);
+                    }
+                    // obj.method(args), Class.staticMethod(args), pkg-like calls.
+                    Expr::Field(obj_expr, member) => {
+                        if let Expr::Ident(cls) = obj_expr.as_ref() {
+                            if self.get_var(cls).is_none() {
+                                if let Some(c) = self.find_class(cls) {
+                                    let argv = self.eval_args(args)?;
+                                    return self.static_call(&c, member, argv, nargout);
+                                }
+                            }
+                        }
+                        let target = self.eval(obj_expr)?;
+                        if let Value::Object(o) = &target {
+                            if o.class.prop_index(member).is_none() {
+                                if let Some(f) = o.class.method(member).cloned() {
+                                    let mut argv = vec![target.clone()];
+                                    argv.extend(self.eval_args(args)?);
+                                    let class = o.class.clone();
+                                    return self.call_method(&f, &class, argv, nargout);
+                                }
+                            }
+                        }
+                        let bv = self.member(&target, member)?;
+                        return self.index_into(bv, args, nargout);
+                    }
+                    _ => {}
                 }
                 let bv = self.eval(base)?;
-                if let Value::Func(f) = &bv {
-                    let argv = self.eval_args(args)?;
-                    return self.call_value(f, argv, nargout);
-                }
-                let idx = self.eval_index_args(args, bv.dims())?;
-                Ok(vec![index_value(&bv, &idx)?])
+                self.index_into(bv, args, nargout)
             }
             Expr::CellIndex(base, args) => {
                 let bv = self.eval(base)?;
+                if let Value::Table(t) = &bv {
+                    let vals = self.eval_raw_args(args, &bv.dims())?;
+                    return Ok(vec![t.brace(&vals)?]);
+                }
                 let Value::Cell(c) = &bv else {
                     return rt(format!("Brace indexing is not supported for variables of this type ({}).", bv.class_name()));
                 };
-                let idx = self.eval_index_args(args, (c.rows, c.cols))?;
-                let pos = linear_positions(c.rows, c.cols, &idx)?;
-                let mut out = Vec::with_capacity(pos.len());
-                for p in pos {
-                    match c.data.get(p) {
-                        Some(v) => out.push(v.clone()),
-                        None => return rt(format!("Index exceeds the number of array elements. Index must not exceed {}.", c.data.len())),
-                    }
-                }
-                Ok(out)
+                let idx = self.eval_index_args(args, &c.dims)?;
+                let (pos, _) = nd::index_plan(&c.dims, &idx)?;
+                Ok(pos.into_iter().map(|p| c.data[p].clone()).collect())
             }
             Expr::Field(base, f) => {
+                if let Expr::Ident(cls) = base.as_ref() {
+                    if self.get_var(cls).is_none() {
+                        if let Some(c) = self.find_class(cls) {
+                            return self.static_call(&c, f, Vec::new(), nargout);
+                        }
+                    }
+                }
                 let bv = self.eval(base)?;
-                Ok(vec![get_field(&bv, f)?])
+                if let Value::Struct(s) = &bv {
+                    if s.elems.len() != 1 {
+                        let k = s.field_index(f).ok_or_else(|| LangError::new(format!("Unrecognized field name \"{f}\"."), 0))?;
+                        return Ok(s.elems.iter().map(|e| e[k].clone()).collect());
+                    }
+                }
+                if let Value::Object(o) = &bv {
+                    if o.class.prop_index(f).is_none() {
+                        if let Some(m) = o.class.method(f).cloned() {
+                            let class = o.class.clone();
+                            return self.call_method(&m, &class, vec![bv.clone()], nargout);
+                        }
+                    }
+                }
+                Ok(vec![self.member(&bv, f)?])
             }
             Expr::DynField(base, f) => {
                 let bv = self.eval(base)?;
                 let name = self.eval(f)?.text()?;
-                Ok(vec![get_field(&bv, &name)?])
+                Ok(vec![self.member(&bv, &name)?])
             }
             other => Ok(vec![self.eval(other)?]),
         }
     }
 
-    /// Function-call arguments with comma-list expansion of `c{:}`.
-    fn eval_args(&mut self, args: &[Expr]) -> R<Vec<Value>> {
+    /// `v(args)`: indexing, or calling a function handle.
+    fn index_into(&mut self, bv: Value, args: &[Expr], nargout: usize) -> R<Vec<Value>> {
+        match &bv {
+            Value::Func(f) => {
+                let argv = self.eval_args(args)?;
+                self.call_value(f, argv, nargout)
+            }
+            Value::Table(t) => {
+                let vals = self.eval_raw_args(args, &bv.dims())?;
+                Ok(vec![Value::Table(Box::new(t.paren(&vals)?))])
+            }
+            Value::Object(o) => {
+                if let Some(f) = o.class.method("subsref").cloned() {
+                    let _ = f;
+                    return rt("subsref overloading is not supported in this version.");
+                }
+                let idx = self.eval_index_args(args, &[1, 1])?;
+                Ok(vec![indexing::index(&bv, &idx)?])
+            }
+            _ => {
+                let idx = self.eval_index_args(args, &bv.dims())?;
+                Ok(vec![indexing::index(&bv, &idx)?])
+            }
+        }
+    }
+
+    /// `v.name` for structs, objects, tables and datetimes.
+    fn member(&mut self, v: &Value, name: &str) -> R<Value> {
+        match v {
+            Value::Struct(s) => {
+                if s.elems.is_empty() {
+                    return rt("Dot indexing into an empty struct array is not supported.");
+                }
+                s.get(name).cloned().ok_or_else(|| LangError::new(format!("Unrecognized field name \"{name}\"."), 0))
+            }
+            Value::Object(o) => {
+                let Some(i) = o.class.prop_index(name) else {
+                    return rt(format!("Unrecognized method, property, or field '{name}' for class '{}'.", o.class.name));
+                };
+                let p = &o.class.props[i];
+                if p.dependent {
+                    if let Some(g) = o.class.method(&format!("get.{name}")).cloned() {
+                        let class = o.class.clone();
+                        return first(self.call_method(&g, &class, vec![v.clone()], 1)?, name);
+                    }
+                }
+                if p.constant {
+                    if let Some(d) = p.default.clone() {
+                        return self.eval_in_class_scope(&d);
+                    }
+                }
+                Ok(o.props.borrow()[i].clone())
+            }
+            Value::Table(t) => {
+                if name == "Properties" {
+                    return Ok(t.properties());
+                }
+                t.var(name).cloned().ok_or_else(|| LangError::new(format!("Unrecognized table variable name '{name}'."), 0))
+            }
+            Value::Time(t) => t.get_prop(name),
+            other => rt(format!("Dot indexing is not supported for variables of this type ({}).", other.class_name())),
+        }
+    }
+
+    fn eval_in_class_scope(&mut self, e: &Expr) -> R<Value> {
+        self.frames.push(Frame { vars: HashMap::new(), globals: HashSet::new() });
+        let r = self.eval(e);
+        self.frames.pop();
+        r
+    }
+
+    /// Function-call arguments with comma-list expansion of `c{:}` and `s.f`.
+    pub(crate) fn eval_args(&mut self, args: &[Expr]) -> R<Vec<Value>> {
         let mut out = Vec::with_capacity(args.len());
         for a in args {
             match a {
-                Expr::CellIndex(..) => out.extend(self.eval_multi(a, 1)?),
+                Expr::CellIndex(..) | Expr::Field(..) => out.extend(self.eval_multi(a, 1)?),
                 Expr::Colon => out.push(Value::chars(":")),
                 _ => out.push(self.eval(a)?),
             }
@@ -759,7 +1244,7 @@ impl Interpreter {
         Ok(out)
     }
 
-    fn eval_index_args(&mut self, args: &[Expr], dims: (usize, usize)) -> R<Vec<IndexArg>> {
+    fn eval_index_args(&mut self, args: &[Expr], dims: &[usize]) -> R<Vec<IndexArg>> {
         let n = args.len();
         let mut out = Vec::with_capacity(n);
         for (k, a) in args.iter().enumerate() {
@@ -767,13 +1252,7 @@ impl Interpreter {
                 out.push(IndexArg::All);
                 continue;
             }
-            let end = match (n, k) {
-                (1, _) => (dims.0 * dims.1) as f64,
-                (_, 0) => dims.0 as f64,
-                (_, 1) => dims.1 as f64,
-                _ => 1.0,
-            };
-            self.end_stack.push(end);
+            self.end_stack.push(nd::end_value(dims, k, n) as f64);
             let v = self.eval(a);
             self.end_stack.pop();
             out.push(to_index_arg(&v?)?);
@@ -781,48 +1260,55 @@ impl Interpreter {
         Ok(out)
     }
 
+    /// Subscripts as values (tables accept names), with `end` support.
+    fn eval_raw_args(&mut self, args: &[Expr], dims: &[usize]) -> R<Vec<Value>> {
+        let n = args.len();
+        let mut out = Vec::with_capacity(n);
+        for (k, a) in args.iter().enumerate() {
+            if matches!(a, Expr::Colon) {
+                out.push(Value::chars(":"));
+                continue;
+            }
+            self.end_stack.push(nd::end_value(dims, k, n) as f64);
+            let v = self.eval(a);
+            self.end_stack.pop();
+            out.push(v?);
+        }
+        Ok(out)
+    }
+
+    fn eval_list(&mut self, row: &[Expr]) -> R<Vec<Value>> {
+        let mut items = Vec::with_capacity(row.len());
+        for e in row {
+            match e {
+                Expr::CellIndex(..) | Expr::Field(..) => items.extend(self.eval_multi(e, 1)?),
+                _ => items.push(self.eval(e)?),
+            }
+        }
+        Ok(items)
+    }
+
     fn eval_matrix(&mut self, rows: &[Vec<Expr>]) -> R<Value> {
         let mut row_vals = Vec::with_capacity(rows.len());
         for row in rows {
-            let mut items = Vec::with_capacity(row.len());
-            for e in row {
-                match e {
-                    Expr::CellIndex(..) => items.extend(self.eval_multi(e, 1)?),
-                    _ => items.push(self.eval(e)?),
-                }
-            }
-            row_vals.push(hconcat(items)?);
+            let items = self.eval_list(row)?;
+            row_vals.push(indexing::hconcat(items)?);
         }
-        vconcat(row_vals)
+        indexing::vconcat(row_vals)
     }
 
     fn eval_cell(&mut self, rows: &[Vec<Expr>]) -> R<Value> {
-        let mut grid: Vec<Vec<Value>> = Vec::new();
+        let mut row_vals = Vec::new();
         for row in rows {
-            let mut items = Vec::new();
-            for e in row {
-                match e {
-                    Expr::CellIndex(..) => items.extend(self.eval_multi(e, 1)?),
-                    _ => items.push(self.eval(e)?),
-                }
-            }
-            grid.push(items);
+            let items = self.eval_list(row)?;
+            // Inside braces each element becomes one cell (cells nest rather than merge).
+            let cells: Vec<Value> = items.into_iter().map(|v| Value::Cell(CellArray::new(1, 1, vec![v]))).collect();
+            row_vals.push(indexing::hconcat(cells)?);
         }
-        let nrows = grid.len();
-        if nrows == 0 {
-            return Ok(Value::Cell(CellArray::new(0, 0, Vec::new())));
+        if row_vals.is_empty() {
+            return Ok(Value::Cell(CellArray::from_dims(vec![0, 0], Vec::new())));
         }
-        let ncols = grid[0].len();
-        if grid.iter().any(|r| r.len() != ncols) {
-            return rt("Dimensions of arrays being concatenated are not consistent.");
-        }
-        let mut data = Vec::with_capacity(nrows * ncols);
-        for c in 0..ncols {
-            for r in 0..nrows {
-                data.push(grid[r][c].clone());
-            }
-        }
-        Ok(Value::Cell(CellArray::new(nrows, ncols, data)))
+        indexing::vconcat(row_vals)
     }
 
     // ---- calls -------------------------------------------------------------------------
@@ -830,6 +1316,32 @@ impl Interpreter {
     pub fn call_function(&mut self, name: &str, args: Vec<Value>, nargout: usize) -> R<Vec<Value>> {
         if let Some(f) = self.functions.get(name).cloned() {
             return self.call_user(&f, args, nargout);
+        }
+        // Methods of an object argument take precedence over other functions.
+        for a in &args {
+            if let Value::Object(o) = a {
+                if let Some(f) = o.class.method(name).cloned() {
+                    let class = o.class.clone();
+                    return self.call_method(&f, &class, args, nargout);
+                }
+            }
+        }
+        if !crate::builtins::exists(name) {
+            if let Some(c) = self.find_class(name) {
+                return Ok(vec![self.construct(&c, args)?]);
+            }
+            if let Some(f) = self.find_path_function(name) {
+                return self.call_user(&f, args, nargout);
+            }
+            if let Some(p) = self.path_scripts.get(name).cloned() {
+                if !args.is_empty() {
+                    return rt(format!("Attempt to execute SCRIPT {name} as a function."));
+                }
+                self.define_functions(&p);
+                match self.exec_block(&p.body)? {
+                    _ => return Ok(Vec::new()),
+                }
+            }
         }
         if let Some(r) = crate::builtins::call(self, name, args, nargout)? {
             return Ok(r);
@@ -867,7 +1379,101 @@ impl Interpreter {
         Ok(())
     }
 
+    pub(crate) fn call_method(&mut self, f: &Rc<Function>, class: &Rc<ClassDef>, args: Vec<Value>, nargout: usize) -> R<Vec<Value>> {
+        self.class_stack.push(class.clone());
+        let r = self.call_user(f, args, nargout);
+        self.class_stack.pop();
+        r
+    }
+
+    fn static_call(&mut self, c: &Rc<ClassDef>, member: &str, args: Vec<Value>, nargout: usize) -> R<Vec<Value>> {
+        if let Some(i) = c.prop_index(member) {
+            if c.props[i].constant {
+                if let Some(d) = c.props[i].default.clone() {
+                    return Ok(vec![self.eval_in_class_scope(&d)?]);
+                }
+                return Ok(vec![Value::empty()]);
+            }
+        }
+        match c.method(member).cloned() {
+            Some(f) => self.call_method(&f, c, args, nargout),
+            None => rt(format!("The class {} has no Constant property or Static method named '{member}'.", c.name)),
+        }
+    }
+
+    /// Creates an object with property defaults and runs the constructor chain.
+    pub(crate) fn construct(&mut self, c: &Rc<ClassDef>, args: Vec<Value>) -> R<Value> {
+        let mut props = Vec::with_capacity(c.props.len());
+        for p in &c.props {
+            props.push(match &p.default {
+                Some(d) if !p.dependent => self.eval_in_class_scope(d)?,
+                _ => Value::empty(),
+            });
+        }
+        let obj = Value::Object(Object { class: c.clone(), props: Rc::new(RefCell::new(props)) });
+        self.run_ctor(c, obj, args)
+    }
+
+    /// Runs `c`'s constructor on `obj` (or the default constructor, which forwards to the
+    /// superclass constructors).
+    fn run_ctor(&mut self, c: &Rc<ClassDef>, obj: Value, args: Vec<Value>) -> R<Value> {
+        let Some(ctor) = c.ctor.clone() else {
+            let mut obj = obj;
+            for s in c.supers.clone() {
+                if s == "handle" {
+                    continue;
+                }
+                if let Some(sc) = self.find_class(&s) {
+                    obj = self.run_ctor(&sc, obj, args.clone())?;
+                }
+            }
+            return Ok(obj);
+        };
+        // Superclass constructors run implicitly (with no arguments) unless called explicitly.
+        let mut obj = obj;
+        if !body_calls_super(&ctor.body) {
+            for s in c.supers.clone() {
+                if s == "handle" {
+                    continue;
+                }
+                if let Some(sc) = self.find_class(&s) {
+                    obj = self.run_ctor(&sc, obj, Vec::new())?;
+                }
+            }
+        }
+        let out_name = ctor.outputs.first().cloned().unwrap_or_else(|| "obj".into());
+        self.class_stack.push(c.clone());
+        let r = self.call_user_with(&ctor, args, 1, Some((out_name, obj)));
+        self.class_stack.pop();
+        let mut out = r?;
+        if out.is_empty() {
+            return rt(format!("The constructor of class '{}' must return the object.", c.name));
+        }
+        Ok(out.swap_remove(0))
+    }
+
+    /// `obj@Super(args)` in a constructor, or `method@Super(args)` in a method.
+    fn super_call(&mut self, name: &str, class: &str, args: Vec<Value>, nargout: usize) -> R<Vec<Value>> {
+        let Some(sc) = self.find_class(class) else {
+            return rt(format!("Unable to find superclass '{class}'."));
+        };
+        if let Some(Value::Object(_)) = self.get_var(name) {
+            let obj = self.get_var(name).cloned().unwrap();
+            let new = self.run_ctor(&sc, obj, args)?;
+            self.set_var(name, new);
+            return Ok(Vec::new());
+        }
+        match sc.method(name).cloned() {
+            Some(f) => self.call_method(&f, &sc, args, nargout),
+            None => rt(format!("Superclass '{class}' has no method '{name}'.")),
+        }
+    }
+
     fn call_user(&mut self, f: &Rc<Function>, args: Vec<Value>, nargout: usize) -> R<Vec<Value>> {
+        self.call_user_with(f, args, nargout, None)
+    }
+
+    fn call_user_with(&mut self, f: &Rc<Function>, args: Vec<Value>, nargout: usize, preset: Option<(String, Value)>) -> R<Vec<Value>> {
         let has_varargin = f.params.last().map(|p| p == "varargin").unwrap_or(false);
         let fixed = if has_varargin { f.params.len() - 1 } else { f.params.len() };
         if args.len() > fixed && !has_varargin {
@@ -879,11 +1485,16 @@ impl Interpreter {
         self.enter()?;
         let nargin = args.len();
         let mut vars = HashMap::new();
+        if let Some((n, v)) = preset {
+            vars.insert(n, v);
+        }
         let mut it = args.into_iter();
         for p in f.params.iter().take(fixed) {
             match it.next() {
                 Some(a) => {
-                    vars.insert(p.clone(), a);
+                    if p != "~" {
+                        vars.insert(p.clone(), a);
+                    }
                 }
                 None => break,
             }
@@ -926,9 +1537,36 @@ impl Interpreter {
     }
 }
 
+fn first(mut v: Vec<Value>, what: &str) -> R<Value> {
+    if v.is_empty() {
+        return rt(format!("'{what}' did not return a value."));
+    }
+    Ok(v.swap_remove(0))
+}
+
+fn body_calls_super(body: &[Stmt]) -> bool {
+    fn expr(e: &Expr) -> bool {
+        match e {
+            Expr::SuperRef { .. } => true,
+            Expr::Index(b, a) | Expr::CellIndex(b, a) => expr(b) || a.iter().any(expr),
+            Expr::Binary(_, a, b) => expr(a) || expr(b),
+            Expr::Unary(_, a) | Expr::Field(a, _) => expr(a),
+            _ => false,
+        }
+    }
+    body.iter().any(|s| match &s.kind {
+        StmtKind::Expr { expr: e, .. } => expr(e),
+        StmtKind::Assign { rhs, .. } => expr(rhs),
+        StmtKind::If { clauses, otherwise } => clauses.iter().any(|(c, b)| expr(c) || body_calls_super(b)) || otherwise.as_ref().map(|b| body_calls_super(b)).unwrap_or(false),
+        StmtKind::Try { body, catch_body, .. } => body_calls_super(body) || body_calls_super(catch_body),
+        _ => false,
+    })
+}
+
 fn scalar_truth(v: &Value, op: &str) -> R<bool> {
     match v {
-        Value::Num(m) if m.numel() == 1 => Ok(m.data[0] != 0.0),
+        Value::Num(m) if m.numel() == 1 => Ok(m.data[0] != 0.0 || m.im_at(0) != 0.0),
+        Value::Sym(_) if v.numel() == 1 => v.is_true(),
         _ => rt(format!("Operands to the {op} operator must be convertible to logical scalar values.")),
     }
 }
@@ -939,6 +1577,7 @@ fn switch_match(subject: &Value, case: &Value) -> bool {
     }
     match (subject, case) {
         (Value::Num(a), Value::Num(b)) if a.is_scalar() && b.is_scalar() => a.data[0] == b.data[0],
+        (Value::Object(_), Value::Object(_)) => subject == case,
         _ => false,
     }
 }
@@ -983,475 +1622,14 @@ fn collect_idents(e: &Expr, out: &mut Vec<String>) {
 
 fn approx_bytes(v: &Value) -> usize {
     match v {
-        Value::Num(m) => m.numel() * if m.kind == Kind::Double { 8 } else if m.kind == Kind::Char { 2 } else { 1 },
-        Value::Str(s) => s.len() * 2 + 16,
+        Value::Num(m) => m.numel() * m.kind.bytes() * if m.is_complex() { 2 } else { 1 },
+        Value::Str(s) => s.data.iter().map(|x| x.as_ref().map(|t| t.len() * 2).unwrap_or(0) + 16).sum(),
         Value::Cell(c) => c.data.iter().map(approx_bytes).sum::<usize>() + c.data.len() * 8,
-        Value::Struct(s) => s.fields.iter().map(|(_, v)| approx_bytes(v) + 64).sum(),
+        Value::Struct(s) => s.elems.iter().flatten().map(|v| approx_bytes(v) + 64).sum(),
         Value::Func(_) => 32,
-    }
-}
-
-fn get_field(v: &Value, f: &str) -> R<Value> {
-    match v {
-        Value::Struct(s) => match s.get(f) {
-            Some(x) => Ok(x.clone()),
-            None => rt(format!("Unrecognized field name \"{f}\".")),
-        },
-        _ => rt(format!("Dot indexing is not supported for variables of this type ({}).", v.class_name())),
-    }
-}
-
-// ---- indexing ------------------------------------------------------------------------------
-
-fn to_index_arg(v: &Value) -> R<IndexArg> {
-    match v {
-        Value::Num(m) if m.kind == Kind::Char && m.to_string_lossy() == ":" => Ok(IndexArg::All),
-        Value::Num(m) if m.kind == Kind::Logical => {
-            let ix: Vec<usize> = m.data.iter().enumerate().filter(|(_, &x)| x != 0.0).map(|(i, _)| i).collect();
-            let n = ix.len();
-            let (rows, cols) = if m.rows == 1 { (1, n) } else { (n, 1) };
-            Ok(IndexArg::List { ix, rows, cols, from_mask: true })
-        }
-        Value::Num(m) => {
-            let mut ix = Vec::with_capacity(m.numel());
-            for &x in &m.data {
-                if x < 1.0 || x.fract() != 0.0 || !x.is_finite() {
-                    if x.fract() != 0.0 {
-                        return rt("Array indices must be positive integers or logical values.");
-                    }
-                    return rt(format!("Index in position {} is invalid. Array indices must be positive integers or logical values.", x));
-                }
-                ix.push(x as usize - 1);
-            }
-            Ok(IndexArg::List { ix, rows: m.rows, cols: m.cols, from_mask: false })
-        }
-        _ => rt(format!("Indexing with a value of class '{}' is not supported.", v.class_name())),
-    }
-}
-
-/// Linear positions selected by `idx` (no bounds check against growth).
-pub(crate) fn linear_positions(rows: usize, cols: usize, idx: &[IndexArg]) -> R<Vec<usize>> {
-    match idx.len() {
-        0 => Ok((0..rows * cols).collect()),
-        1 => Ok(match &idx[0] {
-            IndexArg::All => (0..rows * cols).collect(),
-            IndexArg::List { ix, .. } => ix.clone(),
-        }),
-        _ => {
-            let rs = arg_list(&idx[0], rows);
-            let cs = arg_list(&idx[1], cols);
-            for extra in &idx[2..] {
-                if let IndexArg::List { ix, .. } = extra {
-                    if ix.iter().any(|&i| i != 0) {
-                        return rt("Only 2-D arrays are supported.");
-                    }
-                }
-            }
-            let mut out = Vec::with_capacity(rs.len() * cs.len());
-            for &c in &cs {
-                for &r in &rs {
-                    out.push(c * rows + r);
-                }
-            }
-            Ok(out)
-        }
-    }
-}
-
-fn arg_list(a: &IndexArg, n: usize) -> Vec<usize> {
-    match a {
-        IndexArg::All => (0..n).collect(),
-        IndexArg::List { ix, .. } => ix.clone(),
-    }
-}
-
-/// Generic `A(idx)` for any element type.
-pub(crate) fn index_generic<T: Clone>(rows: usize, cols: usize, data: &[T], idx: &[IndexArg]) -> R<(usize, usize, Vec<T>)> {
-    let n = data.len();
-    match idx.len() {
-        0 => Ok((rows, cols, data.to_vec())),
-        1 => match &idx[0] {
-            IndexArg::All => Ok((n, if n == 0 { 0 } else { 1 }, data.to_vec())),
-            IndexArg::List { ix, rows: ir, cols: ic, from_mask } => {
-                let mut out = Vec::with_capacity(ix.len());
-                for &i in ix {
-                    if i >= n {
-                        return rt(format!("Index exceeds the number of array elements. Index must not exceed {n}."));
-                    }
-                    out.push(data[i].clone());
-                }
-                let k = out.len();
-                let source_vector = rows == 1 || cols == 1;
-                let index_vector = *ir == 1 || *ic == 1;
-                let (r, c) = if (source_vector && index_vector) || *from_mask {
-                    if rows == 1 && !(cols == 1 && *from_mask && *ic == 1) { (1, k) } else { (k, 1) }
-                } else {
-                    (*ir, *ic)
-                };
-                Ok((r, c, out))
-            }
-        },
-        _ => {
-            let rs = arg_list(&idx[0], rows);
-            let cs = arg_list(&idx[1], cols);
-            if rs.iter().any(|&r| r >= rows) {
-                return rt(format!("Index in position 1 exceeds array bounds. Index must not exceed {rows}."));
-            }
-            if cs.iter().any(|&c| c >= cols) {
-                return rt(format!("Index in position 2 exceeds array bounds. Index must not exceed {cols}."));
-            }
-            let mut out = Vec::with_capacity(rs.len() * cs.len());
-            for &c in &cs {
-                for &r in &rs {
-                    out.push(data[c * rows + r].clone());
-                }
-            }
-            Ok((rs.len(), cs.len(), out))
-        }
-    }
-}
-
-pub(crate) fn index_value(v: &Value, idx: &[IndexArg]) -> R<Value> {
-    match v {
-        Value::Num(m) => {
-            let (r, c, d) = index_generic(m.rows, m.cols, &m.data, idx)?;
-            Ok(Value::Num(Matrix::new(r, c, d).with_kind(m.kind)))
-        }
-        Value::Cell(cell) => {
-            let (r, c, d) = index_generic(cell.rows, cell.cols, &cell.data, idx)?;
-            Ok(Value::Cell(CellArray::new(r, c, d)))
-        }
-        other => {
-            let pos = linear_positions(1, 1, idx)?;
-            if pos.iter().all(|&p| p == 0) && pos.len() == 1 {
-                Ok(other.clone())
-            } else {
-                rt("Index exceeds the number of array elements. Index must not exceed 1.")
-            }
-        }
-    }
-}
-
-/// `A(idx) = rhs` for any element type, growing as needed. `rhs` is (rows, cols, data).
-fn assign_generic<T: Clone>(
-    rows: &mut usize,
-    cols: &mut usize,
-    data: &mut Vec<T>,
-    idx: &[IndexArg],
-    rhs: (usize, usize, Vec<T>),
-    fill: T,
-) -> R<()> {
-    let (rr, rc, rd) = rhs;
-    let rn = rd.len();
-    match idx.len() {
-        1 => {
-            let ix: Vec<usize> = match &idx[0] {
-                IndexArg::All => (0..*rows * *cols).collect(),
-                IndexArg::List { ix, .. } => ix.clone(),
-            };
-            if rn != 1 && rn != ix.len() {
-                return rt(format!("Unable to perform assignment because the left and right sides have a different number of elements ({} and {rn}).", ix.len()));
-            }
-            let max = ix.iter().copied().max().map(|m| m + 1).unwrap_or(0);
-            if max > data.len() {
-                if *rows == 0 && *cols == 0 {
-                    // New vector: a row unless the rhs is a column being assigned with ':'.
-                    if rr > 1 && rc == 1 { *rows = max; *cols = 1; } else { *rows = 1; *cols = max; }
-                    data.resize(max, fill);
-                } else if *rows == 1 {
-                    *cols = max;
-                    data.resize(max, fill);
-                } else if *cols == 1 {
-                    *rows = max;
-                    data.resize(max, fill);
-                } else {
-                    return rt("Attempt to grow array along ambiguous dimension.");
-                }
-            }
-            for (k, &i) in ix.iter().enumerate() {
-                data[i] = if rn == 1 { rd[0].clone() } else { rd[k].clone() };
-            }
-            Ok(())
-        }
-        2 => {
-            let rs: Vec<usize> = match &idx[0] {
-                IndexArg::All => (0..if *rows == 0 { rr } else { *rows }).collect(),
-                IndexArg::List { ix, .. } => ix.clone(),
-            };
-            let cs: Vec<usize> = match &idx[1] {
-                IndexArg::All => (0..if *cols == 0 { rc } else { *cols }).collect(),
-                IndexArg::List { ix, .. } => ix.clone(),
-            };
-            let count = rs.len() * cs.len();
-            if rn != 1 && rn != count {
-                return rt(format!(
-                    "Unable to perform assignment because the size of the left side is {}-by-{} and the size of the right side is {rr}-by-{rc}.",
-                    rs.len(),
-                    cs.len()
-                ));
-            }
-            let need_r = rs.iter().copied().max().map(|m| m + 1).unwrap_or(0).max(*rows);
-            let need_c = cs.iter().copied().max().map(|m| m + 1).unwrap_or(0).max(*cols);
-            if need_r != *rows || need_c != *cols {
-                let mut nd = vec![fill.clone(); need_r * need_c];
-                for c in 0..*cols {
-                    for r in 0..*rows {
-                        nd[c * need_r + r] = data[c * *rows + r].clone();
-                    }
-                }
-                *data = nd;
-                *rows = need_r;
-                *cols = need_c;
-            }
-            let mut k = 0;
-            for &c in &cs {
-                for &r in &rs {
-                    data[c * *rows + r] = if rn == 1 { rd[0].clone() } else { rd[k].clone() };
-                    k += 1;
-                }
-            }
-            Ok(())
-        }
-        _ => rt("Only 1-D and 2-D indexing is supported."),
-    }
-}
-
-fn delete_generic<T: Clone>(rows: &mut usize, cols: &mut usize, data: &mut Vec<T>, idx: &[IndexArg]) -> R<()> {
-    match idx.len() {
-        1 => {
-            let mut kill = vec![false; data.len()];
-            match &idx[0] {
-                IndexArg::All => kill.iter_mut().for_each(|k| *k = true),
-                IndexArg::List { ix, .. } => {
-                    for &i in ix {
-                        if i >= data.len() {
-                            return rt("Index exceeds the number of array elements.");
-                        }
-                        kill[i] = true;
-                    }
-                }
-            }
-            let kept: Vec<T> = data.iter().zip(&kill).filter(|(_, &k)| !k).map(|(v, _)| v.clone()).collect();
-            let n = kept.len();
-            if *cols == 1 && *rows != 1 {
-                *rows = n;
-            } else {
-                *rows = if n == 0 && *rows == 0 { 0 } else { 1 };
-                *cols = n;
-            }
-            *data = kept;
-            Ok(())
-        }
-        2 => {
-            let all_r = matches!(idx[0], IndexArg::All) || matches!(&idx[0], IndexArg::List { ix, .. } if { let mut v = ix.clone(); v.sort(); v.dedup(); v.len() == *rows && *rows > 0 && v.iter().enumerate().all(|(i, &x)| i == x) });
-            let all_c = matches!(idx[1], IndexArg::All);
-            if all_c {
-                let kill: HashSet<usize> = arg_list(&idx[0], *rows).into_iter().collect();
-                let keep_rows: Vec<usize> = (0..*rows).filter(|r| !kill.contains(r)).collect();
-                let mut nd = Vec::with_capacity(keep_rows.len() * *cols);
-                for c in 0..*cols {
-                    for &r in &keep_rows {
-                        nd.push(data[c * *rows + r].clone());
-                    }
-                }
-                *rows = keep_rows.len();
-                *data = nd;
-                Ok(())
-            } else if all_r {
-                let kill: HashSet<usize> = arg_list(&idx[1], *cols).into_iter().collect();
-                let keep_cols: Vec<usize> = (0..*cols).filter(|c| !kill.contains(c)).collect();
-                let mut nd = Vec::with_capacity(keep_cols.len() * *rows);
-                for &c in &keep_cols {
-                    for r in 0..*rows {
-                        nd.push(data[c * *rows + r].clone());
-                    }
-                }
-                *cols = keep_cols.len();
-                *data = nd;
-                Ok(())
-            } else {
-                rt("A null assignment can have only one non-colon index.")
-            }
-        }
-        _ => rt("Only 1-D and 2-D indexing is supported."),
-    }
-}
-
-fn is_delete_rhs(v: &Value) -> bool {
-    matches!(v, Value::Num(m) if m.rows == 0 && m.cols == 0 && m.kind != Kind::Char)
-}
-
-fn apply_assign(cur: Option<Value>, chain: &[Resolved], rhs: Value) -> R<Value> {
-    let Some((first, rest)) = chain.split_first() else {
-        return Ok(rhs);
-    };
-    match first {
-        Resolved::Field(f) => {
-            let mut s = match cur {
-                None => Struct::default(),
-                Some(Value::Num(m)) if m.is_empty() => Struct::default(),
-                Some(Value::Struct(s)) => s,
-                Some(other) => {
-                    return rt(format!("Unable to perform assignment because dot indexing is not supported for variables of this type ({}).", other.class_name()))
-                }
-            };
-            let sub = s.fields.iter().position(|(n, _)| n == f).map(|i| s.fields[i].1.clone());
-            let new = apply_assign(sub, rest, rhs)?;
-            s.set(f, new);
-            Ok(Value::Struct(s))
-        }
-        Resolved::Brace(idx) => {
-            let mut c = match cur {
-                None => CellArray::new(0, 0, Vec::new()),
-                Some(Value::Num(m)) if m.is_empty() => CellArray::new(0, 0, Vec::new()),
-                Some(Value::Cell(c)) => c,
-                Some(other) => return rt(format!("Brace indexing is not supported for variables of this type ({}).", other.class_name())),
-            };
-            let new = if rest.is_empty() {
-                rhs
-            } else {
-                let pos = linear_positions(c.rows, c.cols, idx)?;
-                let sub = pos.first().and_then(|&p| c.data.get(p).cloned());
-                apply_assign(sub, rest, rhs)?
-            };
-            assign_generic(&mut c.rows, &mut c.cols, &mut c.data, idx, (1, 1, vec![new]), Value::empty())?;
-            Ok(Value::Cell(c))
-        }
-        Resolved::Paren(idx) => {
-            if !rest.is_empty() {
-                // s(1).f = v on a scalar struct.
-                return match cur {
-                    Some(v @ Value::Struct(_)) | Some(v @ Value::Cell(_)) if linear_positions(1, 1, idx)?.iter().all(|&p| p == 0) => {
-                        apply_assign(Some(v), rest, rhs)
-                    }
-                    None => apply_assign(None, rest, rhs),
-                    _ => rt("Struct arrays are not supported in this version."),
-                };
-            }
-            let cur = cur.unwrap_or_else(|| match &rhs {
-                Value::Cell(_) => Value::Cell(CellArray::new(0, 0, Vec::new())),
-                _ => Value::empty(),
-            });
-            match (cur, rhs) {
-                (Value::Num(mut m), rhs) if is_delete_rhs(&rhs) => {
-                    delete_generic(&mut m.rows, &mut m.cols, &mut m.data, idx)?;
-                    Ok(Value::Num(m))
-                }
-                (Value::Cell(mut c), rhs) if is_delete_rhs(&rhs) => {
-                    delete_generic(&mut c.rows, &mut c.cols, &mut c.data, idx)?;
-                    Ok(Value::Cell(c))
-                }
-                (Value::Num(mut m), Value::Num(r)) => {
-                    let kind = if m.is_empty() { r.kind } else if m.kind == r.kind { m.kind } else if m.kind == Kind::Char && r.kind != Kind::Char { Kind::Double } else if m.kind == Kind::Logical { Kind::Double } else { m.kind };
-                    assign_generic(&mut m.rows, &mut m.cols, &mut m.data, idx, (r.rows, r.cols, r.data), 0.0)?;
-                    m.kind = kind;
-                    Ok(Value::Num(m))
-                }
-                (Value::Num(m), Value::Cell(r)) if m.is_empty() => {
-                    let mut c = CellArray::new(0, 0, Vec::new());
-                    assign_generic(&mut c.rows, &mut c.cols, &mut c.data, idx, (r.rows, r.cols, r.data), Value::empty())?;
-                    Ok(Value::Cell(c))
-                }
-                (Value::Cell(mut c), Value::Cell(r)) => {
-                    assign_generic(&mut c.rows, &mut c.cols, &mut c.data, idx, (r.rows, r.cols, r.data), Value::empty())?;
-                    Ok(Value::Cell(c))
-                }
-                (Value::Cell(_), other) => rt(format!("Conversion to cell from {} is not possible.", other.class_name())),
-                (Value::Num(m), other @ (Value::Struct(_) | Value::Str(_) | Value::Func(_))) if m.is_empty() => {
-                    if linear_positions(1, 1, idx)?.iter().all(|&p| p == 0) {
-                        Ok(other)
-                    } else {
-                        rt("Arrays of this type are not supported in this version.")
-                    }
-                }
-                (cur @ (Value::Struct(_) | Value::Str(_) | Value::Func(_)), other) => {
-                    if linear_positions(1, 1, idx)?.iter().all(|&p| p == 0) {
-                        Ok(other)
-                    } else {
-                        let _ = cur;
-                        rt("Arrays of this type are not supported in this version.")
-                    }
-                }
-                (_, other) => rt(format!("Unable to perform assignment with a value of class '{}'.", other.class_name())),
-            }
-        }
-    }
-}
-
-// ---- concatenation -------------------------------------------------------------------------
-
-pub(crate) fn hconcat(items: Vec<Value>) -> R<Value> {
-    concat(items, true)
-}
-
-pub(crate) fn vconcat(items: Vec<Value>) -> R<Value> {
-    concat(items, false)
-}
-
-fn concat(items: Vec<Value>, horizontal: bool) -> R<Value> {
-    if items.len() == 1 {
-        return Ok(items.into_iter().next().unwrap());
-    }
-    if items.is_empty() {
-        return Ok(Value::empty());
-    }
-    if items.iter().any(|v| matches!(v, Value::Cell(_))) {
-        let cells: Vec<CellArray> = items
-            .into_iter()
-            .filter(|v| !matches!(v, Value::Num(m) if m.is_empty()))
-            .map(|v| match v {
-                Value::Cell(c) => c,
-                other => CellArray::new(1, 1, vec![other]),
-            })
-            .collect();
-        let (r, c, d) = concat_generic(cells.into_iter().map(|c| (c.rows, c.cols, c.data)).collect(), horizontal)?;
-        return Ok(Value::Cell(CellArray::new(r, c, d)));
-    }
-    if items.iter().any(|v| matches!(v, Value::Str(_))) {
-        return rt("String arrays are not supported in this version; use char arrays ('...') or strcat.");
-    }
-    if items.iter().any(|v| !matches!(v, Value::Num(_))) {
-        return rt("Concatenation of structs or function handles is not supported.");
-    }
-    let mats: Vec<Matrix> = items.into_iter().map(|v| if let Value::Num(m) = v { m } else { unreachable!() }).collect();
-    let any_char = mats.iter().any(|m| m.kind == Kind::Char);
-    let all_logical = mats.iter().filter(|m| !m.is_empty()).all(|m| m.kind == Kind::Logical);
-    let kind = if any_char { Kind::Char } else if all_logical && mats.iter().any(|m| !m.is_empty()) { Kind::Logical } else { Kind::Double };
-    let parts: Vec<(usize, usize, Vec<f64>)> = mats.into_iter().filter(|m| !(m.rows == 0 && m.cols == 0) && !(m.is_empty() && kind == Kind::Char)).map(|m| (m.rows, m.cols, m.data)).collect();
-    if parts.is_empty() {
-        return Ok(Value::Num(Matrix::empty().with_kind(if any_char { Kind::Char } else { Kind::Double })));
-    }
-    let (r, c, d) = concat_generic(parts, horizontal)?;
-    Ok(Value::Num(Matrix::new(r, c, d).with_kind(kind)))
-}
-
-fn concat_generic<T: Clone>(parts: Vec<(usize, usize, Vec<T>)>, horizontal: bool) -> R<(usize, usize, Vec<T>)> {
-    if parts.is_empty() {
-        return Ok((0, 0, Vec::new()));
-    }
-    if horizontal {
-        let rows = parts[0].0;
-        if parts.iter().any(|p| p.0 != rows) {
-            return rt("Dimensions of arrays being concatenated are not consistent.");
-        }
-        let cols = parts.iter().map(|p| p.1).sum();
-        let mut data = Vec::with_capacity(rows * cols);
-        for p in parts {
-            data.extend(p.2);
-        }
-        Ok((rows, cols, data))
-    } else {
-        let cols = parts[0].1;
-        if parts.iter().any(|p| p.1 != cols) {
-            return rt("Dimensions of arrays being concatenated are not consistent.");
-        }
-        let rows: usize = parts.iter().map(|p| p.0).sum();
-        let mut data = Vec::with_capacity(rows * cols);
-        for c in 0..cols {
-            for p in &parts {
-                data.extend_from_slice(&p.2[c * p.0..(c + 1) * p.0]);
-            }
-        }
-        Ok((rows, cols, data))
+        Value::Object(o) => o.props.borrow().iter().map(approx_bytes).sum::<usize>() + 8,
+        Value::Time(t) => t.data.len() * 8,
+        Value::Table(t) => t.vars.iter().map(approx_bytes).sum(),
+        Value::Sym(s) => s.data.len() * 8,
     }
 }

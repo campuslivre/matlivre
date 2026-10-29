@@ -166,7 +166,8 @@ impl App {
         self.running = true;
         self.notice = None;
         let all_code = self.all_code();
-        self.engine.send(Command::Run { blocks, all_code });
+        let folder = self.path.as_ref().and_then(|p| p.parent().map(|d| d.to_path_buf()));
+        self.engine.send(Command::Run { blocks, all_code, folder });
     }
 
     fn run_section(&mut self, section: usize) {
