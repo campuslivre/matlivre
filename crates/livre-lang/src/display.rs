@@ -214,7 +214,8 @@ fn page_body(m: &Matrix, page: usize, rows: usize, cols: usize, f: NumFormat) ->
     for r in 0..rows {
         for c in 0..cols {
             let v = m.data[at(r, c)];
-            let s = special(v).unwrap_or_else(|| format!("{:.*}", decimals, v / scale));
+            // Exact zeros show as a bare 0, as in MATLAB.
+            let s = special(v).unwrap_or_else(|| if v == 0.0 { "0".into() } else { format!("{:.*}", decimals, v / scale) });
             out.push_str(&format!("{s:>w$}"));
         }
         out.push('\n');

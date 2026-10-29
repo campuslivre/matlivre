@@ -7,6 +7,7 @@ pub mod builtins_datafun;
 pub mod builtins_dates;
 pub mod builtins_elfun;
 pub mod builtins_elmat;
+pub mod builtins_funfun;
 pub mod builtins_matfun;
 pub mod builtins_ops;
 pub mod builtins_plot;
