@@ -389,7 +389,19 @@ fn struct_fields_body(s: &StructArray, f: NumFormat) -> String {
     let w = s.fields.iter().map(|n| n.len()).max().unwrap_or(0);
     let mut out = String::new();
     for (k, n) in s.fields.iter().enumerate() {
-        out.push_str(&format!("    {n:>w$}: {}\n", summary(&s.elems[0][k], f)));
+        // A 1×1 cell holding a simple value shows its content inline, as {[1]} or {'hi'}.
+        let v = &s.elems[0][k];
+        let shown = match v {
+            Value::Cell(c) if c.data.len() == 1 && !matches!(c.data[0], Value::Cell(_) | Value::Struct(_)) => {
+                let (t, a) = cell_item(&c.data[0], f);
+                match a {
+                    CellAlign::Left => format!("{{{t}}}"),
+                    _ => format!("{{[{t}]}}"),
+                }
+            }
+            other => summary(other, f),
+        };
+        out.push_str(&format!("    {n:>w$}: {shown}\n"));
     }
     out
 }

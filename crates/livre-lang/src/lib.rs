@@ -16,6 +16,7 @@ pub mod builtins_polyfun;
 pub mod builtins_specfun;
 pub mod builtins_strings;
 pub mod builtins_text;
+pub mod builtins_types;
 pub mod class;
 pub mod cplx;
 pub mod display;
