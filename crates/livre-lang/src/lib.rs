@@ -7,6 +7,7 @@ pub mod builtins_elfun;
 pub mod builtins_elmat;
 pub mod builtins_ops;
 pub mod builtins_plot;
+pub mod builtins_specfun;
 pub mod builtins_text;
 pub mod class;
 pub mod cplx;

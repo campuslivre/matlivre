@@ -18,3 +18,5 @@ num-bigint = "0.4"
 num-integer = "0.1"
 num-rational = { version = "0.4", default-features = false, features = ["num-bigint", "std"] }
 num-traits = "0.2"
+complex-bessel = "0.3"
+num-complex = "0.4"
