@@ -1,14 +1,21 @@
 //! The few native window calls tab dragging needs: where the cursor is, whether the left
 //! button is still down (the drag can end outside our window, where egui stops seeing the
 //! pointer), and which matlivre instance, if any, owns the window under the cursor. Each
-//! instance marks its top-level window with the port it accepts tabs on.
+//! instance marks its top-level window with the port it accepts tabs on. Also the Windows 11
+//! frame of the borderless window (rounded corners, border, shadow) and where it opens.
 
 #[cfg(windows)]
 mod imp {
     use raw_window_handle::{HasWindowHandle, RawWindowHandle};
     use windows_sys::Win32::Foundation::{HWND, POINT};
+    use windows_sys::Win32::Graphics::Dwm::{DwmExtendFrameIntoClientArea, DwmSetWindowAttribute, DWMWA_BORDER_COLOR, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND};
+    use windows_sys::Win32::Graphics::Gdi::{GetMonitorInfoW, MonitorFromPoint, MONITORINFO, MONITOR_DEFAULTTONEAREST};
+    use windows_sys::Win32::UI::Controls::MARGINS;
+    use windows_sys::Win32::UI::HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI};
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON};
-    use windows_sys::Win32::UI::WindowsAndMessaging::{GetAncestor, GetCursorPos, GetPropW, SetPropW, WindowFromPoint, GA_ROOT};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        GetAncestor, GetCursorPos, GetPropW, SetPropW, SetWindowPos, WindowFromPoint, GA_ROOT, SWP_NOACTIVATE, SWP_NOZORDER,
+    };
 
     /// "matlivre.port", NUL-terminated UTF-16.
     fn prop_name() -> Vec<u16> {
@@ -35,6 +42,52 @@ mod imp {
             match h.window_handle().ok()?.as_raw() {
                 RawWindowHandle::Win32(w) => Some(Window(w.hwnd.get() as HWND)),
                 _ => None,
+            }
+        }
+
+        /// The Windows 11 frame: rounded corners, a hairline border in `border` and the drop
+        /// shadow (a one-pixel frame extended into the client area, which the app paints over).
+        /// False where DWM does not round windows (Windows 10), so the app draws its own border.
+        pub fn round_corners(&self, border: [u8; 3]) -> bool {
+            let pref = DWMWCP_ROUND;
+            let ok = unsafe { DwmSetWindowAttribute(self.0, DWMWA_WINDOW_CORNER_PREFERENCE as u32, &pref as *const i32 as _, 4) } == 0;
+            if ok {
+                self.set_border(border);
+                let m = MARGINS { cxLeftWidth: 1, cxRightWidth: 1, cyTopHeight: 1, cyBottomHeight: 1 };
+                unsafe { DwmExtendFrameIntoClientArea(self.0, &m) };
+            }
+            ok
+        }
+
+        pub fn set_border(&self, [r, g, b]: [u8; 3]) {
+            // COLORREF is 0x00BBGGRR.
+            let c = r as u32 | (g as u32) << 8 | (b as u32) << 16;
+            unsafe { DwmSetWindowAttribute(self.0, DWMWA_BORDER_COLOR as u32, &c as *const u32 as _, 4) };
+        }
+
+        /// Centres the window on the work area of the monitor under the cursor, `size` points
+        /// large or as much of that as fits with a margin around it.
+        pub fn place(&self, size: (f32, f32), min: (f32, f32)) {
+            unsafe {
+                let mut cursor = POINT { x: 0, y: 0 };
+                GetCursorPos(&mut cursor);
+                let monitor = MonitorFromPoint(cursor, MONITOR_DEFAULTTONEAREST);
+                let mut info: MONITORINFO = std::mem::zeroed();
+                info.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
+                if GetMonitorInfoW(monitor, &mut info) == 0 {
+                    return;
+                }
+                let (mut dpi_x, mut dpi_y) = (96, 96);
+                GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut dpi_x, &mut dpi_y);
+                let s = dpi_x as f32 / 96.0;
+                let wa = info.rcWork;
+                let (aw, ah) = ((wa.right - wa.left) as f32, (wa.bottom - wa.top) as f32);
+                let margin = 24.0 * s;
+                let w = (size.0 * s).min(aw - 2.0 * margin).max((min.0 * s).min(aw));
+                let h = (size.1 * s).min(ah - 2.0 * margin).max((min.1 * s).min(ah));
+                let x = wa.left + ((aw - w) / 2.0).round() as i32;
+                let y = wa.top + ((ah - h) / 2.0).round() as i32;
+                SetWindowPos(self.0, std::ptr::null_mut(), x, y, w.round() as i32, h.round() as i32, SWP_NOZORDER | SWP_NOACTIVATE);
             }
         }
 
@@ -124,6 +177,11 @@ mod imp {
             None
         }
         pub fn advertise(&self, _: u16) {}
+        pub fn round_corners(&self, _: [u8; 3]) -> bool {
+            false
+        }
+        pub fn set_border(&self, _: [u8; 3]) {}
+        pub fn place(&self, _: (f32, f32), _: (f32, f32)) {}
         pub fn under_cursor(&self, _: (i32, i32)) -> Under {
             Under::Other
         }

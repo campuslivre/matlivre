@@ -23,6 +23,9 @@ use crate::Launch;
 
 const WELCOME: &str = include_str!("../../../examples/welcome.m");
 
+pub const DEFAULT_SIZE: [f32; 2] = [1360.0, 860.0];
+pub const MIN_SIZE: [f32; 2] = [760.0, 480.0];
+
 enum UiOutput {
     Text(String),
     Value(String),
@@ -226,6 +229,8 @@ pub struct App {
     notice: Option<(String, bool)>,
     drag: Option<TabDrag>,
     window: Option<os::Window>,
+    /// DWM rounds the window and draws its border (Windows 11).
+    rounded: bool,
     /// Tabs dropped here from other instances.
     incoming: Option<Receiver<PathBuf>>,
     /// Where the tab headers are, to tell a reorder from a tear-off.
@@ -253,11 +258,17 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(cc: &eframe::CreationContext<'_>, launch: Launch) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>, launch: Launch, place: bool) -> Self {
         crate::theme::install_fonts(&cc.egui_ctx);
         let skin = Skin::light();
         skin.apply(&cc.egui_ctx);
         let window = os::Window::from_handle(cc);
+        let rounded = window.is_some_and(|w| {
+            if place {
+                w.place((DEFAULT_SIZE[0], DEFAULT_SIZE[1]), (MIN_SIZE[0], MIN_SIZE[1]));
+            }
+            w.round_corners(rgb(skin.frame))
+        });
         let incoming = transfer::listen(cc.egui_ctx.clone()).map(|(port, rx)| {
             if let Some(w) = &window {
                 w.advertise(port);
@@ -285,6 +296,7 @@ impl App {
             notice: None,
             drag: None,
             window,
+            rounded,
             incoming,
             tab_row: Rect::NOTHING,
             files_open: true,
@@ -321,6 +333,9 @@ impl App {
     fn set_dark(&mut self, ctx: &egui::Context, dark: bool) {
         self.skin = if dark { Skin::dark() } else { Skin::light() };
         self.skin.apply(ctx);
+        if let Some(w) = &self.window {
+            w.set_border(rgb(self.skin.frame));
+        }
     }
 
     // ---- tabs --------------------------------------------------------------------------
@@ -1901,13 +1916,17 @@ impl eframe::App for App {
         self.menus(ctx);
         self.figure_windows(ctx);
         self.window_edges(ctx);
-        // The window frame (the window is borderless).
-        if !ctx.input(|i| i.viewport().maximized.unwrap_or(false)) {
+        // The window frame where DWM does not draw it (the window is borderless).
+        if !self.rounded && !ctx.input(|i| i.viewport().maximized.unwrap_or(false)) {
             let r = ctx.screen_rect();
             ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, Id::new("border")))
                 .rect_stroke(r.shrink(0.5), Rounding::ZERO, Stroke::new(1.0_f32, self.skin.frame));
         }
     }
+}
+
+fn rgb(c: Color32) -> [u8; 3] {
+    [c.r(), c.g(), c.b()]
 }
 
 /// A plain script as a document: one code block holding the whole text.

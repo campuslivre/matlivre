@@ -41,13 +41,16 @@ fn main() -> eframe::Result<()> {
     }
     let mut viewport = egui::ViewportBuilder::default()
         .with_title("matlivre")
-        .with_inner_size([1360.0, 860.0])
-        .with_min_inner_size([760.0, 480.0])
+        .with_inner_size(app::DEFAULT_SIZE)
+        .with_min_inner_size(app::MIN_SIZE)
         .with_decorations(false)
         .with_resizable(true);
     if let Some(p) = at {
         viewport = viewport.with_position(p);
     }
+    // A tab torn off to a new window opens where it was dropped; otherwise the window is
+    // centred on the screen the pointer is on.
+    let place = at.is_none();
     let options = eframe::NativeOptions { viewport, ..Default::default() };
-    eframe::run_native("matlivre", options, Box::new(move |cc| Ok(Box::new(app::App::new(cc, launch)))))
+    eframe::run_native("matlivre", options, Box::new(move |cc| Ok(Box::new(app::App::new(cc, launch, place)))))
 }
