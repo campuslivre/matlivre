@@ -9,6 +9,8 @@ license.workspace = true
 rayon = "1.12"
 rustfft = "6"
 fancy-regex = "0.14"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+cpu-time = "1"
 faer = "0.24"
 cranelift-codegen = "0.137"
 cranelift-frontend = "0.137"

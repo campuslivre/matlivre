@@ -79,7 +79,8 @@ pub fn fmt_short_scalar(v: f64) -> String {
         return format!("{}", v as i64);
     }
     let a = v.abs();
-    if a >= 1e5 || a < 1e-4 {
+    // MATLAB format short: exponent form from 1000 up and at or below 0.001.
+    if a >= 1e3 || a <= 1e-3 {
         fmt_exp(v, 4)
     } else {
         format!("{v:.4}")
@@ -94,11 +95,12 @@ pub fn fmt_long_scalar(v: f64) -> String {
         return format!("{}", v as i64);
     }
     let a = v.abs();
-    if a >= 1e5 || a < 1e-4 {
+    // MATLAB format long: exponent form from 100 up and at or below 0.001.
+    if a >= 1e2 || a <= 1e-3 {
         fmt_exp(v, 15)
     } else {
-        let int_digits = (a.log10().floor() as i32 + 1).max(1) as usize;
-        format!("{:.*}", 16usize.saturating_sub(int_digits), v)
+        // Always 15 decimals, as MATLAB shows 9.500000000000000 and 99.500000000000000.
+        format!("{v:.15}")
     }
 }
 
@@ -198,8 +200,12 @@ fn page_body(m: &Matrix, page: usize, rows: usize, cols: usize, f: NumFormat) ->
     }
     let decimals = if f == NumFormat::Long { if m.kind == Kind::Single { 7 } else { 15 } } else { 4 };
     let mut scale = 1.0;
-    if max_abs >= 1e5 || (max_abs > 0.0 && max_abs < 1e-3) {
-        scale = 10f64.powf(max_abs.log10().floor());
+    // A common scale factor, as MATLAB uses from 1000 up (format short) or below 0.001.
+    let big = if f == NumFormat::Long { 1e5 } else { 1e3 };
+    if max_abs >= big || (max_abs > 0.0 && max_abs < 1e-3) {
+        // The exponent rounds down for large values and up for small ones (1.0e-03 for 0.0009).
+        let e = max_abs.log10();
+        scale = 10f64.powf(if max_abs >= 1.0 { e.floor() } else { e.ceil() });
         out.push_str(&format!("   {} *\n\n", fmt_exp(scale, 1)));
     }
     let scaled_max = max_abs / scale;

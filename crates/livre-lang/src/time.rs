@@ -119,8 +119,19 @@ fn parse_tz(name: &str) -> R<Option<f64>> {
     Ok(Some(sign * (h * 60.0 + m)))
 }
 
-fn now_utc_ms() -> f64 {
+pub fn now_utc_ms() -> f64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as f64).unwrap_or(0.0)
+}
+
+/// The local time zone's offset from UTC now, in milliseconds (unzoned datetimes such as
+/// datetime('now') are local wall-clock times).
+pub fn local_offset_ms() -> f64 {
+    chrono::Local::now().offset().local_minus_utc() as f64 * 1000.0
+}
+
+/// CPU time used by this process, in seconds (cputime).
+pub fn process_cpu_seconds() -> f64 {
+    cpu_time::ProcessTime::try_now().map(|t| t.as_duration().as_secs_f64()).unwrap_or(0.0)
 }
 
 /// Formats wall-clock ms with a MATLAB/Unicode datetime pattern.
@@ -773,7 +784,9 @@ pub fn call(name: &str, args: &[Value], nargout: usize) -> R<Option<Vec<Value>>>
             let off = tz.unwrap_or(0.0) * MS_MIN;
             let mk = |dims: Dims, wall: Vec<f64>| Value::Time(TimeArray::datetimes(dims, wall.into_iter().map(|w| w - off).collect(), tz, tz_name.clone(), format.clone()));
             if pos.is_empty() {
-                return one(Value::Time(TimeArray::datetimes(vec![1, 1], vec![now_utc_ms()], tz, tz_name.clone(), format.clone())));
+                // Unzoned: local wall-clock time; zoned: the UTC instant.
+                let now = if tz.is_none() { now_utc_ms() + local_offset_ms() } else { now_utc_ms() };
+                return one(Value::Time(TimeArray::datetimes(vec![1, 1], vec![now], tz, tz_name.clone(), format.clone())));
             }
             if let Some(cf) = opt(args, "ConvertFrom") {
                 let m = pos[0].to_matrix()?;
@@ -794,7 +807,7 @@ pub fn call(name: &str, args: &[Value], nargout: usize) -> R<Option<Vec<Value>>>
             if pos[0].is_text() || matches!(pos[0], Value::Str(_) | Value::Cell(_)) {
                 let texts = crate::ops::to_str_array(&pos[0])?;
                 let input_fmt = opt(args, "InputFormat").map(|v| v.text()).transpose()?;
-                let now_wall = now_utc_ms() + off;
+                let now_wall = now_utc_ms() + if tz.is_none() { local_offset_ms() } else { off };
                 let mut walls = Vec::with_capacity(texts.data.len());
                 for t in &texts.data {
                     let t = t.clone().unwrap_or_default();
@@ -856,8 +869,8 @@ pub fn call(name: &str, args: &[Value], nargout: usize) -> R<Option<Vec<Value>>>
             one(Value::Time(TimeArray::datetimes(vec![r, c], vec![f64::NAN; r * c], None, String::new(), DEFAULT_DT_FORMAT.into())))
         }
         "now" | "today" => {
-            // MATLAB's legacy serial date numbers.
-            let ms = now_utc_ms();
+            // MATLAB's legacy serial date numbers, in local time.
+            let ms = now_utc_ms() + local_offset_ms();
             let dn = ms / MS_DAY + 719_529.0;
             Ok(Some(vec![Value::num(if name == "today" { dn.floor() } else { dn })]))
         }
@@ -1027,6 +1040,8 @@ pub fn call(name: &str, args: &[Value], nargout: usize) -> R<Option<Vec<Value>>>
             let ms = (0..t.data.len()).map(|i| t.wall(i).rem_euclid(MS_DAY)).collect();
             one(Value::Time(TimeArray::durations(t.dims.clone(), ms, "hh:mm:ss")))
         }
+        // datenum of numbers or text is handled by builtins_dates.
+        "datenum" if !matches!(args.first(), Some(Value::Time(_))) => Ok(None),
         "posixtime" | "datenum" => {
             let t = time_arg(args, name)?;
             let f = |i: usize| if name == "posixtime" { t.data[i][0] / 1000.0 } else { t.wall(i) / MS_DAY + 719_529.0 };
