@@ -9,7 +9,7 @@ use crate::value::*;
 type R<T> = Result<T, LangError>;
 
 pub const NAMES: &[&str] = &[
-    "figure", "close", "clf", "subplot", "hold", "grid", "title", "xlabel", "ylabel", "legend", "axis", "xlim", "ylim", "plot", "scatter", "bar",
+    "figure", "close", "clf", "subplot", "hold", "grid", "title", "xlabel", "ylabel", "legend", "axis", "xlim", "ylim", "daspect", "plot", "scatter", "bar",
     "stairs", "area", "histogram", "stem", "gcf", "gca", "ishold", "box", "subtitle", "sgtitle",
 ];
 
@@ -328,9 +328,16 @@ pub fn call(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize) ->
             let Some(v) = a.first() else { return none() };
             if v.is_text() {
                 let ax = it.current_figure().axes_mut();
-                if matches!(v.text()?.as_str(), "auto" | "normal") {
-                    ax.xlim = None;
-                    ax.ylim = None;
+                for word in v.text()?.split_whitespace() {
+                    match (name, word) {
+                        (_, "auto") => {
+                            ax.xlim = None;
+                            ax.ylim = None;
+                        }
+                        ("axis", "normal") => ax.data_aspect = None,
+                        ("axis", "equal" | "image") => ax.data_aspect = Some([1.0, 1.0, 1.0]),
+                        _ => {}
+                    }
                 }
                 return none();
             }
@@ -349,6 +356,33 @@ pub fn call(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize) ->
                 _ => {}
             }
             none()
+        }
+        // daspect(ratio), daspect('auto' | 'manual'), r = daspect, m = daspect('mode').
+        "daspect" => {
+            let ax = it.current_figure().axes_mut();
+            match a.first() {
+                None => one(Value::Num(Matrix::row(ax.data_aspect.unwrap_or([1.0, 1.0, 1.0]).to_vec()))),
+                Some(v) if v.is_text() => match v.text()?.as_str() {
+                    "mode" => one(Value::chars(if ax.data_aspect.is_some() { "manual" } else { "auto" })),
+                    "auto" => {
+                        ax.data_aspect = None;
+                        none()
+                    }
+                    "manual" => {
+                        ax.data_aspect.get_or_insert([1.0, 1.0, 1.0]);
+                        none()
+                    }
+                    other => rt(format!("Invalid parameter/value pair arguments: '{other}'.")),
+                },
+                Some(v) => {
+                    let m = v.to_matrix()?;
+                    if m.numel() != 3 || m.data.iter().any(|d| !d.is_finite() || *d <= 0.0) {
+                        return rt("Value must be a 1x3 vector of positive numbers.");
+                    }
+                    ax.data_aspect = Some([m.data[0], m.data[1], m.data[2]]);
+                    none()
+                }
+            }
         }
         "plot" | "scatter" | "bar" | "stairs" | "area" | "stem" => {
             let kind = match name {

@@ -90,6 +90,8 @@ pub struct Axes {
     pub series: Vec<Series>,
     pub xlim: Option<(f64, f64)>,
     pub ylim: Option<(f64, f64)>,
+    /// `DataAspectRatio` when its mode is manual (`daspect`, `axis equal`); None for auto.
+    pub data_aspect: Option<[f64; 3]>,
     pub x_kind: XAxisKind,
 }
 

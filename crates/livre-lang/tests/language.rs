@@ -150,3 +150,23 @@ fn try_catch() {
     let (it, _) = run("try\n  error('my:id', 'bad %d', 7);\ncatch err\n  m = err.message;\nend");
     assert_eq!(it.get_var("m").unwrap().text().unwrap(), "bad 7");
 }
+
+#[test]
+fn daspect_sets_and_reports_the_data_aspect_ratio() {
+    let (it, out) = run(concat!(
+        "t = linspace(0, 2*pi, 50);\nplot(cos(t), sin(t))\n",
+        "m0 = daspect('mode');\n",
+        "daspect([1 2 1])\nr = daspect;\nm1 = daspect('mode');\n",
+        "daspect('auto')\nm2 = daspect('mode');\n",
+        "axis equal\nr2 = daspect;\nm3 = daspect('mode');\n",
+        "axis normal\nm4 = daspect('mode');\n",
+    ));
+    assert!(!out.iter().any(|o| o.starts_with("Error")), "{out:?}");
+    let text = |n: &str| it.get_var(n).unwrap().text().unwrap();
+    assert_eq!([text("m0"), text("m1"), text("m2"), text("m3"), text("m4")], ["auto", "manual", "auto", "manual", "auto"]);
+    assert_eq!(num(&it, "r"), [1.0, 2.0, 1.0]);
+    assert_eq!(num(&it, "r2"), [1.0, 1.0, 1.0]);
+
+    let (_, out) = run("plot(1:3)\ndaspect([1 0 1])");
+    assert!(out.iter().any(|o| o.starts_with("Error")), "{out:?}");
+}

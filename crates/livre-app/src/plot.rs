@@ -147,7 +147,7 @@ fn draw_axes(p: &egui::Painter, skin: &Skin, ax: &Axes, cell: Rect, hover: Optio
         inner.min.x += 18.0;
     }
     let ((dx0, dx1), (dy0, dy1)) = bounds(ax);
-    let (x0, x1, xticks) = if ax.x_kind != XAxisKind::Numeric {
+    let (mut x0, mut x1, mut xticks) = if ax.x_kind != XAxisKind::Numeric {
         (dx0, dx1, time_ticks(dx0, dx1))
     } else if ax.xlim.is_some() {
         let s = nice_step(dx1 - dx0, 6.0);
@@ -155,14 +155,40 @@ fn draw_axes(p: &egui::Painter, skin: &Skin, ax: &Axes, cell: Rect, hover: Optio
     } else {
         nice_axis(dx0, dx1, 6.0)
     };
-    let (y0, y1, yticks) = if ax.ylim.is_some() { let s = nice_step(dy1 - dy0, 5.0); (dy0, dy1, ticks_within(dy0, dy1, s)) } else { nice_axis(dy0, dy1, 5.0) };
-    let xstep = if xticks.len() > 1 { xticks[1] - xticks[0] } else { 1.0 };
+    let (mut y0, mut y1, mut yticks) = if ax.ylim.is_some() { let s = nice_step(dy1 - dy0, 5.0); (dy0, dy1, ticks_within(dy0, dy1, s)) } else { nice_axis(dy0, dy1, 5.0) };
     let ystep = if yticks.len() > 1 { yticks[1] - yticks[0] } else { 1.0 };
     let ylabel_w = yticks.iter().map(|&v| p.layout_no_wrap(tick_label(v, ystep), small.clone(), skin.text).size().x).fold(0.0, f32::max);
-    let plot = Rect::from_min_max(pos2(inner.left() + ylabel_w + 8.0, inner.top() + 4.0), pos2(inner.right() - 6.0, inner.bottom() - 18.0));
+    let mut plot = Rect::from_min_max(pos2(inner.left() + ylabel_w + 8.0, inner.top() + 4.0), pos2(inner.right() - 6.0, inner.bottom() - 18.0));
     if plot.width() < 20.0 || plot.height() < 20.0 {
         return;
     }
+    // A manual DataAspectRatio: one x unit spans as many pixels as aspect[0]/aspect[1] y units.
+    // As in MATLAB, an automatic limit widens to fill the box; with both limits fixed, or when
+    // filling would mean narrowing an automatic limit, the box shrinks around its centre.
+    if let (Some([ax_x, ax_y, _]), XAxisKind::Numeric) = (ax.data_aspect, ax.x_kind) {
+        let target = (plot.width() as f64 * ax_x) / (plot.height() as f64 * ax_y);
+        let (xs, ys) = (x1 - x0, y1 - y0);
+        if xs > 0.0 && ys > 0.0 {
+            let current = xs / ys;
+            if current < target && ax.xlim.is_none() {
+                let half = ys * target / 2.0;
+                let c = (x0 + x1) / 2.0;
+                (x0, x1) = (c - half, c + half);
+                xticks = ticks_within(x0, x1, nice_step(x1 - x0, 6.0));
+            } else if current > target && ax.ylim.is_none() {
+                let half = xs / target / 2.0;
+                let c = (y0 + y1) / 2.0;
+                (y0, y1) = (c - half, c + half);
+                yticks = ticks_within(y0, y1, nice_step(y1 - y0, 5.0));
+            } else {
+                // Narrower when the data is relatively taller than the box, else shorter.
+                let size = if current < target { vec2(plot.width() * (current / target) as f32, plot.height()) } else { vec2(plot.width(), plot.height() * (target / current) as f32) };
+                plot = Rect::from_center_size(plot.center(), size);
+            }
+        }
+    }
+    let xstep = if xticks.len() > 1 { xticks[1] - xticks[0] } else { 1.0 };
+    let ystep = if yticks.len() > 1 { yticks[1] - yticks[0] } else { 1.0 };
     let tx = |x: f64| plot.left() + ((x - x0) / (x1 - x0)) as f32 * plot.width();
     let ty = |y: f64| plot.bottom() - ((y - y0) / (y1 - y0)) as f32 * plot.height();
 
