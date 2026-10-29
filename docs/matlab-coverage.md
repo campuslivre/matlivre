@@ -7,10 +7,10 @@ found in the toolbox folders, checked against matlivre. Regenerate with
 
 | Status | Count |
 |---|---:|
-| Implemented | 684 |
+| Implemented | 712 |
 | In a branch not merged yet | 0 |
 | Language keyword (check it works) | 25 |
-| **To implement** | **1338** |
+| **To implement** | **1310** |
 | Out of scope | 1332 |
 
 Out of scope, by category of the function reference: app building, external language
@@ -675,7 +675,7 @@ To implement:
 
 ## MATLAB > Language Fundamentals > Data Types
 
-Implemented: 180. To implement: 218. In a branch: 0. Out of scope: 0.
+Implemented: 208. To implement: 190. In a branch: 0. Out of scope: 0.
 
 To implement:
 
@@ -695,8 +695,6 @@ To implement:
 - [ ] `array2timetable`
 - [ ] `asFewOfPattern`
 - [ ] `asManyOfPattern`
-- [ ] `base2dec`
-- [ ] `bin2dec`
 - [ ] `caldiff`
 - [ ] `calendar`
 - [ ] `calendarDuration`
@@ -713,16 +711,12 @@ To implement:
 - [ ] `configureDictionary`
 - [ ] `containers.Map`
 - [ ] `containsrange`
-- [ ] `convertContainedStringsToChars`
 - [ ] `convertTo`
 - [ ] `convertvars`
 - [ ] `countcats`
 - [ ] `date`
 - [ ] `datestr`
 - [ ] `datevec`
-- [ ] `dec2base`
-- [ ] `dec2bin`
-- [ ] `dec2hex`
 - [ ] `delevent`
 - [ ] `delsample`
 - [ ] `delsamplefromcollection`
@@ -733,15 +727,12 @@ To implement:
 - [ ] `entries`
 - [ ] `eomdate`
 - [ ] `eomday`
-- [ ] `eraseBetween`
 - [ ] `etime`
 - [ ] `eventfilter`
 - [ ] `eventtable`
 - [ ] `exceltime`
-- [ ] `extract`
 - [ ] `extractevents`
 - [ ] `findEvent`
-- [ ] `findstr`
 - [ ] `function_handle`
 - [ ] `functions`
 - [ ] `getabstime`
@@ -761,8 +752,6 @@ To implement:
 - [ ] `gettsbeforeevent`
 - [ ] `gettsbetweenevents`
 - [ ] `getvaropts`
-- [ ] `hex2dec`
-- [ ] `hex2num`
 - [ ] `hms`
 - [ ] `idealfilter`
 - [ ] `inner2outer`
@@ -782,7 +771,6 @@ To implement:
 - [ ] `isregular`
 - [ ] `issparse`
 - [ ] `isstr`
-- [ ] `isStringScalar`
 - [ ] `istabular`
 - [ ] `istimetable`
 - [ ] `isundefined`
@@ -804,15 +792,12 @@ To implement:
 - [ ] `m2xdate`
 - [ ] `maskedPattern`
 - [ ] `mat2cell`
-- [ ] `matches`
 - [ ] `matlab.datetime.compatibility.convertDatenum`
 - [ ] `mergecats`
 - [ ] `mergevars`
 - [ ] `months`
 - [ ] `movevars`
 - [ ] `namedPattern`
-- [ ] `native2unicode`
-- [ ] `num2hex`
 - [ ] `numEntries`
 - [ ] `nweekdate`
 - [ ] `optionalPattern`
@@ -826,17 +811,12 @@ To implement:
 - [ ] `possessivePattern`
 - [ ] `preview`
 - [ ] `readtimetable`
-- [ ] `regexp`
-- [ ] `regexpi`
 - [ ] `regexpPattern`
-- [ ] `regexprep`
-- [ ] `regexptranslate`
 - [ ] `remove`
 - [ ] `removecats`
 - [ ] `removets`
 - [ ] `renamecats`
 - [ ] `reordercats`
-- [ ] `replaceBetween`
 - [ ] `resample`
 - [ ] `retime`
 - [ ] `rmprop`
@@ -851,19 +831,12 @@ To implement:
 - [ ] `setuniformtime`
 - [ ] `setvaropts`
 - [ ] `setvartype`
-- [ ] `splitlines`
 - [ ] `splitvars`
 - [ ] `spreadsheetImportOptions`
-- [ ] `sscanf`
 - [ ] `stack`
 - [ ] `stackedplot`
-- [ ] `str2mat`
-- [ ] `strmatch`
-- [ ] `strread`
-- [ ] `strtok`
 - [ ] `struct2cell`
 - [ ] `structfun`
-- [ ] `strvcat`
 - [ ] `syncevents`
 - [ ] `synchronize`
 - [ ] `table2timetable`
@@ -881,7 +854,6 @@ To implement:
 - [ ] `types`
 - [ ] `tzoffset`
 - [ ] `underlyingType`
-- [ ] `unicode2native`
 - [ ] `unstack`
 - [ ] `values`
 - [ ] `varfun`
@@ -898,7 +870,7 @@ To implement:
 - [ ] `ymd`
 - [ ] `yyyymmdd`
 
-Implemented: `append`, `array2table`, `arrayfun`, `between`, `blanks`, `caldays`, `calmonths`, `calquarters`, `calweeks`, `calyears`, `cast`, `cell`, `cell2table`, `cellfun`, `cellstr`, `char`, `class`, `compose`, `contains`, `convertCharsToStrings`, `convertStringsToChars`, `count`, `datenum`, `dateshift`, `datetime`, `day`, `days`, `deal`, `deblank`, `detrend`, `discretize`, `double`, `duration`, `endsWith`, `eps`, `erase`, `extractAfter`, `extractBefore`, `extractBetween`, `feval`, `fieldnames`, `fillmissing`, `filter`, `findgroups`, `flintmax`, `func2str`, `groupcounts`, `groupfilter`, `groupsummary`, `grouptransform`, `height`, `hour`, `hours`, `Inf`, `insertAfter`, `insertBefore`, `int16`, `int2str`, `int32`, `int64`, `int8`, `intersect`, `intmax`, `intmin`, `iqr`, `isa`, `iscalendarduration`, `iscell`, `iscellstr`, `ischar`, `isdatetime`, `isduration`, `isfield`, `isfinite`, `isfloat`, `isinf`, `isinteger`, `isletter`, `islogical`, `ismember`, `ismissing`, `isnan`, `isnat`, `isnumeric`, `isobject`, `isreal`, `isspace`, `isstring`, `isstrprop`, `isstruct`, `istable`, `join`, `lettersPattern`, `lower`, `mat2str`, `max`, `mean`, `median`, `milliseconds`, `min`, `minute`, `minutes`, `month`, `NaN`, `NaT`, `newline`, `now`, `num2cell`, `num2str`, `pad`, `pivot`, `plot`, `plus`, `posixtime`, `quarter`, `readtable`, `realmax`, `realmin`, `removevars`, `renamevars`, `replace`, `reverse`, `rmfield`, `rmmissing`, `second`, `seconds`, `setdiff`, `setxor`, `single`, `split`, `splitapply`, `sprintf`, `standardizeMissing`, `startsWith`, `std`, `str2double`, `str2func`, `str2num`, `strcat`, `strcmp`, `strcmpi`, `strfind`, `string`, `strings`, `strip`, `strjoin`, `strjust`, `strlength`, `strncmp`, `strncmpi`, `strrep`, `strsplit`, `strtrim`, `struct`, `struct2table`, `sum`, `summary`, `symvar`, `table`, `table2array`, `table2cell`, `table2struct`, `timeofday`, `today`, `topkrows`, `uint16`, `uint32`, `uint64`, `uint8`, `union`, `unique`, `upper`, `validateattributes`, `var`, `weekday`, `whos`, `width`, `writetable`, `year`, `years`
+Implemented: `append`, `array2table`, `arrayfun`, `base2dec`, `between`, `bin2dec`, `blanks`, `caldays`, `calmonths`, `calquarters`, `calweeks`, `calyears`, `cast`, `cell`, `cell2table`, `cellfun`, `cellstr`, `char`, `class`, `compose`, `contains`, `convertCharsToStrings`, `convertContainedStringsToChars`, `convertStringsToChars`, `count`, `datenum`, `dateshift`, `datetime`, `day`, `days`, `deal`, `deblank`, `dec2base`, `dec2bin`, `dec2hex`, `detrend`, `discretize`, `double`, `duration`, `endsWith`, `eps`, `erase`, `eraseBetween`, `extract`, `extractAfter`, `extractBefore`, `extractBetween`, `feval`, `fieldnames`, `fillmissing`, `filter`, `findgroups`, `findstr`, `flintmax`, `func2str`, `groupcounts`, `groupfilter`, `groupsummary`, `grouptransform`, `height`, `hex2dec`, `hex2num`, `hour`, `hours`, `Inf`, `insertAfter`, `insertBefore`, `int16`, `int2str`, `int32`, `int64`, `int8`, `intersect`, `intmax`, `intmin`, `iqr`, `isa`, `iscalendarduration`, `iscell`, `iscellstr`, `ischar`, `isdatetime`, `isduration`, `isfield`, `isfinite`, `isfloat`, `isinf`, `isinteger`, `isletter`, `islogical`, `ismember`, `ismissing`, `isnan`, `isnat`, `isnumeric`, `isobject`, `isreal`, `isspace`, `isstring`, `isStringScalar`, `isstrprop`, `isstruct`, `istable`, `join`, `lettersPattern`, `lower`, `mat2str`, `matches`, `max`, `mean`, `median`, `milliseconds`, `min`, `minute`, `minutes`, `month`, `NaN`, `NaT`, `native2unicode`, `newline`, `now`, `num2cell`, `num2hex`, `num2str`, `pad`, `pivot`, `plot`, `plus`, `posixtime`, `quarter`, `readtable`, `realmax`, `realmin`, `regexp`, `regexpi`, `regexprep`, `regexptranslate`, `removevars`, `renamevars`, `replace`, `replaceBetween`, `reverse`, `rmfield`, `rmmissing`, `second`, `seconds`, `setdiff`, `setxor`, `single`, `split`, `splitapply`, `splitlines`, `sprintf`, `sscanf`, `standardizeMissing`, `startsWith`, `std`, `str2double`, `str2func`, `str2mat`, `str2num`, `strcat`, `strcmp`, `strcmpi`, `strfind`, `string`, `strings`, `strip`, `strjoin`, `strjust`, `strlength`, `strmatch`, `strncmp`, `strncmpi`, `strread`, `strrep`, `strsplit`, `strtok`, `strtrim`, `struct`, `struct2table`, `strvcat`, `sum`, `summary`, `symvar`, `table`, `table2array`, `table2cell`, `table2struct`, `timeofday`, `today`, `topkrows`, `uint16`, `uint32`, `uint64`, `uint8`, `unicode2native`, `union`, `unique`, `upper`, `validateattributes`, `var`, `weekday`, `whos`, `width`, `writetable`, `year`, `years`
 
 ## MATLAB > Language Fundamentals > Entering Commands
 
