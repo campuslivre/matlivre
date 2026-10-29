@@ -2421,6 +2421,1447 @@ fn del2(a: &[Value]) -> R<Matrix> {
     acc.data.iter_mut().for_each(|v| *v /= 2.0 * nd_);
     Ok(acc.cast_to(kind))
 }
+
+// ---- missing data -----------------------------------------------------------------------------
+
+/// Which elements of an array are missing: NaN (and NaT), `<missing>` strings, empty char
+/// vectors in cell arrays and blank characters.
+fn missing_of(v: &Value) -> R<Vec<bool>> {
+    Ok(match v {
+        Value::Num(m) => match m.kind {
+            Kind::Double | Kind::Single => (0..m.numel()).map(|i| m.data[i].is_nan() || m.im_at(i).is_nan()).collect(),
+            Kind::Char => m.data.iter().map(|&c| c == 32.0).collect(),
+            _ => vec![false; m.numel()],
+        },
+        Value::Str(s) => s.data.iter().map(|x| x.is_none()).collect(),
+        Value::Cell(c) => c
+            .data
+            .iter()
+            .map(|e| match e {
+                Value::Num(m) if m.kind == Kind::Char || m.is_empty() => Ok(m.is_empty()),
+                _ => rt("Cell arrays must be cell arrays of character vectors."),
+            })
+            .collect::<R<_>>()?,
+        Value::Time(t) => t.data.iter().map(|p| p[0].is_nan()).collect(),
+        other => return rt(format!("Invalid data type '{}'.", other.class_name())),
+    })
+}
+
+/// Linear-index gather of any array value.
+fn take(v: &Value, ix: Vec<usize>, dims: Dims) -> R<Value> {
+    indexing::index(v, &[IndexArg::List { ix, dims, from_mask: false }])
+}
+
+/// Piecewise cubic Hermite slopes for the interpolation methods.
+fn interp_slopes(kind: &str, t: &[f64], y: &[f64]) -> Vec<f64> {
+    let n = t.len();
+    let h: Vec<f64> = t.windows(2).map(|p| p[1] - p[0]).collect();
+    let del: Vec<f64> = (0..n - 1).map(|k| (y[k + 1] - y[k]) / h[k]).collect();
+    if n == 2 {
+        return vec![del[0]; 2];
+    }
+    match kind {
+        "pchip" => {
+            let mut d = vec![0.0; n];
+            for k in 1..n - 1 {
+                if del[k - 1] * del[k] > 0.0 {
+                    let w1 = 2.0 * h[k] + h[k - 1];
+                    let w2 = h[k] + 2.0 * h[k - 1];
+                    d[k] = (w1 + w2) / (w1 / del[k - 1] + w2 / del[k]);
+                }
+            }
+            let end = |h0: f64, h1: f64, d0: f64, d1: f64| -> f64 {
+                let s = ((2.0 * h0 + h1) * d0 - h0 * d1) / (h0 + h1);
+                if s.signum() != d0.signum() || d0 == 0.0 {
+                    0.0
+                } else if d0.signum() != d1.signum() && s.abs() > (3.0 * d0).abs() {
+                    3.0 * d0
+                } else {
+                    s
+                }
+            };
+            d[0] = end(h[0], h[1], del[0], del[1]);
+            d[n - 1] = end(h[n - 2], h[n - 3], del[n - 2], del[n - 3]);
+            d
+        }
+        "makima" => {
+            // Deltas extended by two on each side.
+            let m = del.len();
+            let mut e = vec![0.0; m + 4];
+            e[2..m + 2].copy_from_slice(&del);
+            e[1] = 2.0 * e[2] - e[3];
+            e[0] = 2.0 * e[1] - e[2];
+            e[m + 2] = 2.0 * e[m + 1] - e[m];
+            e[m + 3] = 2.0 * e[m + 2] - e[m + 1];
+            (0..n)
+                .map(|i| {
+                    let (dm2, dm1, d0, d1) = (e[i], e[i + 1], e[i + 2], e[i + 3]);
+                    let w1 = (d1 - d0).abs() + (d1 + d0).abs() / 2.0;
+                    let w2 = (dm1 - dm2).abs() + (dm1 + dm2).abs() / 2.0;
+                    if w1 + w2 == 0.0 { 0.0 } else { (w1 * dm1 + w2 * d0) / (w1 + w2) }
+                })
+                .collect()
+        }
+        _ => {
+            // Not-a-knot cubic spline slopes (tridiagonal system).
+            if n == 3 {
+                // The parabola through the three points.
+                let c2 = (del[1] - del[0]) / (t[2] - t[0]);
+                return vec![del[0] - c2 * h[0], del[0] + c2 * h[0], del[1] + c2 * h[1]];
+            }
+            let mut a = vec![0.0; n];
+            let mut b = vec![0.0; n];
+            let mut c = vec![0.0; n];
+            let mut r = vec![0.0; n];
+            for k in 1..n - 1 {
+                a[k] = h[k];
+                b[k] = 2.0 * (h[k - 1] + h[k]);
+                c[k] = h[k - 1];
+                r[k] = 3.0 * (h[k] * del[k - 1] + h[k - 1] * del[k]);
+            }
+            let x0 = h[1];
+            let s0 = h[0] + h[1];
+            b[0] = x0;
+            c[0] = s0;
+            r[0] = ((h[0] + 2.0 * s0) * h[1] * del[0] + h[0] * h[0] * del[1]) / s0;
+            let xn = h[n - 3];
+            let sn = h[n - 2] + h[n - 3];
+            a[n - 1] = sn;
+            b[n - 1] = xn;
+            r[n - 1] = (h[n - 2] * h[n - 2] * del[n - 3] + (2.0 * sn + h[n - 2]) * h[n - 3] * del[n - 2]) / sn;
+            // Gaussian elimination without pivoting on the tridiagonal matrix (rows: a, b, c).
+            for k in 1..n {
+                let m = a[k] / b[k - 1];
+                b[k] -= m * c[k - 1];
+                r[k] -= m * r[k - 1];
+            }
+            let mut d = vec![0.0; n];
+            d[n - 1] = r[n - 1] / b[n - 1];
+            for k in (0..n - 1).rev() {
+                d[k] = (r[k] - c[k] * d[k + 1]) / b[k];
+            }
+            d
+        }
+    }
+}
+
+/// Evaluates an interpolant through (t, y) at `q` (extrapolating with the end pieces).
+fn interp_at(kind: &str, t: &[f64], y: &[f64], q: &[f64]) -> Vec<f64> {
+    let n = t.len();
+    if n == 0 {
+        return vec![f64::NAN; q.len()];
+    }
+    if n == 1 {
+        return vec![y[0]; q.len()];
+    }
+    let piece = |x: f64| -> usize {
+        match t.partition_point(|&v| v <= x) {
+            0 => 0,
+            p => (p - 1).min(n - 2),
+        }
+    };
+    if kind == "linear" {
+        return q
+            .iter()
+            .map(|&x| {
+                let k = piece(x);
+                let s = (x - t[k]) / (t[k + 1] - t[k]);
+                y[k] + s * (y[k + 1] - y[k])
+            })
+            .collect();
+    }
+    let d = interp_slopes(kind, t, y);
+    q.iter()
+        .map(|&x| {
+            let k = piece(x);
+            let h = t[k + 1] - t[k];
+            let s = x - t[k];
+            let del = (y[k + 1] - y[k]) / h;
+            let c2 = (3.0 * del - 2.0 * d[k] - d[k + 1]) / h;
+            let c3 = (d[k] - 2.0 * del + d[k + 1]) / (h * h);
+            y[k] + s * (d[k] + s * (c2 + s * c3))
+        })
+        .collect()
+}
+
+#[derive(Clone)]
+enum EndVals {
+    Extrap,
+    Previous,
+    Next,
+    Nearest,
+    None,
+    Value(f64),
+}
+
+/// Source index for previous/next/nearest fills (ties go to the next value).
+fn neighbor_index(method: &str, miss: &[bool], t: &[f64], i: usize) -> Option<usize> {
+    let prev = (0..i).rev().find(|&j| !miss[j]);
+    let next = (i + 1..miss.len()).find(|&j| !miss[j]);
+    match method {
+        "previous" => prev,
+        "next" => next,
+        _ => match (prev, next) {
+            (Some(p), Some(q)) => Some(if t[i] - t[p] < t[q] - t[i] { p } else { q }),
+            (p, q) => p.or(q),
+        },
+    }
+}
+
+struct FillSpec {
+    method: String,
+    constant: Vec<f64>,
+    window: Option<Window>,
+    ends: EndVals,
+    max_gap: Option<f64>,
+}
+
+/// Fills one numeric vector; `slot` picks the constant for this slice.
+fn fill_vec(x: &[f64], miss: &[bool], t: &[f64], spec: &FillSpec, slot: usize) -> Vec<f64> {
+    let n = x.len();
+    let known: Vec<usize> = (0..n).filter(|&i| !miss[i]).collect();
+    let mut out = x.to_vec();
+    let first = known.first().copied();
+    let last = known.last().copied();
+    let is_end = |i: usize| first.map(|f| i < f).unwrap_or(true) || last.map(|l| i > l).unwrap_or(true);
+    let m = spec.method.as_str();
+    let interp: Option<Vec<f64>> = if matches!(m, "linear" | "spline" | "pchip" | "makima") && known.len() >= 2 {
+        let tk: Vec<f64> = known.iter().map(|&i| t[i]).collect();
+        let yk: Vec<f64> = known.iter().map(|&i| x[i]).collect();
+        let q: Vec<f64> = (0..n).map(|i| t[i]).collect();
+        Some(interp_at(m, &tk, &yk, &q))
+    } else {
+        None
+    };
+    let sp = spec.window.map(|w| spans(Some(t), n, w));
+    for i in 0..n {
+        if !miss[i] {
+            continue;
+        }
+        let by_method = |out_i: &mut f64| match m {
+            "constant" => *out_i = spec.constant[slot.min(spec.constant.len() - 1)],
+            "previous" | "next" | "nearest" => {
+                if let Some(j) = neighbor_index(m, miss, t, i) {
+                    *out_i = x[j];
+                }
+            }
+            "movmean" | "movmedian" => {
+                let s = &sp.as_ref().unwrap()[i];
+                let mut v: Vec<f64> = (s.lo..s.hi).filter(|&j| !miss[j]).map(|j| x[j]).collect();
+                if !v.is_empty() {
+                    *out_i = if m == "movmean" { mean(&v) } else { median(&mut v) };
+                }
+            }
+            _ => {
+                if let Some(v) = &interp {
+                    *out_i = v[i];
+                }
+            }
+        };
+        if is_end(i) {
+            match &spec.ends {
+                EndVals::Extrap => by_method(&mut out[i]),
+                EndVals::None => {}
+                EndVals::Value(v) => out[i] = *v,
+                e => {
+                    let how = match e {
+                        EndVals::Previous => "previous",
+                        EndVals::Next => "next",
+                        _ => "nearest",
+                    };
+                    if let Some(j) = neighbor_index(how, miss, t, i) {
+                        out[i] = x[j];
+                    }
+                }
+            }
+        } else {
+            by_method(&mut out[i]);
+        }
+    }
+    if let Some(g) = spec.max_gap {
+        let mut i = 0;
+        while i < n {
+            if !miss[i] {
+                i += 1;
+                continue;
+            }
+            let start = i;
+            while i < n && miss[i] {
+                i += 1;
+            }
+            let gap = match (start.checked_sub(1), (i < n).then_some(i)) {
+                (Some(p), Some(q)) => t[q] - t[p],
+                (None, Some(q)) => t[q] - t[0],
+                (Some(p), None) => t[n - 1] - t[p],
+                (None, None) => f64::INFINITY,
+            };
+            if gap > g {
+                for v in out.iter_mut().take(i).skip(start) {
+                    *v = f64::NAN;
+                }
+            }
+        }
+    }
+    out
+}
+
+fn fill_method_name(v: &Value) -> Option<String> {
+    let t = lower(v)?;
+    ["constant", "previous", "next", "nearest", "linear", "spline", "pchip", "makima", "movmean", "movmedian", "knn"].contains(&t.as_str()).then_some(t)
+}
+
+fn fillmissing(it: &mut Interpreter, a: &[Value], nargout: usize) -> Ret {
+    let o = Opts::parse(a, &[], &["EndValues", "SamplePoints", "MaxGap", "MissingLocations", "DataVariables", "ReplaceValues", "Distance"])?;
+    let src = arg(&o.pos, 0, "fillmissing")?.clone();
+    let mspec = arg(&o.pos, 1, "fillmissing")?.clone();
+    if let Value::Table(t) = &src {
+        // Each table variable is filled on its own.
+        let mut out = (**t).clone();
+        let mut tf_cols = Vec::new();
+        for k in 0..t.vars.len() {
+            let mut args = vec![t.vars[k].clone()];
+            args.extend_from_slice(&a[1..]);
+            let r = fillmissing(it, &args, 2)?.unwrap();
+            out.vars[k] = r[0].clone();
+            tf_cols.push(r[1].clone());
+        }
+        let tf = indexing::hconcat(tf_cols)?;
+        return Ok(Some(vec![Value::Table(Box::new(out)), tf]));
+    }
+    let is_fun = matches!(mspec, Value::Func(_));
+    let method = if is_fun {
+        "fun".to_string()
+    } else {
+        match fill_method_name(&mspec) {
+            Some(m) => m,
+            None => return rt("Fill method must be 'constant', 'previous', 'next', 'nearest', 'linear', 'spline', 'pchip', 'makima', 'movmean', 'movmedian', 'knn', or a function handle."),
+        }
+    };
+    let mut p = 2;
+    let mut constant = Vec::new();
+    let mut window = None;
+    let mut fun_win = None;
+    let mut knn_k = 1usize;
+    match method.as_str() {
+        "constant" => {
+            let v = arg(&o.pos, 2, "fillmissing")?;
+            constant = match v {
+                Value::Num(m) => m.data.clone(),
+                _ => vec![f64::NAN],
+            };
+            p = 3;
+        }
+        "movmean" | "movmedian" => {
+            window = Some(window_arg(arg(&o.pos, 2, "fillmissing")?)?);
+            p = 3;
+        }
+        "fun" => {
+            fun_win = Some(window_arg(arg(&o.pos, 2, "fillmissing")?)?);
+            p = 3;
+        }
+        "knn" => {
+            if let Some(Value::Num(m)) = o.pos.get(2) {
+                knn_k = m.data.first().copied().unwrap_or(1.0) as usize;
+                p = 3;
+            }
+        }
+        _ => {}
+    }
+    let miss0 = missing_of(&src)?;
+    let miss: Vec<bool> = match o.get("MissingLocations") {
+        Some(v) => v.to_matrix()?.data.iter().map(|&b| b != 0.0).collect(),
+        None => miss0,
+    };
+    let d = src.dims();
+    let dim = dim_at(&o.pos, p, &d)?;
+    let len = d.get(dim - 1).copied().unwrap_or(1);
+    let t = sample_points(o.get("SamplePoints"), len)?.unwrap_or_else(|| (1..=len).map(|k| k as f64).collect());
+    let default_ends = EndVals::Extrap;
+    let ends = match o.get("EndValues") {
+        None => default_ends,
+        Some(v) => match lower(v).as_deref() {
+            Some("extrap") => EndVals::Extrap,
+            Some("previous") => EndVals::Previous,
+            Some("next") => EndVals::Next,
+            Some("nearest") => EndVals::Nearest,
+            Some("none") => EndVals::None,
+            Some(_) => return rt("EndValues must be 'extrap', 'previous', 'next', 'nearest', 'none', or a scalar."),
+            None => EndVals::Value(v.scalar()?),
+        },
+    };
+    let max_gap = match o.get("MaxGap") {
+        Some(v) => Some(v.scalar()?),
+        None => None,
+    };
+    let spec = FillSpec { method: method.clone(), constant, window, ends, max_gap };
+    let (stride, _, outer) = layout(&d, dim);
+    let at = |o_: usize, i: usize, j: usize| o_ * stride * len + j * stride + i;
+    let filled: Value;
+    let mut tf = vec![false; miss.len()];
+    match &src {
+        Value::Num(m) if m.kind.is_float() || m.kind.is_int() || m.kind == Kind::Logical => {
+            let mut out = m.clone();
+            if method == "knn" {
+                knn_fill(&mut out, &miss, knn_k);
+            } else {
+                for oo in 0..outer {
+                    for i in 0..stride {
+                        let idx: Vec<usize> = (0..len).map(|j| at(oo, i, j)).collect();
+                        let xv: Vec<f64> = idx.iter().map(|&p| m.data[p]).collect();
+                        let mv: Vec<bool> = idx.iter().map(|&p| miss[p]).collect();
+                        let r = if method == "fun" {
+                            fill_with_fun(it, &a[1], &xv, &mv, &t, fun_win.unwrap())?
+                        } else {
+                            fill_vec(&xv, &mv, &t, &spec, oo * stride + i)
+                        };
+                        for (&p, v) in idx.iter().zip(r) {
+                            out.data[p] = v;
+                        }
+                    }
+                }
+            }
+            for (k, f) in tf.iter_mut().enumerate() {
+                *f = miss[k] && !out.data[k].is_nan() && (m.data[k].is_nan() || out.data[k] != m.data[k] || o.get("MissingLocations").is_some());
+            }
+            let kind = m.kind;
+            filled = Value::Num(out.cast_to(kind));
+        }
+        other => {
+            // Text and other arrays: index-based fills only.
+            if !matches!(method.as_str(), "constant" | "previous" | "next" | "nearest") {
+                return rt(format!("Fill method '{method}' is not supported for inputs of class '{}'.", other.class_name()));
+            }
+            let mut src_ix: Vec<usize> = (0..miss.len()).collect();
+            for oo in 0..outer {
+                for i in 0..stride {
+                    let idx: Vec<usize> = (0..len).map(|j| at(oo, i, j)).collect();
+                    let mv: Vec<bool> = idx.iter().map(|&p| miss[p]).collect();
+                    for (j, &p) in idx.iter().enumerate() {
+                        if mv[j] && method != "constant" {
+                            if let Some(s) = neighbor_index(&method, &mv, &t, j) {
+                                src_ix[p] = idx[s];
+                                tf[p] = true;
+                            }
+                        }
+                    }
+                }
+            }
+            let mut v = take(other, src_ix, d.clone())?;
+            if method == "constant" {
+                let c = arg(&o.pos, 2, "fillmissing")?.clone();
+                for (k, &mk) in miss.iter().enumerate() {
+                    if mk {
+                        v = indexing::assign(Some(v), &[IndexArg::scalar(k)], c.clone())?;
+                        tf[k] = true;
+                    }
+                }
+            }
+            filled = v;
+        }
+    }
+    if nargout < 2 {
+        return one(filled);
+    }
+    Ok(Some(vec![filled, Value::Num(logical(d, tf.iter().map(|&b| bool_val(b)).collect()))]))
+}
+
+/// k-nearest-neighbor fill across the rows of a matrix: distances use the columns present in
+/// both rows; the fill is the mean of the k nearest rows that have the value.
+fn knn_fill(m: &mut Matrix, miss: &[bool], k: usize) {
+    let (r, c) = if m.is_vector() { (m.numel(), 1) } else { (m.rows(), m.cols()) };
+    let orig = m.data.clone();
+    for i in 0..r {
+        for j in 0..c {
+            if !miss[j * r + i] {
+                continue;
+            }
+            let mut cands: Vec<(f64, usize)> = (0..r)
+                .filter(|&q| q != i && !miss[j * r + q])
+                .map(|q| {
+                    let d: f64 = (0..c).filter(|&cc| !miss[cc * r + i] && !miss[cc * r + q]).map(|cc| (orig[cc * r + i] - orig[cc * r + q]).powi(2)).sum();
+                    (d.sqrt(), q)
+                })
+                .collect();
+            cands.sort_by(|p, q| p.0.partial_cmp(&q.0).unwrap_or(Ordering::Equal).then(p.1.cmp(&q.1)));
+            let near: Vec<f64> = cands.iter().take(k.max(1)).map(|&(_, q)| orig[j * r + q]).collect();
+            if !near.is_empty() {
+                m.data[j * r + i] = mean(&near);
+            }
+        }
+    }
+}
+
+/// Fills each gap with `f(xs, ts, tq)` using the known values within the window around it.
+fn fill_with_fun(it: &mut Interpreter, f: &Value, x: &[f64], miss: &[bool], t: &[f64], w: Window) -> R<Vec<f64>> {
+    let n = x.len();
+    let mut out = x.to_vec();
+    let mut i = 0;
+    while i < n {
+        if !miss[i] {
+            i += 1;
+            continue;
+        }
+        let start = i;
+        while i < n && miss[i] {
+            i += 1;
+        }
+        let (t0, t1) = (t[start], t[i - 1]);
+        let near: Vec<usize> = (0..n).filter(|&j| !miss[j] && t[j] >= t0 - w.back && t[j] <= t1 + w.fwd).collect();
+        let xs = Matrix::col(near.iter().map(|&j| x[j]).collect());
+        let ts = Matrix::col(near.iter().map(|&j| t[j]).collect());
+        let tq = Matrix::col((start..i).map(|j| t[j]).collect());
+        let r = it.call_func_value(f, vec![Value::Num(xs), Value::Num(ts), Value::Num(tq)], 1)?;
+        let v = r.first().ok_or_else(|| LangError::new("The fill function must return a value.", 0))?.to_matrix()?;
+        if v.numel() != i - start {
+            return rt("The fill function must return a vector with the same number of elements as the third input.");
+        }
+        out[start..i].copy_from_slice(&v.data);
+    }
+    Ok(out)
+}
+
+fn standardize_missing(a: &[Value]) -> Ret {
+    let src = arg(a, 0, "standardizeMissing")?;
+    let ind = arg(a, 1, "standardizeMissing")?;
+    match src {
+        Value::Num(m) => {
+            let vals: Vec<f64> = match ind {
+                Value::Num(i) if i.kind != Kind::Char => i.data.clone(),
+                Value::Cell(c) => c.data.iter().filter_map(|v| v.to_matrix().ok().filter(|m| m.kind != Kind::Char)).flat_map(|m| m.data).collect(),
+                _ => Vec::new(),
+            };
+            let mut out = m.clone();
+            if m.kind.is_float() {
+                for v in out.data.iter_mut() {
+                    if vals.contains(v) {
+                        *v = f64::NAN;
+                    }
+                }
+            }
+            one(Value::Num(out))
+        }
+        Value::Cell(c) => {
+            let texts: Vec<String> = match ind {
+                Value::Cell(ic) => ic.data.iter().filter_map(|v| v.text().ok()).collect(),
+                Value::Str(s) => s.data.iter().flatten().cloned().collect(),
+                v => v.text().ok().into_iter().collect(),
+            };
+            let data = c.data.iter().map(|v| if v.text().map(|t| texts.contains(&t)).unwrap_or(false) { Value::chars("") } else { v.clone() }).collect();
+            one(Value::Cell(CellArray::from_dims(c.dims.clone(), data)))
+        }
+        Value::Str(s) => {
+            let texts: Vec<String> = match ind {
+                Value::Cell(ic) => ic.data.iter().filter_map(|v| v.text().ok()).collect(),
+                Value::Str(s) => s.data.iter().flatten().cloned().collect(),
+                v => v.text().ok().into_iter().collect(),
+            };
+            let data = s.data.iter().map(|v| v.clone().filter(|t| !texts.contains(t))).collect();
+            one(Value::Str(StrArray::from_dims(s.dims.clone(), data)))
+        }
+        Value::Table(t) => {
+            let mut out = (**t).clone();
+            for v in out.vars.iter_mut() {
+                *v = standardize_missing(&[v.clone(), ind.clone()])?.unwrap().remove(0);
+            }
+            one(Value::Table(Box::new(out)))
+        }
+        other => one(other.clone()),
+    }
+}
+
+/// Removes the rows (or columns) of `src` flagged in `drop`, returning the kept value.
+fn drop_slices(src: &Value, dim: usize, drop: &[bool]) -> R<Value> {
+    let keep: Vec<usize> = (0..drop.len()).filter(|&k| !drop[k]).collect();
+    let list = IndexArg::List { dims: vec![1, keep.len()], ix: keep, from_mask: false };
+    match src {
+        Value::Table(t) => {
+            let rows = Value::Num(Matrix::col((0..drop.len()).filter(|&k| !drop[k]).map(|k| (k + 1) as f64).collect()));
+            if dim == 1 {
+                Ok(Value::Table(Box::new(t.paren(&[rows, Value::chars(":")])?)))
+            } else {
+                let cols = Value::Num(Matrix::row((0..drop.len()).filter(|&k| !drop[k]).map(|k| (k + 1) as f64).collect()));
+                Ok(Value::Table(Box::new(t.paren(&[Value::chars(":"), cols])?)))
+            }
+        }
+        v if v.dims().len() == 2 && (v.dims()[0] == 1 || v.dims()[1] == 1) && v.numel() == drop.len() => {
+            let d = v.dims();
+            let row = d[0] == 1 && d[1] != 1;
+            let n = list_len(&list);
+            let ix = match list {
+                IndexArg::List { ix, .. } => ix,
+                _ => unreachable!(),
+            };
+            take(v, ix, if row { vec![1, n] } else { vec![n, 1] })
+        }
+        v => {
+            let mut idx = vec![IndexArg::All; v.dims().len().max(2)];
+            idx[dim - 1] = list;
+            indexing::index(v, &idx)
+        }
+    }
+}
+
+fn list_len(l: &IndexArg) -> usize {
+    match l {
+        IndexArg::List { ix, .. } => ix.len(),
+        _ => 0,
+    }
+}
+
+/// Per-row (dim 1) or per-column (dim 2) missing counts of an array or table.
+fn missing_counts(src: &Value, dim: usize) -> R<Vec<usize>> {
+    if let Value::Table(t) = src {
+        let mut counts = vec![0; if dim == 1 { t.nrows } else { t.vars.len() }];
+        for (k, v) in t.vars.iter().enumerate() {
+            let m = missing_of(v)?;
+            let w = v.numel() / t.nrows.max(1);
+            for (p, &b) in m.iter().enumerate() {
+                if b {
+                    if dim == 1 {
+                        counts[p % t.nrows.max(1)] += 1;
+                    } else {
+                        counts[k] += 1;
+                    }
+                }
+            }
+            let _ = w;
+        }
+        return Ok(counts);
+    }
+    let m = missing_of(src)?;
+    let d = src.dims();
+    let (r, c) = (d[0], d[1..].iter().product::<usize>());
+    let vector = d.len() == 2 && (r == 1 || c == 1);
+    if vector {
+        return Ok(m.iter().map(|&b| b as usize).collect());
+    }
+    let mut counts = vec![0; if dim == 1 { r } else { c }];
+    for (p, &b) in m.iter().enumerate() {
+        if b {
+            counts[if dim == 1 { p % r } else { p / r }] += 1;
+        }
+    }
+    Ok(counts)
+}
+
+fn rmmissing(a: &[Value], nargout: usize) -> Ret {
+    let o = Opts::parse(a, &[], &["MinNumMissing", "DataVariables"])?;
+    let src = arg(&o.pos, 0, "rmmissing")?;
+    let d = src.dims();
+    let vector = !matches!(src, Value::Table(_)) && d.len() == 2 && (d[0] == 1 || d[1] == 1);
+    let dim = match o.pos.get(1) {
+        Some(v) => v.as_usize()?,
+        None => 1,
+    };
+    if dim != 1 && dim != 2 {
+        return rt("Dimension must be 1 or 2.");
+    }
+    let min = match o.get("MinNumMissing") {
+        Some(v) => v.as_usize()?.max(1),
+        None => 1,
+    };
+    let counts = missing_counts(src, if vector { 1 } else { dim })?;
+    let drop: Vec<bool> = counts.iter().map(|&c| c >= min).collect();
+    let out = drop_slices(src, if vector { if d[0] == 1 { 2 } else { 1 } } else { dim }, &drop)?;
+    let tf_dims = if vector { d.clone() } else if dim == 1 { vec![drop.len(), 1] } else { vec![1, drop.len()] };
+    let tf = Value::Num(logical(tf_dims, drop.iter().map(|&b| bool_val(b)).collect()));
+    if nargout < 2 {
+        return one(out);
+    }
+    Ok(Some(vec![out, tf]))
+}
+
+// ---- outliers -------------------------------------------------------------------------------------
+
+/// Scale factor turning the median absolute deviation into a standard deviation estimate.
+fn mad_scale() -> f64 {
+    -1.0 / (std::f64::consts::SQRT_2 * erfc_inv(1.5))
+}
+
+#[derive(Clone)]
+enum OutMethod {
+    Median,
+    Mean,
+    Quartiles,
+    Grubbs,
+    Gesd,
+    MovMedian(Window),
+    MovMean(Window),
+    Percentiles(f64, f64),
+}
+
+impl OutMethod {
+    fn moving(&self) -> bool {
+        matches!(self, OutMethod::MovMedian(_) | OutMethod::MovMean(_))
+    }
+}
+
+struct OutRes {
+    tf: Vec<bool>,
+    l: Vec<f64>,
+    u: Vec<f64>,
+    c: Vec<f64>,
+}
+
+fn grubbs_crit(n: f64, alpha: f64) -> f64 {
+    let t = t_inv(alpha / (2.0 * n), n - 2.0);
+    (n - 1.0) / n.sqrt() * (t * t / (n - 2.0 + t * t)).sqrt()
+}
+
+fn gesd_lambda(n: f64, i: f64, alpha: f64) -> f64 {
+    let p = 1.0 - alpha / (2.0 * (n - i + 1.0));
+    let t = t_inv(p, n - i - 1.0);
+    (n - i) * t / ((n - i - 1.0 + t * t) * (n - i + 1.0)).sqrt()
+}
+
+fn std_of(v: &[f64]) -> f64 {
+    var(v, 0.0).sqrt()
+}
+
+fn outlier_vec(x: &[f64], t: &[f64], method: &OutMethod, th: f64, max_out: Option<usize>) -> OutRes {
+    let n = x.len();
+    let valid: Vec<usize> = (0..n).filter(|&i| !x[i].is_nan()).collect();
+    let vals: Vec<f64> = valid.iter().map(|&i| x[i]).collect();
+    let flag = |l: &[f64], u: &[f64]| -> Vec<bool> {
+        (0..n).map(|i| {
+            let (lo, hi) = if l.len() == 1 { (l[0], u[0]) } else { (l[i], u[i]) };
+            x[i] < lo || x[i] > hi
+        }).collect()
+    };
+    let scalar = |l: f64, u: f64, c: f64| -> OutRes {
+        let (l, u) = (vec![l], vec![u]);
+        OutRes { tf: flag(&l, &u), l, u, c: vec![c] }
+    };
+    match method {
+        OutMethod::Median => {
+            let mut s = vals.clone();
+            let c = median(&mut s);
+            let mut dev: Vec<f64> = vals.iter().map(|v| (v - c).abs()).collect();
+            let mad = mad_scale() * median(&mut dev);
+            scalar(c - th * mad, c + th * mad, c)
+        }
+        OutMethod::Mean => {
+            let c = if vals.is_empty() { f64::NAN } else { mean(&vals) };
+            let s = std_of(&vals);
+            scalar(c - th * s, c + th * s, c)
+        }
+        OutMethod::Quartiles => {
+            let mut s = vals.clone();
+            s.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            let (q1, q3) = (percentile_sorted(&s, 25.0), percentile_sorted(&s, 75.0));
+            let iqr = q3 - q1;
+            scalar(q1 - th * iqr, q3 + th * iqr, (q1 + q3) / 2.0)
+        }
+        OutMethod::Percentiles(lp, up) => {
+            let mut s = vals.clone();
+            s.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            let (l, u) = (percentile_sorted(&s, *lp), percentile_sorted(&s, *up));
+            scalar(l, u, (l + u) / 2.0)
+        }
+        OutMethod::Grubbs => {
+            let mut set = vals.clone();
+            let mut out_vals: Vec<f64> = Vec::new();
+            loop {
+                let m = set.len() as f64;
+                if m < 3.0 {
+                    break;
+                }
+                let mu = mean(&set);
+                let s = std_of(&set);
+                let (k, g) = set.iter().enumerate().map(|(k, v)| (k, (v - mu).abs() / s)).fold((0, -1.0), |b, p| if p.1 > b.1 { p } else { b });
+                if g > grubbs_crit(m, th) {
+                    out_vals.push(set.remove(k));
+                } else {
+                    break;
+                }
+            }
+            let m = set.len() as f64;
+            let mu = mean(&set);
+            let s = std_of(&set);
+            let gc = grubbs_crit(m, th);
+            scalar(mu - gc * s, mu + gc * s, mu)
+        }
+        OutMethod::Gesd => {
+            let nv = vals.len();
+            let r = max_out.unwrap_or(((nv as f64) * 0.1).ceil() as usize).min(nv.saturating_sub(2));
+            let mut set = vals.clone();
+            let mut found = 0;
+            let mut steps: Vec<(f64, f64, f64)> = Vec::new();
+            for i in 1..=r {
+                let mu = mean(&set);
+                let s = std_of(&set);
+                let (k, ri) = set.iter().enumerate().map(|(k, v)| (k, (v - mu).abs() / s)).fold((0, -1.0), |b, p| if p.1 > b.1 { p } else { b });
+                let lam = gesd_lambda(nv as f64, i as f64, th);
+                steps.push((mu, s, lam));
+                if ri > lam {
+                    found = i;
+                }
+                set.remove(k);
+            }
+            if steps.is_empty() {
+                let mu = mean(&vals);
+                return scalar(f64::NAN, f64::NAN, mu);
+            }
+            let step = found.min(steps.len() - 1);
+            let (mu, s, lam) = steps[if found == steps.len() { steps.len() - 1 } else { step }];
+            // Flag the `found` most extreme values (removed in order).
+            let mut set: Vec<(usize, f64)> = valid.iter().map(|&i| (i, x[i])).collect();
+            let mut tf = vec![false; n];
+            for _ in 0..found {
+                let vs: Vec<f64> = set.iter().map(|p| p.1).collect();
+                let m = mean(&vs);
+                let k = vs.iter().enumerate().map(|(k, v)| (k, (v - m).abs())).fold((0, -1.0), |b, p| if p.1 > b.1 { p } else { b }).0;
+                tf[set.remove(k).0] = true;
+            }
+            OutRes { tf, l: vec![mu - lam * s], u: vec![mu + lam * s], c: vec![mu] }
+        }
+        OutMethod::MovMedian(w) | OutMethod::MovMean(w) => {
+            let sp = spans(Some(t), n, *w);
+            let mut l = Vec::with_capacity(n);
+            let mut u = Vec::with_capacity(n);
+            let mut c = Vec::with_capacity(n);
+            for s in &sp {
+                let mut v: Vec<f64> = x[s.lo..s.hi].iter().copied().filter(|v| !v.is_nan()).collect();
+                let (ci, si) = if matches!(method, OutMethod::MovMedian(_)) {
+                    let ci = median(&mut v.clone());
+                    let mut dev: Vec<f64> = v.iter().map(|q| (q - ci).abs()).collect();
+                    (ci, mad_scale() * median(&mut dev))
+                } else {
+                    let ci = if v.is_empty() { f64::NAN } else { mean(&v) };
+                    (ci, std_of(&v))
+                };
+                v.clear();
+                l.push(ci - th * si);
+                u.push(ci + th * si);
+                c.push(ci);
+            }
+            OutRes { tf: flag(&l, &u), l, u, c }
+        }
+    }
+}
+
+struct OutSpec {
+    method: OutMethod,
+    th: f64,
+    max_out: Option<usize>,
+    dim: usize,
+    t: Option<Vec<f64>>,
+}
+
+/// Parses an outlier method and its options starting at positional `p`.
+fn out_spec(pos: &[Value], p: usize, o: &Opts, d: &[usize]) -> R<(OutSpec, usize)> {
+    let mut p = p;
+    let mut method = OutMethod::Median;
+    if let Some(m) = pos.get(p).and_then(lower) {
+        method = match m.as_str() {
+            "median" => OutMethod::Median,
+            "mean" => OutMethod::Mean,
+            "quartiles" => OutMethod::Quartiles,
+            "grubbs" => OutMethod::Grubbs,
+            "gesd" => OutMethod::Gesd,
+            "movmedian" | "movmean" => {
+                let w = window_arg(arg(pos, p + 1, "isoutlier")?)?;
+                p += 1;
+                if m == "movmedian" { OutMethod::MovMedian(w) } else { OutMethod::MovMean(w) }
+            }
+            "percentiles" => {
+                let v = arg(pos, p + 1, "isoutlier")?.to_matrix()?;
+                p += 1;
+                if v.numel() != 2 || !(0.0 <= v.data[0] && v.data[0] <= v.data[1] && v.data[1] <= 100.0) {
+                    return rt("Percentiles must be a two-element vector [lp up] with 0 <= lp <= up <= 100.");
+                }
+                OutMethod::Percentiles(v.data[0], v.data[1])
+            }
+            other => return rt(format!("Invalid method '{other}'.")),
+        };
+        p += 1;
+    }
+    let dim = dim_at(pos, p, d)?;
+    let th = match o.get("ThresholdFactor") {
+        Some(v) => v.scalar()?,
+        None => match method {
+            OutMethod::Grubbs | OutMethod::Gesd => 0.05,
+            OutMethod::Quartiles => 1.5,
+            _ => 3.0,
+        },
+    };
+    let max_out = match o.get("MaxNumOutliers") {
+        Some(v) => Some(v.as_usize()?),
+        None => None,
+    };
+    let len = d.get(dim - 1).copied().unwrap_or(1);
+    let t = sample_points(o.get("SamplePoints"), len)?;
+    Ok((OutSpec { method, th, max_out, dim, t }, p))
+}
+
+/// Runs the outlier detection along the spec's dimension: (tf, L, U, C) as matrices.
+fn outliers(x: &Matrix, s: &OutSpec) -> (Matrix, Matrix, Matrix, Matrix) {
+    let len = x.dims.get(s.dim - 1).copied().unwrap_or(1);
+    let t = s.t.clone().unwrap_or_else(|| (1..=len).map(|k| k as f64).collect());
+    let mut res = Vec::new();
+    let tf = map_dim(x, s.dim, len, |v, _| {
+        let r = outlier_vec(v, &t, &s.method, s.th, s.max_out);
+        let out = r.tf.iter().map(|&b| bool_val(b)).collect();
+        res.push(r);
+        out
+    })
+    .with_kind(Kind::Logical);
+    let k = if s.method.moving() { len } else { 1 };
+    let mut it = res.iter();
+    let l = map_dim(x, s.dim, k, |_, _| it.next().map(|r| r.l.clone()).unwrap_or_default());
+    let mut it = res.iter();
+    let u = map_dim(x, s.dim, k, |_, _| it.next().map(|r| r.u.clone()).unwrap_or_default());
+    let mut it = res.iter();
+    let c = map_dim(x, s.dim, k, |_, _| it.next().map(|r| r.c.clone()).unwrap_or_default());
+    let kind = float_kind(x.kind);
+    (tf, l.cast_to(kind), u.cast_to(kind), c.cast_to(kind))
+}
+
+const OUT_NAMES: &[&str] = &["ThresholdFactor", "SamplePoints", "MaxNumOutliers", "DataVariables", "OutputFormat", "MinNumOutliers"];
+
+fn isoutlier(a: &[Value]) -> Ret {
+    let o = Opts::parse(a, &[], OUT_NAMES)?;
+    let x = num_arg(&o.pos, 0, "isoutlier")?;
+    if !x.kind.is_float() {
+        return rt("Invalid data type. First argument must be numeric or logical.");
+    }
+    let (spec, _) = out_spec(&o.pos, 1, &o, &x.dims)?;
+    let (tf, l, u, c) = outliers(&x, &spec);
+    Ok(Some(vec![Value::Num(tf), Value::Num(l), Value::Num(u), Value::Num(c)]))
+}
+
+fn filloutliers(it: &mut Interpreter, a: &[Value]) -> Ret {
+    let o = Opts::parse(a, &[], &["ThresholdFactor", "SamplePoints", "MaxNumOutliers", "DataVariables", "OutlierLocations"])?;
+    let x = num_arg(&o.pos, 0, "filloutliers")?;
+    let fill = arg(&o.pos, 1, "filloutliers")?.clone();
+    let (spec, _) = out_spec(&o.pos, 2, &o, &x.dims)?;
+    let (tf, l, u, c) = match o.get("OutlierLocations") {
+        Some(v) => {
+            let m = v.to_matrix()?;
+            let e = Matrix::empty();
+            (logical(x.dims.clone(), m.data), e.clone(), e.clone(), e)
+        }
+        None => outliers(&x, &spec),
+    };
+    let len = x.dims.get(spec.dim - 1).copied().unwrap_or(1);
+    let mut out = x.clone();
+    match lower(&fill).as_deref() {
+        Some("center") | Some("clip") => {
+            let clip = lower(&fill).as_deref() == Some("clip");
+            let per = l.numel() == x.numel();
+            let (stride, _, outer) = layout(&x.dims, spec.dim);
+            for oo in 0..outer {
+                for i in 0..stride {
+                    for j in 0..len {
+                        let p = oo * stride * len + j * stride + i;
+                        let q = if per { p } else { oo * stride + i };
+                        if tf.data[p] != 0.0 {
+                            out.data[p] = if clip { x.data[p].clamp(l.data[q], u.data[q]) } else { c.data[q] };
+                        }
+                    }
+                }
+            }
+        }
+        Some(m) => {
+            if !["previous", "next", "nearest", "linear", "spline", "pchip", "makima"].contains(&m) {
+                return rt("Fill method must be 'center', 'clip', 'previous', 'next', 'nearest', 'linear', 'spline', 'pchip', 'makima', or a numeric scalar.");
+            }
+            let mut args = vec![Value::Num(x.clone()), fill.clone(), Value::num(spec.dim as f64), Value::chars("MissingLocations"), Value::Num(tf.clone())];
+            if let Some(t) = &spec.t {
+                args.push(Value::chars("SamplePoints"));
+                args.push(Value::Num(Matrix::col(t.clone())));
+            }
+            out = fillmissing(it, &args, 1)?.unwrap().remove(0).to_matrix()?;
+        }
+        None => {
+            let v = fill.scalar()?;
+            for (k, d) in out.data.iter_mut().enumerate() {
+                if tf.data[k] != 0.0 {
+                    *d = v;
+                }
+            }
+        }
+    }
+    Ok(Some(vec![Value::Num(out), Value::Num(tf), Value::Num(l), Value::Num(u), Value::Num(c)]))
+}
+
+fn rmoutliers(a: &[Value]) -> Ret {
+    let o = Opts::parse(a, &[], OUT_NAMES)?;
+    let x = num_arg(&o.pos, 0, "rmoutliers")?;
+    let vector = x.is_vector();
+    let (mut spec, _) = out_spec(&o.pos, 1, &o, &x.dims)?;
+    // For matrices, the dimension argument selects what is removed: rows (1) or columns (2).
+    let remove_dim = if vector { if x.dims[0] == 1 { 2 } else { 1 } } else { spec.dim };
+    if !vector {
+        spec.dim = if remove_dim == 1 { 1 } else { 2 };
+    }
+    let (tf, ..) = outliers(&x, &spec);
+    let min = match o.get("MinNumOutliers") {
+        Some(v) => v.as_usize()?.max(1),
+        None => 1,
+    };
+    let counts = if vector {
+        tf.data.iter().map(|&b| b as usize).collect::<Vec<_>>()
+    } else {
+        let (r, c) = (x.rows(), x.cols());
+        let mut cnt = vec![0; if remove_dim == 1 { r } else { c }];
+        for (p, &b) in tf.data.iter().enumerate() {
+            if b != 0.0 {
+                cnt[if remove_dim == 1 { p % r } else { p / r }] += 1;
+            }
+        }
+        cnt
+    };
+    let drop: Vec<bool> = counts.iter().map(|&n| n >= min).collect();
+    let out = drop_slices(&Value::Num(x.clone()), remove_dim, &drop)?;
+    let tf_dims = if vector { x.dims.clone() } else if remove_dim == 1 { vec![drop.len(), 1] } else { vec![1, drop.len()] };
+    Ok(Some(vec![out, Value::Num(logical(tf_dims, drop.iter().map(|&b| bool_val(b)).collect()))]))
+}
+
+// ---- smoothing ------------------------------------------------------------------------------------
+
+/// Window of `w` points around index i, shifted to stay inside [0, n) (as lowess/sgolay use).
+fn full_window(i: usize, n: usize, w: usize) -> (usize, usize) {
+    let w = w.min(n).max(1);
+    let back = w / 2;
+    let lo = i.saturating_sub(back).min(n - w);
+    (lo, lo + w)
+}
+
+/// Weighted polynomial least-squares fit evaluated at `t0`.
+fn wpoly_at(t: &[f64], y: &[f64], w: &[f64], deg: usize, t0: f64) -> f64 {
+    let rows: Vec<usize> = (0..t.len()).filter(|&k| w[k] > 0.0).collect();
+    let deg = deg.min(rows.len().saturating_sub(1));
+    let cols = deg + 1;
+    let m = rows.len();
+    let mut a = vec![0.0; m * cols];
+    let mut b = vec![0.0; m];
+    for (r, &k) in rows.iter().enumerate() {
+        let sw = w[k].sqrt();
+        for c in 0..cols {
+            a[c * m + r] = sw * (t[k] - t0).powi(c as i32);
+        }
+        b[r] = sw * y[k];
+    }
+    if m == 0 {
+        return f64::NAN;
+    }
+    lstsq(&a, m, cols, &b)[0]
+}
+
+fn smooth_vec(method: &str, x: &[f64], t: &[f64], win: Window, wlen: f64, degree: usize, omit: bool) -> Vec<f64> {
+    let n = x.len();
+    match method {
+        "movmean" | "movmedian" => {
+            let sp = spans(Some(t), n, win);
+            moving_vec(method, x, &sp, Ends::Shrink, 0.0, omit)
+        }
+        "gaussian" => {
+            let sp = spans(Some(t), n, win);
+            let sigma = wlen / 5.0;
+            sp.iter()
+                .enumerate()
+                .map(|(i, s)| {
+                    let (mut num, mut den) = (0.0, 0.0);
+                    for j in s.lo..s.hi {
+                        if omit && x[j].is_nan() {
+                            continue;
+                        }
+                        let d = t[j] - t[i];
+                        let g = (-(d * d) / (2.0 * sigma * sigma)).exp();
+                        num += g * x[j];
+                        den += g;
+                    }
+                    num / den
+                })
+                .collect()
+        }
+        _ => {
+            // lowess/loess (tricube-weighted local linear/quadratic), robust variants and
+            // Savitzky-Golay, each over a window of `wlen` points.
+            let w = (wlen.round() as usize).max(1);
+            let robust = method.starts_with('r');
+            let deg = match method {
+                "lowess" | "rlowess" => 1,
+                "loess" | "rloess" => 2,
+                _ => degree,
+            };
+            let ok: Vec<bool> = x.iter().map(|v| !v.is_nan() || !omit).collect();
+            let mut rw = vec![1.0; n];
+            let mut out = vec![0.0; n];
+            for iter in 0..if robust { 6 } else { 1 } {
+                for i in 0..n {
+                    let (lo, hi) = full_window(i, n, w);
+                    let ts: Vec<f64> = (lo..hi).map(|j| t[j]).collect();
+                    let ys: Vec<f64> = (lo..hi).map(|j| x[j]).collect();
+                    let wts: Vec<f64> = if method == "sgolay" {
+                        (lo..hi).map(|j| if ok[j] { 1.0 } else { 0.0 }).collect()
+                    } else {
+                        let dmax = ts.iter().map(|&v| (v - t[i]).abs()).fold(0.0, f64::max);
+                        (lo..hi)
+                            .map(|j| {
+                                if !ok[j] {
+                                    return 0.0;
+                                }
+                                let r = if dmax > 0.0 { (t[j] - t[i]).abs() / dmax } else { 0.0 };
+                                let tri = (1.0 - r * r * r).max(0.0).powi(3);
+                                tri * rw[j]
+                            })
+                            .collect()
+                    };
+                    let ys: Vec<f64> = ys.iter().map(|&v| if v.is_nan() { 0.0 } else { v }).collect();
+                    out[i] = wpoly_at(&ts, &ys, &wts, deg, t[i]);
+                }
+                if robust && iter < 5 {
+                    let res: Vec<f64> = (0..n).map(|i| if x[i].is_nan() { f64::NAN } else { x[i] - out[i] }).collect();
+                    let mut ar: Vec<f64> = res.iter().filter(|v| !v.is_nan()).map(|v| v.abs()).collect();
+                    let mad = median(&mut ar);
+                    for i in 0..n {
+                        let u = res[i] / (6.0 * mad);
+                        rw[i] = if res[i].is_nan() || mad == 0.0 { if mad == 0.0 { 1.0 } else { 0.0 } } else if u.abs() < 1.0 { (1.0 - u * u).powi(2) } else { 0.0 };
+                    }
+                }
+            }
+            out
+        }
+    }
+}
+
+/// MATLAB picks a default smoothing window from the data; this follows its documented
+/// SmoothingFactor scale (0 = least, 1 = most smoothing).
+fn default_window(n: usize, factor: f64) -> f64 {
+    let f = factor.clamp(0.0, 1.0);
+    let w = (n as f64).powf(f) * 2.0_f64.powf(f);
+    w.round().clamp(1.0, n.max(1) as f64)
+}
+
+fn smoothdata(a: &[Value]) -> Ret {
+    let o = Opts::parse(a, NANFLAGS, &["SmoothingFactor", "SamplePoints", "Degree", "DataVariables"])?;
+    let x = num_arg(&o.pos, 0, "smoothdata")?;
+    if !x.kind.is_float() {
+        return rt("Invalid data type. First argument must be of type double, single, table, or timetable.");
+    }
+    let mut p = 1;
+    let mut dim = default_dim(&x.dims);
+    if let Some(Value::Num(m)) = o.pos.get(1) {
+        if m.kind != Kind::Char {
+            dim = dim_at(&o.pos, 1, &x.dims)?;
+            p = 2;
+        }
+    }
+    let method = match o.pos.get(p).and_then(lower) {
+        Some(m) => {
+            if !["movmean", "movmedian", "gaussian", "lowess", "loess", "rlowess", "rloess", "sgolay"].contains(&m.as_str()) {
+                return rt(format!("Invalid smoothing method '{m}'."));
+            }
+            p += 1;
+            m
+        }
+        None => "movmean".into(),
+    };
+    let len = x.dims.get(dim - 1).copied().unwrap_or(1);
+    let wv = match o.pos.get(p) {
+        Some(v) if !v.is_text() => {
+            p += 1;
+            Some(v.clone())
+        }
+        _ => None,
+    };
+    if p == 3 && o.pos.len() > p {
+        dim = dim_at(&o.pos, p, &x.dims)?;
+    } else if let Some(Value::Num(m)) = o.pos.get(p) {
+        if m.kind != Kind::Char {
+            dim = dim_at(&o.pos, p, &x.dims)?;
+        }
+    }
+    let len = if dim == default_dim(&x.dims) { len } else { x.dims.get(dim - 1).copied().unwrap_or(1) };
+    let t = sample_points(o.get("SamplePoints"), len)?.unwrap_or_else(|| (1..=len).map(|k| k as f64).collect());
+    let omit = omit_nan(&o, true);
+    let (win, wlen, wout) = match wv {
+        Some(v) => {
+            let w = window_arg(&v)?;
+            let wl = if w.half_open { 2.0 * w.back } else { w.back + w.fwd + 1.0 };
+            (w, wl, v.to_matrix()?)
+        }
+        None => {
+            let f = match o.get("SmoothingFactor") {
+                Some(v) => v.scalar()?,
+                None => 0.25,
+            };
+            let wl = default_window(len, f);
+            (Window { back: wl / 2.0, fwd: wl / 2.0, half_open: true }, wl, Matrix::scalar(wl))
+        }
+    };
+    let degree = match o.get("Degree") {
+        Some(v) => v.as_usize()?,
+        None => 2,
+    };
+    if method == "sgolay" && degree as f64 >= wlen {
+        return rt("Degree must be less than the window size.");
+    }
+    let out = map_dim(&x, dim, len, |v, _| smooth_vec(&method, v, &t, win, wlen, degree, omit));
+    Ok(Some(vec![Value::Num(out.cast_to(x.kind)), Value::Num(wout)]))
+}
+
+fn smoothdata2(a: &[Value]) -> Ret {
+    let o = Opts::parse(a, NANFLAGS, &["SmoothingFactor", "SamplePoints"])?;
+    let x = num_arg(&o.pos, 0, "smoothdata2")?;
+    let method = o.pos.get(1).and_then(lower).unwrap_or_else(|| "movmean".into());
+    if !["movmean", "movmedian", "gaussian"].contains(&method.as_str()) {
+        return rt(format!("Smoothing method '{method}' is not supported by smoothdata2 in this version."));
+    }
+    let wv = match o.pos.get(2) {
+        Some(v) => v.to_matrix()?,
+        None => Matrix::scalar(default_window(x.rows().max(x.cols()), 0.25)),
+    };
+    let wins: Vec<Window> = match wv.numel() {
+        1 => vec![window_arg(&Value::Num(wv.clone()))?; 2],
+        2 => vec![window_arg(&Value::num(wv.data[0]))?, window_arg(&Value::num(wv.data[1]))?],
+        _ => {
+            let cells = Value::Num(wv.clone());
+            vec![window_arg(&cells)?; 2]
+        }
+    };
+    let omit = omit_nan(&o, true);
+    let (r, c) = (x.rows(), x.cols());
+    let sr = spans(None, r, wins[0]);
+    let sc = spans(None, c, wins[1]);
+    let wl = |w: &Window| if w.half_open { 2.0 * w.back } else { w.back + w.fwd + 1.0 };
+    let (sig_r, sig_c) = (wl(&wins[0]) / 5.0, wl(&wins[1]) / 5.0);
+    let mut out = x.clone();
+    for j in 0..c {
+        for i in 0..r {
+            let mut vals = Vec::new();
+            let mut wts = Vec::new();
+            for jj in sc[j].lo..sc[j].hi {
+                for ii in sr[i].lo..sr[i].hi {
+                    let v = x.data[jj * r + ii];
+                    if omit && v.is_nan() {
+                        continue;
+                    }
+                    vals.push(v);
+                    let (di, dj) = (ii as f64 - i as f64, jj as f64 - j as f64);
+                    wts.push((-(di * di) / (2.0 * sig_r * sig_r) - (dj * dj) / (2.0 * sig_c * sig_c)).exp());
+                }
+            }
+            out.data[j * r + i] = match method.as_str() {
+                "movmean" => {
+                    if vals.is_empty() {
+                        f64::NAN
+                    } else {
+                        mean(&vals)
+                    }
+                }
+                "movmedian" => median(&mut vals),
+                _ => vals.iter().zip(&wts).map(|(v, w)| v * w).sum::<f64>() / wts.iter().sum::<f64>(),
+            };
+        }
+    }
+    Ok(Some(vec![Value::Num(out), Value::Num(wv)]))
+}
+
+// ---- normalization ----------------------------------------------------------------------------
+
+fn normalize(a: &[Value], nargout: usize) -> Ret {
+    let o = Opts::parse(a, &[], &["DataVariables", "ReplaceValues"])?;
+    let src = arg(&o.pos, 0, "normalize")?;
+    let x = match src {
+        Value::Num(m) if m.kind.is_float() => m.clone(),
+        _ => return rt("Invalid data type. First argument must be of type double, single, table, or timetable."),
+    };
+    let mut p = 1;
+    let mut dim = default_dim(&x.dims);
+    if let Some(Value::Num(m)) = o.pos.get(1) {
+        if m.kind != Kind::Char {
+            dim = dim_at(&o.pos, 1, &x.dims)?;
+            p = 2;
+        }
+    }
+    // (center, scale) steps; each a method name or a value.
+    let mut center: Option<Value> = None;
+    let mut scale: Option<Value> = None;
+    let mut range: Option<(f64, f64)> = None;
+    let mut norm_p: Option<f64> = None;
+    let rest: Vec<Value> = o.pos[p..].to_vec();
+    let mut k = 0;
+    if rest.is_empty() {
+        center = Some(Value::chars("mean"));
+        scale = Some(Value::chars("std"));
+    }
+    while k < rest.len() {
+        let m = lower(&rest[k]).ok_or_else(|| LangError::new("Invalid normalization method.", 0))?;
+        let next = rest.get(k + 1);
+        let next_is_arg = |allow_text: &[&str]| next.map(|v| !v.is_text() || allow_text.contains(&lower(v).unwrap_or_default().as_str())).unwrap_or(false);
+        match m.as_str() {
+            "zscore" => {
+                if next_is_arg(&["std", "robust"]) {
+                    let t = lower(next.unwrap()).unwrap();
+                    k += 1;
+                    if t == "robust" {
+                        center = Some(Value::chars("median"));
+                        scale = Some(Value::chars("mad"));
+                    } else {
+                        center = Some(Value::chars("mean"));
+                        scale = Some(Value::chars("std"));
+                    }
+                } else {
+                    center = Some(Value::chars("mean"));
+                    scale = Some(Value::chars("std"));
+                }
+            }
+            "norm" => {
+                norm_p = Some(if next_is_arg(&[]) {
+                    k += 1;
+                    next.unwrap().scalar()?
+                } else {
+                    2.0
+                });
+            }
+            "range" => {
+                range = Some(if next_is_arg(&[]) {
+                    k += 1;
+                    let r = next.unwrap().to_matrix()?;
+                    if r.numel() != 2 || r.data[0] >= r.data[1] {
+                        return rt("Range must be a 2-element row vector [a b] with a < b.");
+                    }
+                    (r.data[0], r.data[1])
+                } else {
+                    (0.0, 1.0)
+                });
+            }
+            "scale" => {
+                scale = Some(if next_is_arg(&["std", "mad", "first", "iqr"]) {
+                    k += 1;
+                    next.unwrap().clone()
+                } else {
+                    Value::chars("std")
+                });
+            }
+            "center" => {
+                center = Some(if next_is_arg(&["mean", "median"]) {
+                    k += 1;
+                    next.unwrap().clone()
+                } else {
+                    Value::chars("mean")
+                });
+            }
+            "medianiqr" => {
+                center = Some(Value::chars("median"));
+                scale = Some(Value::chars("iqr"));
+            }
+            other => return rt(format!("Invalid normalization method '{other}'.")),
+        }
+        k += 1;
+    }
+    let len = x.dims.get(dim - 1).copied().unwrap_or(1);
+    let mut cs = Vec::new();
+    let mut ss = Vec::new();
+    let stat = |what: &Value, v: &[f64]| -> R<f64> {
+        let vals: Vec<f64> = v.iter().copied().filter(|x| !x.is_nan()).collect();
+        Ok(match lower(what).as_deref() {
+            Some("mean") => mean(&vals),
+            Some("median") => median(&mut vals.clone()),
+            Some("std") => std_of(&vals),
+            Some("mad") => {
+                let m = median(&mut vals.clone());
+                let mut d: Vec<f64> = vals.iter().map(|x| (x - m).abs()).collect();
+                median(&mut d)
+            }
+            Some("first") => v[0],
+            Some("iqr") => {
+                let mut s = vals.clone();
+                s.sort_by(|a, b| a.partial_cmp(b).unwrap());
+                percentile_sorted(&s, 75.0) - percentile_sorted(&s, 25.0)
+            }
+            Some(o) => return rt(format!("Invalid method '{o}'.")),
+            None => what.scalar()?,
+        })
+    };
+    let mut err = None;
+    let out = map_dim(&x, dim, len, |v, _| {
+        let r = (|| -> R<Vec<f64>> {
+            if let Some(pn) = norm_p {
+                let nrm = if pn.is_infinite() {
+                    v.iter().filter(|x| !x.is_nan()).fold(0.0, |m, x| f64::max(m, x.abs()))
+                } else {
+                    v.iter().filter(|x| !x.is_nan()).map(|x| x.abs().powf(pn)).sum::<f64>().powf(1.0 / pn)
+                };
+                cs.push(0.0);
+                ss.push(nrm);
+                return Ok(v.iter().map(|x| x / nrm).collect());
+            }
+            if let Some((lo, hi)) = range {
+                let vals: Vec<f64> = v.iter().copied().filter(|x| !x.is_nan()).collect();
+                let mn = vals.iter().copied().fold(f64::INFINITY, f64::min);
+                let mx = vals.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+                cs.push(mn);
+                ss.push(mx - mn);
+                return Ok(v.iter().map(|x| lo + (x - mn) / (mx - mn) * (hi - lo)).collect());
+            }
+            let c = match &center {
+                Some(cv) => stat(cv, v)?,
+                None => 0.0,
+            };
+            let s = match &scale {
+                Some(sv) => stat(sv, v)?,
+                None => 1.0,
+            };
+            cs.push(c);
+            ss.push(s);
+            Ok(v.iter().map(|x| (x - c) / s).collect())
+        })();
+        r.unwrap_or_else(|e| {
+            err = Some(e);
+            vec![0.0; v.len()]
+        })
+    });
+    if let Some(e) = err {
+        return Err(e);
+    }
+    let out = out.cast_to(x.kind);
+    if nargout < 2 {
+        return one(Value::Num(out));
+    }
+    let rd = with_dim(&x.dims, dim, 1);
+    let cm = Matrix::from_dims(rd.clone(), if center.is_none() && range.is_none() && norm_p.is_none() { vec![0.0; cs.len()] } else { cs }).cast_to(x.kind);
+    let sm = Matrix::from_dims(rd, ss).cast_to(x.kind);
+    let cm = if center.is_none() && range.is_none() { Value::Num(cm) } else { Value::Num(cm) };
+    Ok(Some(vec![Value::Num(out), cm, Value::Num(sm)]))
+}
+
+fn rescale(a: &[Value]) -> R<Matrix> {
+    let o = Opts::parse(a, &[], &["InputMin", "InputMax"])?;
+    let x = num_arg(&o.pos, 0, "rescale")?;
+    if x.is_complex() {
+        return rt("Input must be real.");
+    }
+    let xd = x.clone().cast_to(if x.kind == Kind::Single { Kind::Single } else { Kind::Double });
+    let lo = match o.pos.get(1) {
+        Some(v) => v.to_matrix()?,
+        None => Matrix::scalar(0.0),
+    };
+    let hi = match o.pos.get(2) {
+        Some(v) => v.to_matrix()?,
+        None => Matrix::scalar(1.0),
+    };
+    let finite: Vec<f64> = xd.data.iter().copied().filter(|v| !v.is_nan()).collect();
+    let imin = match o.get("InputMin") {
+        Some(v) => v.to_matrix()?,
+        None => Matrix::scalar(finite.iter().copied().fold(f64::INFINITY, f64::min)),
+    };
+    let imax = match o.get("InputMax") {
+        Some(v) => v.to_matrix()?,
+        None => Matrix::scalar(finite.iter().copied().fold(f64::NEG_INFINITY, f64::max)),
+    };
+    use crate::ast::BinOp;
+    use crate::ops::{broadcast, num_binary};
+    // Clamp to [InputMin, InputMax], then map linearly onto [l, u].
+    let c = broadcast(&broadcast(&xd, &imin, f64::max)?, &imax, f64::min)?;
+    let span = num_binary(BinOp::Sub, &imax, &imin)?;
+    let z = broadcast(&num_binary(BinOp::Sub, &c, &imin)?, &span, |p, q| if q == 0.0 { 0.0 } else { p / q })?;
+    let r = num_binary(BinOp::Add, &lo, &num_binary(BinOp::Mul, &z, &num_binary(BinOp::Sub, &hi, &lo)?)?)?;
+    Ok(r.cast_to(float_kind(x.kind)))
+}
 // ---- dispatch ----------------------------------------------------------------------------------
 
 fn mat(m: Matrix) -> Ret {
@@ -2456,6 +3897,16 @@ pub fn call(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
         "issortedrows" => issortedrows(a),
         "gradient" => gradient(a, nargout),
         "del2" => mat(del2(a)?),
+        "fillmissing" => fillmissing(it, a, nargout),
+        "standardizeMissing" => standardize_missing(a),
+        "rmmissing" => rmmissing(a, nargout),
+        "isoutlier" => isoutlier(a),
+        "filloutliers" => filloutliers(it, a),
+        "rmoutliers" => rmoutliers(a),
+        "smoothdata" => smoothdata(a),
+        "smoothdata2" => smoothdata2(a),
+        "normalize" => normalize(a, nargout),
+        "rescale" => mat(rescale(a)?),
         _ => rt(format!("'{name}' is not supported in this version.")),
     }
 }
