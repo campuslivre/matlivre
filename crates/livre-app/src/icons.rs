@@ -58,7 +58,16 @@ pub enum Ic {
     Md,
     File,
     BrazilFlag,
+    /// The MatLivre app icon (its 16 px variant, for the title bar).
+    AppMark,
 }
+
+/// The MatLivre icon by target size: the master for 48 px and up, `-32` for 25 to 47 px,
+/// `-16` for 24 px and below.
+pub const APP_ICON: &str = include_str!("../assets/matlivre.svg");
+#[cfg(test)]
+pub const APP_ICON_32: &str = include_str!("../assets/matlivre-32.svg");
+pub const APP_ICON_16: &str = include_str!("../assets/matlivre-16.svg");
 
 const G: &str = "#13A10E";
 const B: &str = "#0F6CBD";
@@ -256,6 +265,8 @@ fn body(ic: Ic, bg: &str, fg: &str) -> String {
                 + &circle(8.0, 8.0, 2.6, "#002776")
                 + &l("M5.6 7.4C7 7 8.9 7.2 10.4 8.3", "#FFFFFF", 0.6)
         }
+        // Drawn from its own document in `paint_with`.
+        Ic::AppMark => String::new(),
     }
 }
 
@@ -267,12 +278,93 @@ type Key = (Ic, u32, bool, [u8; 4], [u8; 4]);
 
 static CACHE: Mutex<Option<HashMap<Key, TextureHandle>>> = Mutex::new(None);
 
-fn rasterize(svg: &str, px: u32, disabled: bool) -> Option<ColorImage> {
+/// Renders a square SVG document at `px` × `px` pixels (premultiplied RGBA).
+pub fn render(svg: &str, px: u32) -> Option<resvg::tiny_skia::Pixmap> {
     let tree = resvg::usvg::Tree::from_str(svg, &resvg::usvg::Options::default()).ok()?;
     let mut pixmap = resvg::tiny_skia::Pixmap::new(px, px)?;
-    let s = px as f32 / 16.0;
+    let s = px as f32 / tree.size().width();
     resvg::render(&tree, resvg::tiny_skia::Transform::from_scale(s, s), &mut pixmap.as_mut());
-    let mut data = pixmap.take();
+    Some(pixmap)
+}
+
+/// The window icon (taskbar, Alt+Tab) for platforms that take it from the window; on Windows
+/// the sized icons embedded in the exe replace it.
+pub fn window_icon() -> egui::IconData {
+    let px = 256;
+    let rgba = render(APP_ICON, px)
+        .map(|p| {
+            p.pixels()
+                .iter()
+                .flat_map(|c| {
+                    let c = c.demultiply();
+                    [c.red(), c.green(), c.blue(), c.alpha()]
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    egui::IconData { rgba, width: px, height: px }
+}
+
+/// The sizes in the exe's icon and the SVG variant each is drawn from.
+#[cfg(test)]
+const ICO_SIZES: [(u32, &str); 9] =
+    [(16, APP_ICON_16), (20, APP_ICON_16), (24, APP_ICON_16), (32, APP_ICON_32), (40, APP_ICON_32), (48, APP_ICON), (64, APP_ICON), (128, APP_ICON), (256, APP_ICON)];
+
+/// A multi-size `.ico` of the app icon, each size a PNG drawn from its own SVG variant.
+#[cfg(test)]
+pub fn app_ico() -> Vec<u8> {
+    let images: Vec<(u32, Vec<u8>)> = ICO_SIZES.iter().filter_map(|&(px, svg)| Some((px, ico_image(&render(svg, px)?)?))).collect();
+    let mut out = Vec::new();
+    // ICONDIR: reserved, type 1 (icon), count.
+    out.extend([0u16, 1, images.len() as u16].iter().flat_map(|v| v.to_le_bytes()));
+    let mut offset = 6 + 16 * images.len() as u32;
+    for (px, data) in &images {
+        // ICONDIRENTRY: width and height (0 means 256), colours, reserved, planes, bits per pixel.
+        let side = if *px >= 256 { 0 } else { *px as u8 };
+        out.extend([side, side, 0, 0]);
+        out.extend(1u16.to_le_bytes());
+        out.extend(32u16.to_le_bytes());
+        out.extend((data.len() as u32).to_le_bytes());
+        out.extend(offset.to_le_bytes());
+        offset += data.len() as u32;
+    }
+    for (_, data) in images {
+        out.extend(data);
+    }
+    out
+}
+
+/// One icon image: PNG at 256 px, as is usual; below that a 32-bit bitmap (bottom-up BGRA
+/// with straight alpha, then an empty AND mask), which every icon reader understands.
+#[cfg(test)]
+fn ico_image(p: &resvg::tiny_skia::Pixmap) -> Option<Vec<u8>> {
+    let (w, h) = (p.width(), p.height());
+    if w >= 256 {
+        return p.encode_png().ok();
+    }
+    let mask_row = w.div_ceil(32) * 4;
+    let mut out = Vec::new();
+    // BITMAPINFOHEADER; the height counts the colour rows and the mask rows.
+    for v in [40u32, w, 2 * h] {
+        out.extend(v.to_le_bytes());
+    }
+    out.extend(1u16.to_le_bytes());
+    out.extend(32u16.to_le_bytes());
+    for v in [0u32, w * h * 4 + mask_row * h, 0, 0, 0, 0] {
+        out.extend(v.to_le_bytes());
+    }
+    for row in (0..h).rev() {
+        for c in &p.pixels()[(row * w) as usize..((row + 1) * w) as usize] {
+            let c = c.demultiply();
+            out.extend([c.blue(), c.green(), c.red(), c.alpha()]);
+        }
+    }
+    out.resize(out.len() + (mask_row * h) as usize, 0);
+    Some(out)
+}
+
+fn rasterize(svg: &str, px: u32, disabled: bool) -> Option<ColorImage> {
+    let mut data = render(svg, px)?.take();
     if disabled {
         // filter: grayscale(1); opacity: .45 (on premultiplied pixels).
         for p in data.as_chunks_mut::<4>().0 {
@@ -296,7 +388,11 @@ pub fn paint_with(ui: &egui::Ui, skin: &Skin, ic: Ic, center: egui::Pos2, size: 
     let tex = match cache.get(&key) {
         Some(t) => t.clone(),
         None => {
-            let svg = format!(r#"<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">{}</svg>"#, body(ic, &hex(skin.window), &hex(fg)));
+            let svg = if ic == Ic::AppMark {
+                APP_ICON_16.to_string()
+            } else {
+                format!(r#"<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">{}</svg>"#, body(ic, &hex(skin.window), &hex(fg)))
+            };
             let Some(img) = rasterize(&svg, px, disabled) else { return };
             let t = ui.ctx().load_texture(format!("icon-{ic:?}-{px}"), img, TextureOptions::LINEAR);
             cache.insert(key, t.clone());
@@ -323,5 +419,25 @@ pub fn for_file(name: &str) -> Ic {
         Some("csv") | Some("xlsx") | Some("xls") => Ic::Csv,
         Some("md") => Ic::Md,
         _ => Ic::File,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    const ICO: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/assets/matlivre.ico");
+
+    /// Regenerates the icon embedded in the exe after the SVGs change:
+    /// `cargo test -p livre-app write_app_ico -- --ignored`.
+    #[test]
+    #[ignore]
+    fn write_app_ico() {
+        std::fs::write(ICO, super::app_ico()).unwrap();
+    }
+
+    #[test]
+    fn app_ico_matches_the_svgs() {
+        let ico = std::fs::read(ICO).unwrap();
+        assert!(ico == super::app_ico(), "assets/matlivre.ico is stale; run the ignored write_app_ico test");
+        assert_eq!(u16::from_le_bytes([ico[4], ico[5]]), 9);
     }
 }

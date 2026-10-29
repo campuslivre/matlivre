@@ -18,5 +18,8 @@ raw-window-handle = "0.6"
 resvg = "0.49"
 arboard = "3.7"
 
+[build-dependencies]
+embed-resource = "3"
+
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_UI_WindowsAndMessaging", "Win32_UI_Input_KeyboardAndMouse", "Win32_Storage_FileSystem", "Win32_Graphics_Dwm", "Win32_UI_Controls", "Win32_UI_HiDpi"] }
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_UI_WindowsAndMessaging", "Win32_UI_Input_KeyboardAndMouse", "Win32_Storage_FileSystem", "Win32_Graphics_Dwm", "Win32_UI_Controls", "Win32_UI_HiDpi", "Win32_System_LibraryLoader"] }

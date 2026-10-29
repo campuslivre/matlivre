@@ -372,23 +372,6 @@ pub fn tool_button(ui: &mut Ui, skin: &Skin, ic: Ic, size: f32, tip: &str) -> Re
     resp.on_hover_text(tip)
 }
 
-/// The drawer header's collapse chevron (pointing left) and maximize button glyphs.
-pub fn glyph_button(ui: &mut Ui, skin: &Skin, maximize: bool, tip: &str) -> Response {
-    let (rect, resp) = ui.allocate_exact_size(vec2(24.0, 24.0), Sense::click());
-    let p = ui.painter();
-    if resp.hovered() {
-        p.rect_filled(rect, Rounding::same(RADIUS), skin.subtle_hover);
-    }
-    let c = pos2(rect.center().x.round() + 0.5, rect.center().y.round() + 0.5);
-    let s = Stroke::new(1.0_f32, skin.text_secondary);
-    if maximize {
-        p.rect_stroke(Rect::from_center_size(c, vec2(9.0, 9.0)), Rounding::same(1.5), s);
-    } else {
-        p.add(Shape::line(vec![pos2(c.x + 2.0, c.y - 4.0), pos2(c.x - 2.0, c.y), pos2(c.x + 2.0, c.y + 4.0)], s));
-    }
-    resp.on_hover_text(tip)
-}
-
 /// One ModernWinForms tree row (28 px): indent, 16 px expander, 16 px icon, name. The
 /// selected row has the 3 × 16 accent pill.
 #[allow(clippy::too_many_arguments)]

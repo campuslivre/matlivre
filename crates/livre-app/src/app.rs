@@ -267,6 +267,7 @@ impl App {
             if place {
                 w.place((DEFAULT_SIZE[0], DEFAULT_SIZE[1]), (MIN_SIZE[0], MIN_SIZE[1]));
             }
+            w.use_exe_icon();
             w.round_corners(rgb(skin.frame))
         });
         let incoming = transfer::listen(cc.egui_ctx.clone()).map(|(port, rx)| {
@@ -1552,25 +1553,7 @@ impl App {
     fn files_panel(&mut self, ui: &mut Ui, rect: Rect) {
         let skin = self.skin.clone();
         let mut ui = Self::card(ui, &skin, rect);
-        let mut hide = false;
-        let mut maximize = false;
-        let mut pick = false;
-        Self::drawer_header(&mut ui, &skin, Some(Ic::Folder), "Files", |ui| {
-            hide = widgets::glyph_button(ui, &skin, false, "Hide files").clicked();
-            maximize = widgets::glyph_button(ui, &skin, true, "Maximize").clicked();
-            pick = widgets::tool_button(ui, &skin, Ic::Folder, 14.0, "Open folder").clicked();
-        });
-        if hide {
-            self.files_open = false;
-        }
-        if maximize {
-            self.files_w = if self.files_w < 420.0 { 420.0 } else { 248.0 };
-        }
-        if pick {
-            if let Some(dir) = rfd::FileDialog::new().pick_folder() {
-                self.tree.reveal(&dir);
-            }
-        }
+        Self::drawer_header(&mut ui, &skin, Some(Ic::Folder), "Files", |_| {});
         let selected = self.tab().path.clone();
         let mut toggle = None;
         let mut open = None;
@@ -1995,15 +1978,10 @@ fn style_scroll_bar(ui: &mut Ui, skin: &Skin) {
     }
 }
 
+/// The MatLivre icon at 18 px, from its 16 px variant.
 fn app_logo(ui: &mut Ui, skin: &Skin) {
     let (r, _) = ui.allocate_exact_size(vec2(18.0, 18.0), Sense::hover());
-    let p = ui.painter();
-    p.rect_filled(r, Rounding::same(4.0), skin.accent);
-    let pts: Vec<Pos2> = [(3.0, 10.0), (4.5, 7.2), (6.0, 6.0), (7.5, 7.2), (9.0, 10.0), (10.5, 12.8), (12.0, 14.0), (13.5, 12.8), (15.0, 10.0)]
-        .iter()
-        .map(|&(x, y)| r.min + vec2(x, y))
-        .collect();
-    p.add(egui::Shape::line(pts, Stroke::new(1.6_f32, skin.on_accent)));
+    icons::paint(ui, skin, Ic::AppMark, r.center(), 18.0, false);
 }
 
 /// The overflow "…" button, 32 × 32.

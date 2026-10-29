@@ -43,6 +43,7 @@ fn main() -> eframe::Result<()> {
         .with_title("matlivre")
         .with_inner_size(app::DEFAULT_SIZE)
         .with_min_inner_size(app::MIN_SIZE)
+        .with_icon(std::sync::Arc::new(icons::window_icon()))
         .with_decorations(false)
         .with_resizable(true);
     if let Some(p) = at {

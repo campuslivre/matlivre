@@ -1,10 +1,13 @@
 @echo off
-rem Builds (if needed) and starts matlivre. Usage: run.bat [debug] [file.mlx|file.m]
+rem Builds (if needed) and starts matlivre. Usage: run.bat [debug|fast] [file.mlx|file.m]
 setlocal
 
 set "PROFILE=--release"
 if /i "%~1"=="debug" (
     set "PROFILE="
+    shift
+) else if /i "%~1"=="fast" (
+    set "PROFILE=--profile fast"
     shift
 )
 

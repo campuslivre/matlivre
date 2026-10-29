@@ -14,3 +14,12 @@ codegen-units = 1
 
 [profile.dev.package."*"]
 opt-level = 2
+
+# For trying changes at close to release speed: optimised, but without the whole-program
+# link-time optimisation and single codegen unit that make release builds slow to redo.
+# cargo build --profile fast -p livre-app  ->  target\fast\matlivre.exe
+[profile.fast]
+inherits = "release"
+lto = false
+codegen-units = 16
+incremental = true

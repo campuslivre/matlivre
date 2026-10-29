@@ -11,10 +11,12 @@ mod imp {
     use windows_sys::Win32::Graphics::Dwm::{DwmExtendFrameIntoClientArea, DwmSetWindowAttribute, DWMWA_BORDER_COLOR, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND};
     use windows_sys::Win32::Graphics::Gdi::{GetMonitorInfoW, MonitorFromPoint, MONITORINFO, MONITOR_DEFAULTTONEAREST};
     use windows_sys::Win32::UI::Controls::MARGINS;
-    use windows_sys::Win32::UI::HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI};
+    use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
+    use windows_sys::Win32::UI::HiDpi::{GetDpiForMonitor, GetDpiForWindow, GetSystemMetricsForDpi, MDT_EFFECTIVE_DPI};
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON};
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        GetAncestor, GetCursorPos, GetPropW, SetPropW, SetWindowPos, WindowFromPoint, GA_ROOT, SWP_NOACTIVATE, SWP_NOZORDER,
+        GetAncestor, GetCursorPos, GetPropW, LoadImageW, SendMessageW, SetPropW, SetWindowPos, WindowFromPoint, GA_ROOT, ICON_BIG, ICON_SMALL, IMAGE_ICON,
+        SM_CXICON, SM_CXSMICON, SWP_NOACTIVATE, SWP_NOZORDER, WM_SETICON,
     };
 
     /// "matlivre.port", NUL-terminated UTF-16.
@@ -57,6 +59,22 @@ mod imp {
                 unsafe { DwmExtendFrameIntoClientArea(self.0, &m) };
             }
             ok
+        }
+
+        /// Uses the icon embedded in the exe (resource 1) at the sizes Windows wants at this
+        /// window's DPI, each drawn for its size rather than one image scaled.
+        pub fn use_exe_icon(&self) {
+            unsafe {
+                let module = GetModuleHandleW(std::ptr::null());
+                let dpi = GetDpiForWindow(self.0);
+                for (which, metric) in [(ICON_SMALL, SM_CXSMICON), (ICON_BIG, SM_CXICON)] {
+                    let px = GetSystemMetricsForDpi(metric, dpi);
+                    let icon = LoadImageW(module, 1 as _, IMAGE_ICON, px, px, 0);
+                    if !icon.is_null() {
+                        SendMessageW(self.0, WM_SETICON, which as usize, icon as isize);
+                    }
+                }
+            }
         }
 
         pub fn set_border(&self, [r, g, b]: [u8; 3]) {
@@ -181,6 +199,7 @@ mod imp {
             false
         }
         pub fn set_border(&self, _: [u8; 3]) {}
+        pub fn use_exe_icon(&self) {}
         pub fn place(&self, _: (f32, f32), _: (f32, f32)) {}
         pub fn under_cursor(&self, _: (i32, i32)) -> Under {
             Under::Other

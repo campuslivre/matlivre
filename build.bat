@@ -1,6 +1,7 @@
 @echo off
-rem Builds matlivre. Usage: build.bat [debug]
-rem Release output: target\release\matlivre.exe  (debug: target\debug\matlivre.exe)
+rem Builds matlivre. Usage: build.bat [debug|fast]
+rem Release output: target\release\matlivre.exe  (debug: target\debug\matlivre.exe,
+rem fast: target\fast\matlivre.exe, optimised but much quicker to rebuild than release)
 setlocal
 cd /d "%~dp0"
 
@@ -15,6 +16,10 @@ if /i "%~1"=="debug" (
     cargo build -p livre-app || exit /b 1
     echo.
     echo Built target\debug\matlivre.exe
+) else if /i "%~1"=="fast" (
+    cargo build --profile fast -p livre-app || exit /b 1
+    echo.
+    echo Built target\fast\matlivre.exe
 ) else (
     cargo build --release -p livre-app || exit /b 1
     echo.
