@@ -26,7 +26,9 @@ for b in $(git -C "$root" for-each-ref --format='%(refname)' 'refs/heads/claude/
 done | { grep -oE '"[A-Za-z0-9_]+"' || true; } | tr -d '"' | sort -u > "$tmp/branch.txt"
 
 awk -f "$here/classify.awk" "$tmp/missing.txt" "$here/scope.tsv" |
-  awk -F'\t' -v OFS='\t' 'NR==FNR{b[$1]=1; next} {if ($3=="todo" && ($2 in b)) $3="branch"; print}' "$tmp/branch.txt" - > "$tmp/classified.tsv"
+  awk -F'\t' -v OFS='\t' -v names="$tmp/branch.txt" '
+    BEGIN { while ((getline n < names) > 0) b[n] = 1 }
+    { if ($3 == "todo" && ($2 in b)) $3 = "branch"; print }' > "$tmp/classified.tsv"
 
 # Newly implemented since the previous checklist.
 doc="$root/docs/matlab-coverage.md"
