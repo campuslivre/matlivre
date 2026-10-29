@@ -23,7 +23,7 @@ for b in $(git -C "$root" for-each-ref --format='%(refname)' 'refs/heads/claude/
   for f in $(git -C "$root" ls-tree -r --name-only "$b" crates/livre-lang/src | grep -E 'builtins_|_classes|polyshape'); do
     git -C "$root" show "$b:$f" | awk '/pub const NAMES/,/\];/'
   done
-done | grep -oE '"[A-Za-z0-9_]+"' | tr -d '"' | sort -u > "$tmp/branch.txt"
+done | { grep -oE '"[A-Za-z0-9_]+"' || true; } | tr -d '"' | sort -u > "$tmp/branch.txt"
 
 awk -f "$here/classify.awk" "$tmp/missing.txt" "$here/scope.tsv" |
   awk -F'\t' -v OFS='\t' 'NR==FNR{b[$1]=1; next} {if ($3=="todo" && ($2 in b)) $3="branch"; print}' "$tmp/branch.txt" - > "$tmp/classified.tsv"
