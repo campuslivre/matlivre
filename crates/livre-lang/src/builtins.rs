@@ -36,7 +36,7 @@ const NAMES: &[&str] = &[
 pub fn exists(name: &str) -> bool {
     static ALL: std::sync::OnceLock<std::collections::HashSet<&'static str>> = std::sync::OnceLock::new();
     ALL.get_or_init(|| {
-        [NAMES, crate::builtins_text::NAMES, crate::builtins_plot::NAMES, crate::time::NAMES, crate::table::NAMES, crate::sym::NAMES]
+        [NAMES, crate::builtins_elfun::NAMES, crate::builtins_text::NAMES, crate::builtins_plot::NAMES, crate::time::NAMES, crate::table::NAMES, crate::sym::NAMES]
             .iter()
             .flat_map(|n| n.iter().copied())
             .collect()
@@ -128,11 +128,11 @@ pub(crate) fn size_args(args: &[Value]) -> R<Dims> {
 }
 
 /// First non-singleton dimension (1-based).
-fn default_dim(d: &[usize]) -> usize {
+pub(crate) fn default_dim(d: &[usize]) -> usize {
     d.iter().position(|&x| x != 1).map(|p| p + 1).unwrap_or(1)
 }
 
-fn dim_arg(args: &[Value], i: usize, m: &Matrix) -> R<usize> {
+pub(crate) fn dim_arg(args: &[Value], i: usize, m: &Matrix) -> R<usize> {
     match args.get(i) {
         Some(v) if !v.is_text() && !matches!(v, Value::Num(x) if x.is_empty()) => {
             let d = v.scalar()?;
@@ -146,7 +146,7 @@ fn dim_arg(args: &[Value], i: usize, m: &Matrix) -> R<usize> {
 }
 
 /// Positions of the slices along dimension `dim` (1-based): one Vec per output element.
-fn slices(d: &[usize], dim: usize) -> (Dims, Vec<Vec<usize>>) {
+pub(crate) fn slices(d: &[usize], dim: usize) -> (Dims, Vec<Vec<usize>>) {
     let k = dim - 1;
     if k >= d.len() {
         let n = nd::numel(d);
@@ -312,15 +312,24 @@ pub(crate) fn values_equal(a: &Value, b: &Value) -> bool {
 }
 
 /// Elementwise math with MATLAB's complex extensions of the real domain.
-fn unary_math(name: &str, m: &Matrix) -> Option<R<Matrix>> {
+pub(crate) fn unary_math(name: &str, m: &Matrix) -> Option<R<Matrix>> {
     let real: Option<fn(f64) -> f64> = match name {
         "floor" => Some(f64::floor),
         "ceil" => Some(f64::ceil),
         "fix" => Some(f64::trunc),
         "sign" => Some(|x: f64| if x > 0.0 { 1.0 } else if x < 0.0 { -1.0 } else if x == 0.0 { 0.0 } else { f64::NAN }),
-        "sind" => Some(|x: f64| if (x % 180.0) == 0.0 { 0.0 } else { x.to_radians().sin() }),
+        // Exact zeros and infinities at multiples of 90 degrees, signed as MATLAB signs them
+        // (sind(-180) is -0, tand(180) is -0, tand(270) is -Inf).
+        "sind" => Some(|x: f64| if (x % 180.0) == 0.0 { 0.0f64.copysign(x) } else { x.to_radians().sin() }),
         "cosd" => Some(|x: f64| if ((x - 90.0) % 180.0) == 0.0 { 0.0 } else { x.to_radians().cos() }),
-        "tand" => Some(|x: f64| if (x % 180.0) == 0.0 { 0.0 } else { x.to_radians().tan() }),
+        "tand" => Some(|x: f64| match x.rem_euclid(360.0) {
+            _ if x == 0.0 => x,
+            r if r == 0.0 => 0.0,
+            r if r == 180.0 => -0.0,
+            r if r == 90.0 => f64::INFINITY,
+            r if r == 270.0 => f64::NEG_INFINITY,
+            _ => x.to_radians().tan(),
+        }),
         "asind" => Some(|x: f64| x.asin().to_degrees()),
         "acosd" => Some(|x: f64| x.acos().to_degrees()),
         "atand" => Some(|x: f64| x.atan().to_degrees()),
@@ -332,6 +341,13 @@ fn unary_math(name: &str, m: &Matrix) -> Option<R<Matrix>> {
         "log1p" => Some(f64::ln_1p),
         _ => None,
     };
+    const COMPLEX_MATH: &[&str] = &[
+        "sin", "cos", "tan", "sinh", "cosh", "tanh", "exp", "log", "sqrt", "asin", "acos", "atan", "log10", "log2", "asinh", "acosh", "atanh", "abs",
+        "round",
+    ];
+    if real.is_none() && !COMPLEX_MATH.contains(&name) {
+        return None;
+    }
     let int_ok = matches!(name, "abs" | "sign" | "floor" | "ceil" | "fix" | "round");
     if m.kind.is_int() && !int_ok {
         return Some(rt(format!("Undefined function '{name}' for input arguments of type '{}'.", m.kind.name())));
@@ -389,13 +405,14 @@ fn unary_math(name: &str, m: &Matrix) -> Option<R<Matrix>> {
     };
     // Real inputs stay on the real fast path unless the result leaves the real line.
     if !m.is_complex() {
-        let leaves = match name {
-            "sqrt" | "log" | "log10" | "log2" => m.data.iter().any(|&x| x < 0.0),
-            "asin" | "acos" | "atanh" => m.data.iter().any(|&x| x.abs() > 1.0),
-            "acosh" => m.data.iter().any(|&x| x < 1.0),
+        let outside = |x: f64| match name {
+            "sqrt" | "log" | "log10" | "log2" => x < 0.0,
+            "asin" | "acos" | "atanh" => x.abs() > 1.0,
+            "acosh" => x < 1.0,
             _ => false,
         };
-        if !leaves {
+        let leaves = m.data.iter().any(|&x| outside(x));
+        {
             let f: fn(f64) -> f64 = match name {
                 "sin" => f64::sin,
                 "cos" => f64::cos,
@@ -415,10 +432,39 @@ fn unary_math(name: &str, m: &Matrix) -> Option<R<Matrix>> {
                 "acosh" => f64::acosh,
                 _ => f64::atanh,
             };
-            return Some(Ok(keep(m.map(f))));
+            if !leaves {
+                return Some(Ok(keep(m.map(f))));
+            }
+            // A complex result, but elements inside the real domain stay exact, and those
+            // outside take MATLAB's closed form on the branch cut.
+            let (re, im): (Vec<f64>, Vec<f64>) =
+                m.data.iter().map(|&x| if outside(x) { real_branch(name, x) } else { (f(x), 0.0) }).unzip();
+            return Some(Ok(keep(Matrix::complex(m.dims.clone(), re, im))));
         }
     }
     Some(Ok(keep(map_c(m, cf))))
+}
+
+/// The complex value of an inverse or logarithmic function at a real `x` outside its real
+/// domain, in MATLAB's branch (real inputs approach the cuts from above).
+fn real_branch(name: &str, x: f64) -> (f64, f64) {
+    use std::f64::consts::{FRAC_PI_2, LN_10, LN_2, PI};
+    match name {
+        "sqrt" => (0.0, (-x).sqrt()),
+        "log" => ((-x).ln(), PI),
+        "log10" => ((-x).log10(), PI / LN_10),
+        "log2" => ((-x).log2(), PI / LN_2),
+        "asin" if x > 0.0 => (FRAC_PI_2, -x.acosh()),
+        "asin" => (-FRAC_PI_2, (-x).acosh()),
+        "acos" if x > 0.0 => (0.0, x.acosh()),
+        "acos" => (PI, -(-x).acosh()),
+        "acosh" if x >= -1.0 => (0.0, x.acos()),
+        "acosh" => ((-x).acosh(), PI),
+        // atanh, |x| > 1.
+        _ if x.is_infinite() => (0.0f64.copysign(x), FRAC_PI_2.copysign(x)),
+        // atanh(1/x) by Kahan's form, accurate also for large |x|.
+        _ => (0.25 * (4.0 * x / ((x - 1.0) * (x - 1.0))).ln_1p(), FRAC_PI_2.copysign(x)),
+    }
 }
 
 impl Interpreter {
@@ -476,6 +522,9 @@ pub fn call(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize) 
         if let Some(r) = crate::table::call(&names, name, &args, nargout)? {
             return Ok(Some(r));
         }
+    }
+    if let Some(r) = crate::builtins_elfun::call(name, &args, nargout)? {
+        return Ok(Some(r));
     }
     if let Some(r) = crate::builtins_text::call(it, name, &args, nargout)? {
         return Ok(Some(r));
@@ -1619,6 +1668,8 @@ pub fn call(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize) 
             Ok(Some(args.clone()))
         }
         "func2str" => match arg(a, 0, name)? {
+            // A named handle gives its bare name (func2str(@sin) is 'sin'), an anonymous one its text.
+            Value::Func(crate::value::FuncValue::Named(n)) => one(Value::chars(n)),
             Value::Func(f) => one(Value::chars(&crate::display::func_text(f))),
             _ => rt("Input must be a function handle."),
         },
