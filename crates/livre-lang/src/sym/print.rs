@@ -1,5 +1,8 @@
 //! Printers: MATLAB `char(sym)` text, LaTeX, and elementwise MATLAB code (`matlabFunction`).
 
+use num_bigint::BigInt;
+use num_rational::BigRational;
+
 use super::expr::{Const, Expr, Num, Rel};
 use crate::display::fmt_g;
 
@@ -14,11 +17,49 @@ const P_MUL: u8 = 2;
 const P_POW: u8 = 4;
 const P_ATOM: u8 = 5;
 
-fn num_text(n: Num, style: Style) -> String {
+/// A vpa number as MATLAB prints it: `digits` significant digits with trailing zeros
+/// dropped, in full while the decimal exponent is within [-32, 32] (whole numbers end in
+/// `.0`), otherwise as `d.ddd...e+NN`.
+pub fn vpa_text(r: &BigRational) -> String {
+    use num_traits::{Signed, Zero};
+    if r.is_zero() {
+        return "0.0".into();
+    }
+    let digits = crate::sym::expr::digits() as i64;
+    let e = crate::sym::expr::decimal_exponent(r);
+    // r is already rounded to `digits` significant digits: its digit string is exact.
+    let scaled = r.abs() * BigRational::from_integer(BigInt::from(10).pow((digits - 1 - e).max(0) as u32))
+        / BigRational::from_integer(BigInt::from(10).pow((e - (digits - 1)).max(0) as u32));
+    let mut ds = scaled.round().to_integer().to_string();
+    while ds.len() > 1 && ds.ends_with('0') {
+        ds.pop();
+    }
+    let sign = if r.is_negative() { "-" } else { "" };
+    if !(-32..=32).contains(&e) {
+        let frac = if ds.len() > 1 { &ds[1..] } else { "0" };
+        return format!("{sign}{}.{frac}e{}{}", &ds[..1], if e < 0 { "-" } else { "+" }, e.abs());
+    }
+    if e < 0 {
+        format!("{sign}0.{}{ds}", "0".repeat((-e - 1) as usize))
+    } else {
+        let int_len = (e + 1) as usize;
+        if ds.len() <= int_len {
+            format!("{sign}{ds}{}.0", "0".repeat(int_len - ds.len()))
+        } else {
+            format!("{sign}{}.{}", &ds[..int_len], &ds[int_len..])
+        }
+    }
+}
+
+fn num_text(n: &Num, style: Style) -> String {
     match n {
         Num::Rat(p, 1) => p.to_string(),
         Num::Rat(p, q) => format!("{p}/{q}"),
+        Num::Big(r) if r.is_integer() => r.numer().to_string(),
+        Num::Big(r) => format!("{}/{}", r.numer(), r.denom()),
+        Num::Vpa(r) => vpa_text(r),
         Num::F(x) => {
+            let x = *x;
             if style == Style::Code {
                 fmt_g(x, 17)
             } else {
@@ -84,7 +125,7 @@ fn fraction(e: &Expr) -> (Num, Vec<Expr>, Vec<Expr>) {
     let mut den = Vec::new();
     for f in factors {
         match &f {
-            Expr::Num(n) => coeff = coeff.mul(*n),
+            Expr::Num(n) => coeff = coeff.mul(n),
             Expr::Pow(b, x) if x.as_num().map(|n| n.is_neg()).unwrap_or(false) => {
                 den.push(Expr::pow((**b).clone(), Expr::Num(x.as_num().unwrap().neg())));
             }
@@ -106,7 +147,7 @@ fn pr(e: &Expr, style: Style) -> (String, u8) {
     let (mul_op, div_op, pow_op) = if style == Style::Code { (".*", "./", ".^") } else { ("*", "/", "^") };
     match e {
         Expr::Num(n) => {
-            let s = num_text(*n, style);
+            let s = num_text(n, style);
             let prec = if n.is_neg() || matches!(n, Num::Rat(_, q) if *q != 1) { P_MUL } else { P_ATOM };
             (s, prec)
         }
@@ -166,14 +207,14 @@ fn pr(e: &Expr, style: Style) -> (String, u8) {
             };
             let mut num_parts: Vec<String> = Vec::new();
             if !cp.is_one() || num.is_empty() {
-                num_parts.push(num_text(cp, style));
+                num_parts.push(num_text(&cp, style));
             }
             for f in &num {
                 num_parts.push(wrap(pr(f, style), P_MUL));
             }
             let mut den_parts: Vec<String> = Vec::new();
             if !cq.is_one() {
-                den_parts.push(num_text(cq, style));
+                den_parts.push(num_text(&cq, style));
             }
             for f in &den {
                 den_parts.push(wrap(pr(f, style), P_MUL + 1));
@@ -223,6 +264,9 @@ fn lx(e: &Expr) -> (String, u8) {
         Expr::Num(Num::Rat(p, 1)) => (p.to_string(), if *p < 0 { P_MUL } else { P_ATOM }),
         Expr::Num(Num::Rat(p, q)) => (format!("{}\\frac{{{}}}{{{q}}}", if *p < 0 { "-" } else { "" }, p.abs()), P_MUL),
         Expr::Num(Num::F(x)) => (fmt_g(*x, 16), P_ATOM),
+        Expr::Num(Num::Big(r)) if r.is_integer() => (r.numer().to_string(), P_ATOM),
+        Expr::Num(Num::Big(r)) => (format!("{}\\frac{{{}}}{{{}}}", if r.numer().sign() == num_bigint::Sign::Minus { "-" } else { "" }, r.numer().magnitude(), r.denom()), P_MUL),
+        Expr::Num(Num::Vpa(r)) => (vpa_text(r), P_ATOM),
         Expr::Var(v) => (v.clone(), P_ATOM),
         Expr::Const(Const::Pi) => ("\\pi ".into(), P_ATOM),
         Expr::Const(Const::I) => ("\\mathrm{i}".into(), P_ATOM),
@@ -252,8 +296,10 @@ fn lx(e: &Expr) -> (String, u8) {
             let negative = coeff.is_neg();
             let c = if negative { coeff.neg() } else { coeff };
             let (cp, cq) = match c {
-                Num::Rat(p, q) => (p.to_string(), q),
-                Num::F(f) => (fmt_g(f, 16), 1),
+                Num::Rat(p, q) => (p.to_string(), q.to_string()),
+                Num::Big(r) => (r.numer().to_string(), r.denom().to_string()),
+                Num::Vpa(r) => (vpa_text(&r), "1".to_string()),
+                Num::F(f) => (fmt_g(f, 16), "1".to_string()),
             };
             let mut ns: Vec<String> = Vec::new();
             if cp != "1" || num.is_empty() {
@@ -262,8 +308,8 @@ fn lx(e: &Expr) -> (String, u8) {
             ns.extend(num.iter().map(|f| lwrap(lx(f), P_MUL)));
             let n = ns.join("\\,");
             let mut ds: Vec<String> = Vec::new();
-            if cq != 1 {
-                ds.push(cq.to_string());
+            if cq != "1" {
+                ds.push(cq);
             }
             ds.extend(den.iter().map(|f| lwrap(lx(f), P_MUL)));
             let s = if ds.is_empty() { n } else { format!("\\frac{{{n}}}{{{}}}", ds.join("\\,")) };

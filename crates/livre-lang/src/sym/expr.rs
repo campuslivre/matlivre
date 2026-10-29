@@ -6,10 +6,36 @@ use std::cmp::Ordering;
 
 use crate::cplx::C;
 
-/// Exact rational (normalized, positive denominator) or a floating value (`vpa`).
-#[derive(Debug, Clone, Copy, PartialEq)]
+use std::borrow::Borrow;
+use std::cell::Cell;
+use std::rc::Rc;
+
+use num_bigint::BigInt;
+use num_integer::Integer;
+use num_rational::BigRational;
+use num_traits::{One, Signed, ToPrimitive, Zero};
+
+thread_local! {
+    /// Significant decimal digits of `vpa` results (MATLAB's `digits`, 32 by default).
+    static DIGITS: Cell<u32> = const { Cell::new(32) };
+}
+
+pub fn digits() -> u32 {
+    DIGITS.with(|d| d.get())
+}
+
+pub fn set_digits(n: u32) {
+    DIGITS.with(|d| d.set(n));
+}
+
+/// A symbolic number: an exact rational (`Rat` while it fits in i128, `Big` beyond), a
+/// variable-precision value from `vpa` (a decimal rounded to `digits()` significant digits),
+/// or a plain double.
+#[derive(Debug, Clone, PartialEq)]
 pub enum Num {
     Rat(i128, i128),
+    Big(Rc<BigRational>),
+    Vpa(Rc<BigRational>),
     F(f64),
 }
 
@@ -21,6 +47,106 @@ fn gcd(a: i128, b: i128) -> i128 {
         b = t;
     }
     a
+}
+
+/// Bounds of the "modest" integers MATLAB's sym() recognises in p/q, p*pi/q and sqrt(p).
+const MODEST: f64 = 100_000.0;
+
+/// The fraction p/q with |p|, q <= 100000 that `x` is within 100*eps (relative) of, as
+/// sym(x) recognises it: sym(0.1 + 0.2) is 3/10, sym(123456.789) is not 123456789/1000.
+pub fn modest_fraction(x: f64) -> Option<(i128, i128)> {
+    if !x.is_finite() || x == 0.0 {
+        return None;
+    }
+    let tol = 100.0 * f64::EPSILON * x.abs();
+    let (mut h0, mut h1, mut k0, mut k1) = (0f64, 1f64, 1f64, 0f64);
+    let mut v = x.abs();
+    for _ in 0..64 {
+        let a = v.floor();
+        let (h2, k2) = (a * h1 + h0, a * k1 + k0);
+        if h2 > MODEST || k2 > MODEST {
+            return None;
+        }
+        (h0, h1, k0, k1) = (h1, h2, k1, k2);
+        if (h1 / k1 - x.abs()).abs() <= tol {
+            let p = h1 as i128;
+            return Some((if x < 0.0 { -p } else { p }, k1 as i128));
+        }
+        let f = v - a;
+        if f == 0.0 {
+            return None;
+        }
+        v = 1.0 / f;
+    }
+    None
+}
+
+/// `r` rounded to `digits` significant decimal digits (half away from zero).
+pub fn round_sig(r: &BigRational, digits: u32) -> BigRational {
+    if r.is_zero() {
+        return r.clone();
+    }
+    let e = decimal_exponent(r);
+    let shift = digits as i64 - 1 - e;
+    let ten = BigInt::from(10);
+    let scaled = if shift >= 0 { r * BigRational::from_integer(ten.pow(shift as u32)) } else { r / BigRational::from_integer(ten.pow((-shift) as u32)) };
+    let n = round_half_away(&scaled);
+    if shift >= 0 {
+        BigRational::new(n, ten.pow(shift as u32))
+    } else {
+        BigRational::from_integer(n * ten.pow((-shift) as u32))
+    }
+}
+
+fn round_half_away(r: &BigRational) -> BigInt {
+    let two = BigInt::from(2);
+    let (n, d) = (r.numer(), r.denom());
+    // round(n/d) = floor((2n + d) / 2d) for n >= 0, mirrored for n < 0.
+    if n.is_negative() {
+        -((-n * &two + d).div_floor(&(d * &two)))
+    } else {
+        (n * &two + d).div_floor(&(d * &two))
+    }
+}
+
+/// floor(log10(|r|)) for r != 0.
+pub fn decimal_exponent(r: &BigRational) -> i64 {
+    let a = r.abs();
+    let bits = a.numer().bits() as i64 - a.denom().bits() as i64;
+    let mut e = ((bits as f64) * std::f64::consts::LOG10_2).floor() as i64;
+    let ten = BigRational::from_integer(BigInt::from(10));
+    let pow = |k: i64| if k >= 0 { ten.pow(k as i32) } else { BigRational::one() / ten.pow((-k) as i32) };
+    while pow(e) > a {
+        e -= 1;
+    }
+    while pow(e + 1) <= a {
+        e += 1;
+    }
+    e
+}
+
+/// A rational converted to the nearest double.
+pub fn rational_to_f64(r: &BigRational) -> f64 {
+    if r.is_zero() {
+        return 0.0;
+    }
+    let neg = r.is_negative();
+    let (n, d) = (r.numer().abs(), r.denom().clone());
+    // Scale so the integer quotient has 54..55 significant bits, then round once.
+    let shift = 54 + d.bits() as i64 - n.bits() as i64;
+    let (num, den) = if shift >= 0 { (n << shift as usize, d) } else { (n, d << (-shift) as usize) };
+    let (q, rem) = num.div_rem(&den);
+    // q has 54 or 55 bits; keep 53 with round-half-even, using the remainder as sticky bit.
+    let extra = q.bits() as i64 - 53;
+    let mask = (BigInt::one() << extra as usize) - 1;
+    let low = &q & &mask;
+    let mut m = (&q >> extra as usize).to_u64().unwrap_or(0);
+    let half = BigInt::one() << (extra - 1) as usize;
+    if low > half || (low == half && (!rem.is_zero() || m & 1 == 1)) {
+        m += 1;
+    }
+    let x = (m as f64) * 2f64.powi((extra - shift) as i32);
+    if neg { -x } else { x }
 }
 
 impl Num {
@@ -37,141 +163,193 @@ impl Num {
         if q < 0 { Num::Rat(-p, -q) } else { Num::Rat(p, q) }
     }
 
-    /// Converts a double to an exact rational when it is (close to) a simple fraction, as
-    /// `sym(0.25)` does.
+    /// An exact rational, kept in `Rat` when it fits.
+    pub fn from_big(r: BigRational) -> Num {
+        match (r.numer().to_i128(), r.denom().to_i128()) {
+            (Some(p), Some(q)) => Num::Rat(p, q),
+            _ => Num::Big(Rc::new(r)),
+        }
+    }
+
+    /// A vpa value: `r` rounded to the current `digits()`.
+    pub fn vpa(r: &BigRational) -> Num {
+        Num::Vpa(Rc::new(round_sig(r, digits())))
+    }
+
+    /// The exact value of a rational or vpa number (None for a non-finite double).
+    pub fn exact(&self) -> Option<BigRational> {
+        match self {
+            Num::Rat(p, q) => Some(BigRational::new(BigInt::from(*p), BigInt::from(*q))),
+            Num::Big(r) | Num::Vpa(r) => Some((**r).clone()),
+            Num::F(x) => BigRational::from_float(*x),
+        }
+    }
+
+    /// sym(x) for a finite double, as MATLAB converts it: integers exactly, modest fractions
+    /// p/q, and anything else as its exact binary value (sym(0.3333333) is
+    /// 6004798902680711/18014398509481984).
     pub fn from_f64(x: f64) -> Num {
         if !x.is_finite() {
             return Num::F(x);
         }
-        if x.fract() == 0.0 && x.abs() < 1e18 {
-            return Num::int(x as i128);
+        if x.fract() == 0.0 {
+            return Num::from_big(BigRational::from_float(x).unwrap());
         }
-        // Continued fractions up to a modest denominator.
-        let (mut h0, mut h1, mut k0, mut k1) = (0i128, 1i128, 1i128, 0i128);
-        let mut v = x;
-        for _ in 0..40 {
-            let a = v.floor();
-            if a.abs() > 1e15 {
-                break;
-            }
-            let ai = a as i128;
-            let h2 = ai * h1 + h0;
-            let k2 = ai * k1 + k0;
-            h0 = h1;
-            h1 = h2;
-            k0 = k1;
-            k1 = k2;
-            if k1 > 1_000_000_000 {
-                break;
-            }
-            if ((h1 as f64) / (k1 as f64) - x).abs() <= x.abs() * 1e-15 {
-                return Num::rat(h1, k1);
-            }
-            let f = v - a;
-            if f.abs() < 1e-15 {
-                break;
-            }
-            v = 1.0 / f;
+        if let Some((p, q)) = modest_fraction(x) {
+            return Num::rat(p, q);
         }
-        Num::F(x)
+        Num::from_big(BigRational::from_float(x).unwrap())
     }
 
-    pub fn to_f64(self) -> f64 {
+    pub fn to_f64(&self) -> f64 {
         match self {
-            Num::Rat(p, q) => p as f64 / q as f64,
-            Num::F(x) => x,
+            Num::Rat(p, q) => {
+                if p.unsigned_abs() < 1 << 53 && *q < 1 << 53 {
+                    *p as f64 / *q as f64
+                } else {
+                    rational_to_f64(&self.exact().unwrap())
+                }
+            }
+            Num::Big(r) | Num::Vpa(r) => rational_to_f64(r),
+            Num::F(x) => *x,
         }
     }
 
-    pub fn is_zero(self) -> bool {
+    pub fn is_zero(&self) -> bool {
         match self {
-            Num::Rat(p, _) => p == 0,
-            Num::F(x) => x == 0.0,
+            Num::Rat(p, _) => *p == 0,
+            Num::Big(r) | Num::Vpa(r) => r.is_zero(),
+            Num::F(x) => *x == 0.0,
         }
     }
 
-    pub fn is_one(self) -> bool {
-        matches!(self, Num::Rat(1, 1)) || matches!(self, Num::F(x) if x == 1.0)
-    }
-
-    pub fn is_neg(self) -> bool {
-        self.to_f64() < 0.0
-    }
-
-    pub fn is_int(self) -> bool {
+    pub fn is_one(&self) -> bool {
         match self {
-            Num::Rat(_, q) => q == 1,
+            Num::Rat(p, q) => *p == 1 && *q == 1,
+            Num::Big(_) => false,
+            Num::Vpa(r) => r.is_one(),
+            Num::F(x) => *x == 1.0,
+        }
+    }
+
+    pub fn is_neg(&self) -> bool {
+        match self {
+            Num::Rat(p, _) => *p < 0,
+            Num::Big(r) | Num::Vpa(r) => r.is_negative(),
+            Num::F(x) => *x < 0.0,
+        }
+    }
+
+    pub fn is_int(&self) -> bool {
+        match self {
+            Num::Rat(_, q) => *q == 1,
+            Num::Big(r) | Num::Vpa(r) => r.is_integer(),
             Num::F(x) => x.fract() == 0.0,
         }
     }
 
-    pub fn as_int(self) -> Option<i128> {
+    /// An exact fraction that is not an integer (prints as p/q).
+    pub fn is_fraction(&self) -> bool {
+        matches!(self, Num::Rat(_, q) if *q != 1) || matches!(self, Num::Big(r) if !r.is_integer())
+    }
+
+    pub fn as_int(&self) -> Option<i128> {
         match self {
-            Num::Rat(p, 1) => Some(p),
+            Num::Rat(p, 1) => Some(*p),
             _ => None,
         }
     }
 
-    pub fn add(self, o: Num) -> Num {
-        match (self, o) {
-            (Num::Rat(a, b), Num::Rat(c, d)) => match (a.checked_mul(d), c.checked_mul(b), b.checked_mul(d)) {
-                (Some(x), Some(y), Some(z)) => match x.checked_add(y) {
-                    Some(s) => Num::rat(s, z),
-                    None => Num::F(self.to_f64() + o.to_f64()),
-                },
-                _ => Num::F(self.to_f64() + o.to_f64()),
-            },
-            _ => Num::F(self.to_f64() + o.to_f64()),
-        }
+    fn is_float(&self) -> bool {
+        matches!(self, Num::F(_))
     }
 
-    pub fn mul(self, o: Num) -> Num {
-        match (self, o) {
-            (Num::Rat(a, b), Num::Rat(c, d)) => {
-                let g1 = gcd(a, d).max(1);
-                let g2 = gcd(c, b).max(1);
-                match ((a / g1).checked_mul(c / g2), (b / g2).checked_mul(d / g1)) {
-                    (Some(p), Some(q)) => Num::rat(p, q),
-                    _ => Num::F(self.to_f64() * o.to_f64()),
+    fn is_vpa(&self) -> bool {
+        matches!(self, Num::Vpa(_))
+    }
+
+    /// Combines two numbers: doubles stay doubles, vpa stays vpa, exact stays exact.
+    fn combine(&self, o: &Num, f: fn(f64, f64) -> f64, g: impl Fn(BigRational, BigRational) -> BigRational) -> Num {
+        if self.is_float() || o.is_float() {
+            return Num::F(f(self.to_f64(), o.to_f64()));
+        }
+        let r = g(self.exact().unwrap(), o.exact().unwrap());
+        if self.is_vpa() || o.is_vpa() { Num::vpa(&r) } else { Num::from_big(r) }
+    }
+
+    pub fn add(&self, o: impl Borrow<Num>) -> Num {
+        let o = o.borrow();
+        if let (Num::Rat(a, b), Num::Rat(c, d)) = (self, o) {
+            if let (Some(x), Some(y), Some(z)) = (a.checked_mul(*d), c.checked_mul(*b), b.checked_mul(*d)) {
+                if let Some(s) = x.checked_add(y) {
+                    return Num::rat(s, z);
                 }
             }
-            _ => Num::F(self.to_f64() * o.to_f64()),
         }
+        self.combine(o, |a, b| a + b, |a, b| a + b)
     }
 
-    pub fn neg(self) -> Num {
+    pub fn mul(&self, o: impl Borrow<Num>) -> Num {
+        let o = o.borrow();
+        if let (Num::Rat(a, b), Num::Rat(c, d)) = (self, o) {
+            let g1 = gcd(*a, *d).max(1);
+            let g2 = gcd(*c, *b).max(1);
+            if let (Some(p), Some(q)) = ((a / g1).checked_mul(c / g2), (b / g2).checked_mul(d / g1)) {
+                return Num::rat(p, q);
+            }
+        }
+        self.combine(o, |a, b| a * b, |a, b| a * b)
+    }
+
+    pub fn neg(&self) -> Num {
         match self {
-            Num::Rat(p, q) => Num::Rat(-p, q),
+            Num::Rat(p, q) => match p.checked_neg() {
+                Some(n) => Num::Rat(n, *q),
+                None => Num::from_big(-self.exact().unwrap()),
+            },
+            Num::Big(r) => Num::Big(Rc::new(-(**r).clone())),
+            Num::Vpa(r) => Num::Vpa(Rc::new(-(**r).clone())),
             Num::F(x) => Num::F(-x),
         }
     }
 
-    pub fn recip(self) -> Num {
+    pub fn recip(&self) -> Num {
+        if self.is_zero() && !self.is_float() {
+            return Num::F(f64::INFINITY);
+        }
         match self {
-            Num::Rat(p, q) => Num::rat(q, p),
+            Num::Rat(p, q) => Num::rat(*q, *p),
+            Num::Big(r) => Num::from_big(r.recip()),
+            Num::Vpa(r) => Num::vpa(&r.recip()),
             Num::F(x) => Num::F(1.0 / x),
         }
     }
 
-    pub fn pow_int(self, n: i128) -> Num {
+    pub fn pow_int(&self, n: i128) -> Num {
         if n < 0 {
             return self.recip().pow_int(-n);
         }
         let mut acc = Num::int(1);
-        let mut base = self;
+        let mut base = self.clone();
         let mut k = n;
         while k > 0 {
             if k & 1 == 1 {
-                acc = acc.mul(base);
+                acc = acc.mul(&base);
             }
-            base = base.mul(base);
             k >>= 1;
+            if k > 0 {
+                base = base.mul(&base);
+            }
         }
         acc
     }
 
-    pub fn cmp_val(self, o: Num) -> Ordering {
-        self.to_f64().partial_cmp(&o.to_f64()).unwrap_or(Ordering::Equal)
+    pub fn cmp_val(&self, o: impl Borrow<Num>) -> Ordering {
+        let o = o.borrow();
+        match (self.exact(), o.exact()) {
+            (Some(a), Some(b)) if !self.is_float() && !o.is_float() => a.cmp(&b),
+            _ => self.to_f64().partial_cmp(&o.to_f64()).unwrap_or(Ordering::Equal),
+        }
     }
 }
 
@@ -256,7 +434,7 @@ fn cmp_raw(a: &Expr, b: &Expr) -> Ordering {
         return r;
     }
     match (a, b) {
-        (Expr::Num(x), Expr::Num(y)) => x.cmp_val(*y),
+        (Expr::Num(x), Expr::Num(y)) => x.cmp_val(y),
         (Expr::Const(x), Expr::Const(y)) => x.cmp(y),
         (Expr::Var(x), Expr::Var(y)) => x.cmp(y),
         (Expr::Pow(b1, e1), Expr::Pow(b2, e2)) => cmp(b1, b2).then_with(|| cmp(e1, e2)),
@@ -295,11 +473,34 @@ impl Expr {
         if x.is_infinite() {
             return if x > 0.0 { Expr::Const(Const::Inf) } else { Expr::mul(vec![Expr::int(-1), Expr::Const(Const::Inf)]) };
         }
+        // sym(x) recognises, in order: powers of ten (sym(1e23) is 10^23, not the double's
+        // binary value), integers and modest fractions, p*pi/q, and sqrt(p) for modest p, q.
+        if x != 0.0 && x.abs().log10().fract().abs() < 1e-9 {
+            let q = x.abs().log10().round() as i32;
+            if format!("1e{q}").parse::<f64>() == Ok(x.abs()) {
+                let ten = Expr::Num(Num::from_big(BigRational::from_integer(BigInt::from(10)).pow(q)));
+                return if x < 0.0 { Expr::neg(ten) } else { ten };
+            }
+        }
+        if x.fract() == 0.0 || modest_fraction(x).is_some() {
+            return Expr::Num(Num::from_f64(x));
+        }
+        let tol = 100.0 * f64::EPSILON * x.abs();
+        if let Some((p, q)) = modest_fraction(x / std::f64::consts::PI) {
+            if (p as f64 * std::f64::consts::PI / q as f64 - x).abs() <= tol {
+                return Expr::mul(vec![Expr::rat(p, q), Expr::Const(Const::Pi)]);
+            }
+        }
+        let s = (x * x).round();
+        if s >= 2.0 && s <= 100_000.0 && (s.sqrt() - x.abs()).abs() <= tol {
+            let root = Expr::pow(Expr::int(s as i128), Expr::rat(1, 2));
+            return if x < 0.0 { Expr::neg(root) } else { root };
+        }
         Expr::Num(Num::from_f64(x))
     }
 
     pub fn as_num(&self) -> Option<Num> {
-        if let Expr::Num(n) = self { Some(*n) } else { None }
+        if let Expr::Num(n) = self { Some(n.clone()) } else { None }
     }
 
     pub fn is_zero(&self) -> bool {
@@ -325,11 +526,11 @@ impl Expr {
     /// (numeric coefficient, remaining factor) of a term.
     pub fn split_coeff(&self) -> (Num, Expr) {
         match self {
-            Expr::Num(n) => (*n, Expr::one()),
+            Expr::Num(n) => (n.clone(), Expr::one()),
             Expr::Mul(f) => match f.first() {
                 Some(Expr::Num(n)) => {
                     let rest: Vec<Expr> = f[1..].to_vec();
-                    (*n, if rest.len() == 1 { rest.into_iter().next().unwrap() } else { Expr::Mul(rest) })
+                    (n.clone(), if rest.len() == 1 { rest.into_iter().next().unwrap() } else { Expr::Mul(rest) })
                 }
                 _ => (Num::int(1), self.clone()),
             },
@@ -467,7 +668,7 @@ impl Expr {
         // A numeric coefficient distributes over a single sum: 2*(x + 1) -> 2*x + 2.
         if out.len() == 1 && !coeff.is_one() {
             if let Expr::Add(terms) = &out[0] {
-                return Expr::add(terms.iter().map(|t| Expr::mul(vec![Expr::Num(coeff), t.clone()])).collect());
+                return Expr::add(terms.iter().map(|t| Expr::mul(vec![Expr::Num(coeff.clone()), t.clone()])).collect());
             }
         }
         if !coeff.is_one() {
@@ -510,7 +711,7 @@ impl Expr {
                     return Expr::zero();
                 }
                 // Rational roots of perfect powers: 4^(1/2) = 2, 8^(1/3) = 2, (1/4)^(1/2) = 1/2.
-                if let (Num::Rat(p, q), Num::Rat(a, r)) = (*x, *n) {
+                if let (Num::Rat(p, q), Num::Rat(a, r)) = (x.clone(), n.clone()) {
                     if p > 0 {
                         if let (Some(pr), Some(qr)) = (int_root(p, r), int_root(q, r)) {
                             return Expr::pow(Expr::rat(pr, qr), Expr::int(a));

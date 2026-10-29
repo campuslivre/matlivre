@@ -131,13 +131,13 @@ fn poly_divmod(a: &[Num], b: &[Num]) -> (Vec<Num>, Vec<Num>) {
     if b.len() > r.len() {
         return (vec![Num::int(0)], r);
     }
-    let lead = *b.last().unwrap();
+    let lead = b.last().unwrap().clone();
     let mut q = vec![Num::int(0); r.len() - b.len() + 1];
     while r.len() >= b.len() && !(r.len() == 1 && r[0].is_zero()) {
         let k = r.len() - b.len();
         let f = r.last().unwrap().mul(lead.recip());
-        q[k] = f;
-        for (i, &bi) in b.iter().enumerate() {
+        q[k] = f.clone();
+        for (i, bi) in b.iter().enumerate() {
             r[i + k] = r[i + k].add(f.mul(bi).neg());
         }
         r.pop();
@@ -162,7 +162,7 @@ fn poly_gcd(a: &[Num], b: &[Num]) -> Vec<Num> {
         x = y;
         y = r;
     }
-    let lead = *x.last().unwrap();
+    let lead = x.last().unwrap().clone();
     if lead.is_zero() {
         return vec![Num::int(1)];
     }
@@ -170,7 +170,7 @@ fn poly_gcd(a: &[Num], b: &[Num]) -> Vec<Num> {
 }
 
 fn num_poly_expr(p: &[Num], v: &str) -> Expr {
-    from_coeffs(&p.iter().map(|n| Expr::Num(*n)).collect::<Vec<_>>(), v)
+    from_coeffs(&p.iter().map(|n| Expr::Num(n.clone())).collect::<Vec<_>>(), v)
 }
 
 // ---- rational functions ---------------------------------------------------------------------
@@ -257,7 +257,7 @@ fn int_divisors(n: i128) -> Vec<i128> {
 }
 
 fn eval_poly(p: &[Num], x: Num) -> Num {
-    p.iter().rev().fold(Num::int(0), |acc, &c| acc.mul(x).add(c))
+    p.iter().rev().fold(Num::int(0), |acc, c| acc.mul(&x).add(c))
 }
 
 pub fn prime_factors(mut n: i128) -> Vec<i128> {

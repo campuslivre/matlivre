@@ -3,6 +3,7 @@
 pub mod algebra;
 pub mod calculus;
 pub mod expr;
+pub mod mp;
 pub mod print;
 
 use std::cell::RefCell;
@@ -90,6 +91,12 @@ impl SymArray {
         let mut re = Vec::with_capacity(self.data.len());
         let mut im = Vec::with_capacity(self.data.len());
         for e in &self.data {
+            // Real values are evaluated exactly and rounded once, as MATLAB's double(sym) does.
+            if let Some(x) = mp::to_f64(e) {
+                re.push(x);
+                im.push(0.0);
+                continue;
+            }
             let z = e.eval_c(&|_| None).ok_or_else(|| LangError::new("Unable to convert expression containing symbolic variables into double array. Apply 'subs' function first to substitute values for variables.", 0))?;
             re.push(z.re);
             im.push(z.im);
@@ -436,7 +443,7 @@ pub fn unary(op: UnOp, v: &Value) -> R<Value> {
 /// Functions that exist only for symbolic inputs.
 pub const NAMES: &[&str] = &[
     "syms", "sym", "symvar", "subs", "int", "limit", "taylor", "simplify", "expand", "collect", "numden", "coeffs", "sym2poly", "poly2sym", "solve",
-    "vpa", "latex", "pretty", "matlabFunction", "fplot", "isAlways", "jacobian", "lhs", "rhs", "assume", "assumeAlso", "symfun", "children",
+    "vpa", "digits", "latex", "pretty", "matlabFunction", "fplot", "isAlways", "jacobian", "lhs", "rhs", "assume", "assumeAlso", "symfun", "children",
 ];
 
 /// Elementwise functions that also accept numbers (dispatched here only for sym inputs).
@@ -864,7 +871,36 @@ pub fn call(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize) 
             one(Value::Struct(s))
         }
         "double" => one(Value::Num(sym_arg(&args, 0)?.to_matrix()?)),
-        "vpa" => one(Value::Sym(sym_arg(&args, 0)?.map(|e| e.to_float()))),
+        "vpa" => {
+            // vpa(x, d) evaluates with d significant digits; plain vpa(x) uses digits().
+            let saved = expr::digits();
+            if let Some(d) = args.get(1) {
+                let d = d.scalar()?;
+                if !(1.0..=536870912.0).contains(&d) || d.fract() != 0.0 {
+                    return rt("Number of digits must be a positive integer.");
+                }
+                expr::set_digits(d as u32);
+            }
+            let out = sym_arg(&args, 0).map(|s| s.map(mp::vpa));
+            expr::set_digits(saved);
+            one(Value::Sym(out?))
+        }
+        "digits" => {
+            let old = expr::digits();
+            if let Some(d) = args.first() {
+                let d = d.scalar()?;
+                if !(1.0..=536870912.0).contains(&d) || d.fract() != 0.0 {
+                    return rt("Number of digits must be a positive integer.");
+                }
+                expr::set_digits(d as u32);
+                return if nargout > 0 { one(Value::num(old as f64)) } else { Ok(Some(Vec::new())) };
+            }
+            if nargout > 0 {
+                return one(Value::num(old as f64));
+            }
+            it.emit(crate::interp::OutputKind::Text(format!("\nDigits = {old}\n\n")));
+            Ok(Some(Vec::new()))
+        }
         "char" => one(Value::chars(&sym_arg(&args, 0)?.disp())),
         "string" => {
             let s = sym_arg(&args, 0)?;
