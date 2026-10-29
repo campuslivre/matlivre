@@ -36,7 +36,7 @@ const NAMES: &[&str] = &[
 pub fn exists(name: &str) -> bool {
     static ALL: std::sync::OnceLock<std::collections::HashSet<&'static str>> = std::sync::OnceLock::new();
     ALL.get_or_init(|| {
-        [NAMES, crate::builtins_elfun::NAMES, crate::builtins_polyfun::NAMES, crate::builtins_text::NAMES, crate::builtins_plot::NAMES, crate::time::NAMES, crate::table::NAMES, crate::sym::NAMES]
+        [NAMES, crate::builtins_elfun::NAMES, crate::builtins_polyfun::NAMES, crate::builtins_geom::NAMES, crate::polyfun_classes::NAMES, crate::builtins_text::NAMES, crate::builtins_plot::NAMES, crate::time::NAMES, crate::table::NAMES, crate::sym::NAMES]
             .iter()
             .flat_map(|n| n.iter().copied())
             .collect()

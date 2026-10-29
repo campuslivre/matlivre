@@ -316,20 +316,6 @@ pub(crate) fn parse_method(s: &str) -> R<Method> {
     }
 }
 
-fn method_name(m: Method) -> &'static str {
-    match m {
-        Method::Linear => "linear",
-        Method::Nearest => "nearest",
-        Method::Next => "next",
-        Method::Previous => "previous",
-        Method::Cubic => "cubic",
-        Method::Pchip => "pchip",
-        Method::Makima => "makima",
-        Method::Spline => "spline",
-    }
-}
-
-
 /// Builds a grid from grid vectors (descending ones are flipped) and values whose dims follow
 /// the vectors.
 pub(crate) fn make_grid(vecs: Vec<Vec<f64>>, v: &Matrix) -> R<Grid> {

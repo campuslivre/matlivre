@@ -1108,7 +1108,7 @@ fn rectint(a: &[Value]) -> Ret {
 
 pub fn call(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Ret {
     if !NAMES.contains(&name) {
-        return Ok(None);
+        return crate::builtins_geom::call(it, name, a, nargout);
     }
     match name {
         "conv" => conv(a),
