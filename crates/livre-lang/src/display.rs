@@ -313,7 +313,15 @@ enum CellAlign {
 /// The text between the braces of a cell element.
 fn cell_item(v: &Value, f: NumFormat) -> (String, CellAlign) {
     match v {
-        Value::Num(m) if m.kind == Kind::Char && m.is_2d() && m.rows() <= 1 => (format!("'{}'", m.to_string_lossy()), CellAlign::Left),
+        // Text up to its first line break (MATLAB marks the rest with ...); empty text by size.
+        Value::Num(m) if m.kind == Kind::Char && m.is_2d() && m.rows() <= 1 && !m.is_empty() => {
+            let t = m.to_string_lossy();
+            let shown = match t.find('\n') {
+                Some(p) => format!("'{}...'", &t[..p]),
+                None => format!("'{t}'"),
+            };
+            (shown, CellAlign::Left)
+        }
         Value::Num(m) if m.is_empty() => (format!("{} {}", nd::size_text(&m.dims), m.kind.name()), CellAlign::Left),
         Value::Num(m) if m.is_scalar() || (m.is_2d() && m.rows() == 1 && m.cols() <= 10 && !m.is_complex()) => {
             let s = summary(v, f);
