@@ -185,7 +185,11 @@ fn struct_arrays() {
 // ---- classes --------------------------------------------------------------------------------
 
 fn class_dir() -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!("matlivre-classes-{}", std::process::id()));
+    // One directory per call: tests run in parallel and would otherwise rewrite files
+    // another test is reading.
+    static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let dir = std::env::temp_dir().join(format!("matlivre-classes-{}-{n}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(
         dir.join("Point.m"),
@@ -356,4 +360,21 @@ fn symbolic_systems_and_functions() {
     assert_eq!(num(&it, "v"), vec![10.0]);
     assert_eq!(text(&it, "D"), "a*b");
     assert_eq!(text(&it, "c"), "sym");
+}
+
+// ---- fast paths -----------------------------------------------------------------------------
+
+#[test]
+fn fast_paths_keep_semantics() {
+    let (it, out) = run("s = '';\nfor k = 1:3\n  s = [s sprintf('%d,', k)];\nend\ne = [];\ne = [e zeros(1, 0)];\nsz = size(e);\nv = [1 2];\nv = [v v 3];\nw = 'ab';\nw = [w 67];\nd = sort([3 NaN 1 2], 'descend');\na = sort(linspace(1, 0, 70000));\nmono = all(diff(a) >= 0);\nq = (1:3).^2;\nA = reshape(mod((1:900) * 7, 13), 30, 30);\nB = A * A';\nx = (A + 100 * eye(30)) \\ ones(30, 1);\nr = norm((A + 100 * eye(30)) * x - 1) < 1e-9;");
+    no_errors(&out);
+    assert_eq!(text(&it, "s"), "1,2,3,");
+    assert_eq!(num(&it, "sz"), vec![1.0, 0.0]);
+    assert_eq!(num(&it, "v"), vec![1.0, 2.0, 1.0, 2.0, 3.0]);
+    assert_eq!(text(&it, "w"), "abC");
+    let d = num(&it, "d");
+    assert!(d[0].is_nan() && d[1..] == [3.0, 2.0, 1.0], "{d:?}");
+    assert_eq!(num(&it, "mono"), vec![1.0]);
+    assert_eq!(num(&it, "q"), vec![1.0, 4.0, 9.0]);
+    assert_eq!(num(&it, "r"), vec![1.0]);
 }

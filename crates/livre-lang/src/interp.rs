@@ -96,7 +96,17 @@ pub struct Interpreter {
     depth: usize,
     /// Source names of the arguments of the builtin being called (`table` uses them).
     pub(crate) arg_names: Vec<Option<String>>,
+    jit: Option<crate::jit::Jit>,
+    jit_enabled: bool,
+    /// Compiled kernels by (statement address, variable types); `None` = not compilable.
+    jit_cache: HashMap<(usize, String), Option<Rc<crate::jit::Kernel>>>,
+    jit_names: HashMap<usize, Vec<String>>,
+    /// Native entries for user functions called with scalar doubles, by (function, arity).
+    jit_entries: HashMap<(usize, usize), Option<extern "C" fn(*mut crate::jit::Ctx, *const f64, *mut f64) -> i32>>,
+    jit_runs: usize,
 }
+
+static NO_CANCEL: u8 = 0;
 
 impl Default for Interpreter {
     fn default() -> Self {
@@ -131,7 +141,24 @@ impl Interpreter {
             end_stack: Vec::new(),
             depth: 0,
             arg_names: Vec::new(),
+            jit: None,
+            jit_enabled: std::env::var_os("MATLIVRE_NOJIT").is_none(),
+            jit_cache: HashMap::new(),
+            jit_names: HashMap::new(),
+            jit_entries: HashMap::new(),
+            jit_runs: 0,
         }
+    }
+
+    /// Enables or disables native compilation of loops (enabled by default; the
+    /// `MATLIVRE_NOJIT` environment variable disables it).
+    pub fn set_jit(&mut self, on: bool) {
+        self.jit_enabled = on;
+    }
+
+    /// Number of loop executions that ran as native code.
+    pub fn jit_runs(&self) -> usize {
+        self.jit_runs
     }
 
     /// Receives outputs as they are produced (after each top-level statement and loop pass).
@@ -166,6 +193,7 @@ impl Interpreter {
 
     /// Registers local functions (replacing earlier definitions with the same name).
     pub fn define_functions(&mut self, prog: &Program) {
+        self.jit_entries.clear();
         for f in &prog.functions {
             self.functions.insert(f.name.clone(), f.clone());
         }
@@ -204,6 +232,13 @@ impl Interpreter {
     pub fn run(&mut self, body: &[Stmt]) -> R<()> {
         self.frames.clear();
         self.class_stack.clear();
+        // Kernels are keyed by AST addresses, which are only stable within one run.
+        self.jit_cache.clear();
+        self.jit_names.clear();
+        self.jit_entries.clear();
+        if let Some(j) = self.jit.as_mut() {
+            j.reset_functions();
+        }
         for s in body {
             let r = self.exec(s);
             match r {
@@ -300,6 +335,14 @@ impl Interpreter {
             self.global_vars.insert(name.to_string(), v);
         } else {
             self.frame_mut().vars.insert(name.to_string(), v);
+        }
+    }
+
+    fn get_var_mut(&mut self, name: &str) -> Option<&mut Value> {
+        if self.frame().globals.contains(name) {
+            self.global_vars.get_mut(name)
+        } else {
+            self.frame_mut().vars.get_mut(name)
         }
     }
 
@@ -512,7 +555,9 @@ impl Interpreter {
                 }
             }
             StmtKind::Assign { lhs, rhs, print } => {
-                if lhs.len() == 1 {
+                if lhs.len() == 1 && self.try_append_in_place(&lhs[0], rhs)? {
+                    // x = [x ...] grew x without copying it.
+                } else if lhs.len() == 1 {
                     let v = self.eval(rhs)?;
                     self.assign(&lhs[0], v)?;
                 } else {
@@ -555,8 +600,16 @@ impl Interpreter {
                     return self.exec_block(body);
                 }
             }
-            StmtKind::For { var, iter, body } => return self.exec_for(var, iter, body),
+            StmtKind::For { var, iter, body } => {
+                if self.try_jit(s)? {
+                    return Ok(Flow::Normal);
+                }
+                return self.exec_for(var, iter, body);
+            }
             StmtKind::While { cond, body } => {
+                if self.try_jit(s)? {
+                    return Ok(Flow::Normal);
+                }
                 while self.eval(cond)?.is_true()? {
                     self.check_cancel()?;
                     match self.exec_block(body)? {
@@ -642,6 +695,10 @@ impl Interpreter {
                 };
                 let stop = self.eval(b)?.scalar()?;
                 let n = range_count(start, step, stop);
+                if n == 0 {
+                    // MATLAB leaves the loop variable empty (1×0) when the loop never runs.
+                    self.set_var(var, Value::Num(Matrix::new(1, 0, Vec::new())));
+                }
                 for i in 0..n {
                     self.set_var(var, Value::num(start + i as f64 * step));
                     self.check_cancel()?;
@@ -935,6 +992,9 @@ impl Interpreter {
                     }
                     _ => {}
                 }
+                if let Some(v) = self.binary_by_ref(*op, a, b)? {
+                    return Ok(v);
+                }
                 let l = self.eval(a)?;
                 let r = self.eval(b)?;
                 self.binary(*op, l, r)
@@ -1023,6 +1083,43 @@ impl Interpreter {
     }
 
     /// Binary operator with object overloading.
+    /// `a op b` where an operand is a large numeric variable: reads it in place instead of
+    /// copying it. Reading a variable has no side effects, so evaluating the other operand
+    /// first is unobservable.
+    fn binary_by_ref(&mut self, op: BinOp, a: &Expr, b: &Expr) -> R<Option<Value>> {
+        let big = |s: &Self, e: &Expr| match e {
+            Expr::Ident(n) => matches!(s.get_var(n), Some(Value::Num(m)) if m.numel() >= 64),
+            _ => false,
+        };
+        let (ba, bb) = (big(self, a), big(self, b));
+        if !ba && !bb {
+            return Ok(None);
+        }
+        let name = |e: &Expr| if let Expr::Ident(n) = e { n.clone() } else { unreachable!() };
+        let (l, r) = match (ba, bb) {
+            (true, true) => (None, None),
+            (true, false) => (None, Some(self.eval(b)?)),
+            _ => (Some(self.eval(a)?), None),
+        };
+        if matches!(l, Some(Value::Object(_))) || matches!(r, Some(Value::Object(_))) {
+            let l = match l { Some(v) => v, None => self.eval(a)? };
+            let r = match r { Some(v) => v, None => self.eval(b)? };
+            return self.binary(op, l, r).map(Some);
+        }
+        let (na, nb) = (if ba { Some(name(a)) } else { None }, if bb { Some(name(b)) } else { None });
+        let lv = match (&l, &na) {
+            (Some(v), _) => v,
+            (None, Some(n)) => match self.get_var(n) { Some(v) => v, None => return rt(format!("Unrecognized function or variable '{n}'.")) },
+            _ => unreachable!(),
+        };
+        let rv = match (&r, &nb) {
+            (Some(v), _) => v,
+            (None, Some(n)) => match self.get_var(n) { Some(v) => v, None => return rt(format!("Unrecognized function or variable '{n}'.")) },
+            _ => unreachable!(),
+        };
+        ops::binary(op, lv, rv).map(Some)
+    }
+
     pub(crate) fn binary(&mut self, op: BinOp, l: Value, r: Value) -> R<Value> {
         if matches!(l, Value::Object(_)) || matches!(r, Value::Object(_)) {
             let name = match op {
@@ -1327,6 +1424,42 @@ impl Interpreter {
         Ok(items)
     }
 
+    /// `x = [x a b ...]` with `x` a real row vector (or 0x0) and every appended item a real
+    /// row of the same class: extends `x` in place. Returns false when the general path
+    /// must run (nothing has been evaluated then, or only side-effect-free items).
+    fn try_append_in_place(&mut self, lhs: &LValue, rhs: &Expr) -> R<bool> {
+        let LValue::Target { name, chain } = lhs else { return Ok(false) };
+        if !chain.is_empty() {
+            return Ok(false);
+        }
+        let Expr::Matrix(rows) = rhs else { return Ok(false) };
+        if rows.len() != 1 || rows[0].len() < 2 || !matches!(&rows[0][0], Expr::Ident(n) if n == name) {
+            return Ok(false);
+        }
+        let kind = match self.get_var(name) {
+            Some(Value::Num(m)) if m.im.is_none() && m.dims.len() == 2 && (m.dims[0] == 1 || m.numel() == 0 && m.dims == [0, 0]) => m.kind,
+            _ => return Ok(false),
+        };
+        let items = self.eval_list(&rows[0][1..])?;
+        let ok = items.iter().all(|v| matches!(v, Value::Num(m) if m.kind == kind && m.im.is_none() && m.dims.len() == 2 && m.dims[0] == 1));
+        let Some(Value::Num(x)) = self.get_var_mut(name) else { return rt(format!("Unrecognized function or variable '{name}'.")) };
+        if !ok || x.kind != kind {
+            // Fall back on the general concatenation with the values already evaluated.
+            let mut all = vec![Value::Num(x.clone())];
+            all.extend(items);
+            let v = indexing::hconcat(all)?;
+            self.assign(lhs, v)?;
+            return Ok(true);
+        }
+        for v in &items {
+            if let Value::Num(m) = v {
+                x.data.extend_from_slice(&m.data);
+            }
+        }
+        x.dims = vec![1, x.data.len()];
+        Ok(true)
+    }
+
     fn eval_matrix(&mut self, rows: &[Vec<Expr>]) -> R<Value> {
         let mut row_vals = Vec::with_capacity(rows.len());
         for row in rows {
@@ -1509,6 +1642,11 @@ impl Interpreter {
     }
 
     fn call_user(&mut self, f: &Rc<Function>, args: Vec<Value>, nargout: usize) -> R<Vec<Value>> {
+        if nargout <= 1 {
+            if let Some(r) = self.try_jit_call(f, &args)? {
+                return Ok(vec![r]);
+            }
+        }
         self.call_user_with(f, args, nargout, None)
     }
 
@@ -1621,6 +1759,212 @@ fn assign_in_place(target: &mut Value, chain: &[Resolved], rhs: Value) -> R<Opti
             }
         }
         _ => Ok(Some(rhs)),
+    }
+}
+
+// ---- native compilation ------------------------------------------------------------------------
+
+impl Interpreter {
+    /// How a call of `name` resolves, for the compiler (mirrors `call_function`).
+    fn jit_callee(&mut self, name: &str) -> Option<crate::jit::Callee> {
+        use crate::jit::{Callee, INTRINSICS};
+        if let Some(f) = self.functions.get(name) {
+            return Some(Callee::User(f.clone()));
+        }
+        if crate::builtins::exists(name) {
+            return if INTRINSICS.contains(&name) { Some(Callee::Builtin) } else { None };
+        }
+        if self.find_class(name).is_some() {
+            return None;
+        }
+        self.find_path_function(name).map(Callee::User)
+    }
+
+    /// Environment for compiling code that references `names`: variable types (when
+    /// `with_vars`), and how other names resolve as functions, following user functions
+    /// transitively. The string identifies the environment for caching.
+    fn jit_env(&mut self, names: &[String], with_vars: bool) -> (crate::jit::Env, String) {
+        use crate::jit::{self as j, Callee, Env};
+        let mut env = Env { vars: HashMap::new(), funcs: HashMap::new() };
+        let mut sig = String::new();
+        let mut queue: Vec<String> = Vec::new();
+        for n in names {
+            match self.get_var(n).filter(|_| with_vars) {
+                Some(v) => {
+                    let t = j::var_type(v);
+                    sig.push_str(&format!("{n}:{t:?};"));
+                    env.vars.insert(n.clone(), t);
+                }
+                None => queue.push(n.clone()),
+            }
+        }
+        let mut seen: HashSet<String> = HashSet::new();
+        while let Some(n) = queue.pop() {
+            if !seen.insert(n.clone()) {
+                continue;
+            }
+            if let Some(c) = self.jit_callee(&n) {
+                if let Callee::User(f) = &c {
+                    sig.push_str(&format!("{n}@{:p};", Rc::as_ptr(f)));
+                    let mut inner = Vec::new();
+                    j::referenced_names(&f.body, &mut inner);
+                    for m in inner {
+                        if !f.params.contains(&m) && !f.outputs.contains(&m) {
+                            queue.push(m);
+                        }
+                    }
+                }
+                env.funcs.insert(n, c);
+            }
+        }
+        (env, sig)
+    }
+
+    /// Calls user function `f` as native code when every argument is a real double scalar
+    /// and it compiles. Returns None to interpret.
+    fn try_jit_call(&mut self, f: &Rc<Function>, args: &[Value]) -> R<Option<Value>> {
+        use crate::jit::{self as j, Ctx, Runtime, VarType};
+        if !self.jit_enabled || args.len() != f.params.len() || f.outputs.len() != 1 {
+            return Ok(None);
+        }
+        let mut xs = Vec::with_capacity(args.len());
+        for a in args {
+            if j::var_type(a) != VarType::F64 {
+                return Ok(None);
+            }
+            xs.push(a.scalar().unwrap_or(0.0));
+        }
+        let key = (Rc::as_ptr(f) as usize, args.len());
+        let entry = match self.jit_entries.get(&key) {
+            Some(e) => *e,
+            None => {
+                let mut names = Vec::new();
+                j::referenced_names(&f.body, &mut names);
+                names.retain(|m| !f.params.contains(m) && !f.outputs.contains(m));
+                let (env, _) = self.jit_env(&names, false);
+                let jit = self.jit.get_or_insert_with(j::Jit::new);
+                let e = jit.compile_entry(f, args.len(), &env).ok();
+                self.jit_entries.insert(key, e);
+                e
+            }
+        };
+        let Some(entry) = entry else { return Ok(None) };
+        let mut rt = Runtime { store: Vec::new(), error: None };
+        let cancel = match &self.cancel {
+            Some(c) => c.as_ptr() as *const u8,
+            None => &NO_CANCEL as *const u8,
+        };
+        let mut ctx = Ctx { frame: std::ptr::null_mut(), slots: std::ptr::null_mut(), rt: &mut rt, cancel, depth: self.depth as i64, status: 0 };
+        let mut out = 0.0f64;
+        let status = entry(&mut ctx, xs.as_ptr(), &mut out);
+        self.jit_runs += 1;
+        if status != 0 {
+            let (msg, line) = rt.error.take().unwrap_or_else(|| ("Internal error in compiled code.".into(), 0));
+            return Err(LangError::new(msg, line));
+        }
+        Ok(Some(Value::num(out)))
+    }
+
+    /// Runs a loop statement as native code when it compiles. Returns false to interpret.
+    fn try_jit(&mut self, s: &Stmt) -> R<bool> {
+        use crate::jit::{self as j, Ctx, Runtime, ScalarHome, Slot, Storage};
+        if !self.jit_enabled {
+            return Ok(false);
+        }
+        let key = s as *const Stmt as usize;
+        let names = match self.jit_names.get(&key) {
+            Some(n) => n.clone(),
+            None => {
+                let mut n = Vec::new();
+                j::referenced_names(std::slice::from_ref(s), &mut n);
+                self.jit_names.insert(key, n.clone());
+                n
+            }
+        };
+        let (env, sig) = self.jit_env(&names, true);
+        let cache_key = (key, sig);
+        let kernel = match self.jit_cache.get(&cache_key) {
+            Some(k) => k.clone(),
+            None => {
+                let jit = self.jit.get_or_insert_with(j::Jit::new);
+                let k = jit.compile_kernel(s, &env).ok().map(Rc::new);
+                self.jit_cache.insert(cache_key, k.clone());
+                k
+            }
+        };
+        let Some(k) = kernel else { return Ok(false) };
+
+        // Marshal state in.
+        let n = k.scalars.len();
+        let mut frame = vec![0.0f64; 3 * n];
+        for (i, ks) in k.scalars.iter().enumerate() {
+            if !ks.at_entry {
+                continue;
+            }
+            let v = match &ks.home {
+                ScalarHome::Var(name) => self.get_var(name),
+                ScalarHome::Field(st, f) => match self.get_var(st) {
+                    Some(Value::Struct(sa)) => sa.get(f),
+                    _ => None,
+                },
+            };
+            frame[i] = v.and_then(|v| v.scalar().ok()).unwrap_or(0.0);
+        }
+        let mut store = Vec::with_capacity(k.slots.len());
+        for name in &k.slots {
+            store.push(match self.take_var(name) {
+                Some(Value::Num(m)) => Storage::Mat(m),
+                Some(Value::Cell(c)) => Storage::Cell(c),
+                _ => unreachable!("kernel slot types are checked at compile time"),
+            });
+        }
+        let mut rt = Runtime { store, error: None };
+        let mut slots: Vec<Slot> = rt.store.iter_mut().map(|s| match s {
+            Storage::Mat(m) => Slot { data: m.data.as_mut_ptr(), len: m.numel() as i64, rows: m.rows() as i64, cols: m.cols() as i64 },
+            Storage::Cell(c) => Slot { data: std::ptr::null_mut(), len: c.data.len() as i64, rows: c.rows() as i64, cols: c.cols() as i64 },
+        }).collect();
+        let cancel = match &self.cancel {
+            Some(c) => c.as_ptr() as *const u8,
+            None => &NO_CANCEL as *const u8,
+        };
+        let mut ctx = Ctx { frame: frame.as_mut_ptr(), slots: slots.as_mut_ptr(), rt: &mut rt, cancel, depth: 0, status: 0 };
+        let status = (k.ptr)(&mut ctx);
+        self.jit_runs += 1;
+
+        // Marshal state out (also after an error, as the interpreter would leave it).
+        for (name, st) in k.slots.iter().zip(std::mem::take(&mut rt.store)) {
+            self.set_var(name, match st {
+                Storage::Mat(m) => Value::Num(m),
+                Storage::Cell(c) => Value::Cell(c),
+            });
+        }
+        for (i, ks) in k.scalars.iter().enumerate() {
+            let assigned = frame[n + i] != 0.0;
+            let empty = frame[2 * n + i] != 0.0;
+            let v = if empty {
+                Value::Num(Matrix::new(1, 0, Vec::new()))
+            } else if ks.at_entry || assigned {
+                if ks.ty_bool { Value::bool(frame[i] != 0.0) } else { Value::num(frame[i]) }
+            } else {
+                continue;
+            };
+            match &ks.home {
+                ScalarHome::Var(name) => self.set_var(name, v),
+                ScalarHome::Field(st, f) => {
+                    if let Some(Value::Struct(sa)) = self.frame_mut().vars.get_mut(st.as_str()) {
+                        sa.set(f, v);
+                    }
+                }
+            }
+        }
+        if status != 0 {
+            let (msg, line) = rt.error.take().unwrap_or_else(|| ("Internal error in compiled code.".into(), 0));
+            if line > 0 && self.frames.is_empty() {
+                self.top_line = line;
+            }
+            return Err(LangError::new(msg, line));
+        }
+        Ok(true)
     }
 }
 

@@ -34,12 +34,14 @@ const NAMES: &[&str] = &[
 ];
 
 pub fn exists(name: &str) -> bool {
-    NAMES.contains(&name)
-        || crate::builtins_text::NAMES.contains(&name)
-        || crate::builtins_plot::NAMES.contains(&name)
-        || crate::time::NAMES.contains(&name)
-        || crate::table::NAMES.contains(&name)
-        || crate::sym::NAMES.contains(&name)
+    static ALL: std::sync::OnceLock<std::collections::HashSet<&'static str>> = std::sync::OnceLock::new();
+    ALL.get_or_init(|| {
+        [NAMES, crate::builtins_text::NAMES, crate::builtins_plot::NAMES, crate::time::NAMES, crate::table::NAMES, crate::sym::NAMES]
+            .iter()
+            .flat_map(|n| n.iter().copied())
+            .collect()
+    })
+    .contains(name)
 }
 
 pub(crate) fn one(v: Value) -> Ret {
@@ -1184,6 +1186,25 @@ pub fn call(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize) 
                 Some(d) if !d.is_text() => d.as_usize()?,
                 _ => default_dim(&m.dims),
             };
+            // Values only, of a real vector: an unstable parallel sort gives the same result
+            // unless both zeros are present (only a stable sort keeps their order).
+            let along = m.dims.get(dim - 1).copied().unwrap_or(1);
+            if nargout <= 1 && !m.is_complex() && along == m.numel() && !m.data.iter().any(|x| *x == 0.0 && x.is_sign_negative()) {
+                use rayon::slice::ParallelSliceMut;
+                let mut sorted = m;
+                let cmp = |p: &f64, q: &f64| match (p.is_nan(), q.is_nan()) {
+                    (true, true) => std::cmp::Ordering::Equal,
+                    (true, false) => std::cmp::Ordering::Greater,
+                    (false, true) => std::cmp::Ordering::Less,
+                    _ => p.partial_cmp(q).unwrap(),
+                };
+                if desc {
+                    sorted.data.par_sort_unstable_by(|p, q| cmp(q, p));
+                } else {
+                    sorted.data.par_sort_unstable_by(cmp);
+                }
+                return Ok(Some(vec![Value::Num(sorted)]));
+            }
             let key: Vec<f64> = (0..m.numel()).map(|i| if m.is_complex() { C::new(m.data[i], m.im_at(i)).abs() } else { m.data[i] }).collect();
             let (_, sl) = slices(&m.dims, dim);
             let mut order = vec![0usize; m.numel()];
@@ -1197,7 +1218,8 @@ pub fn call(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize) 
                         (false, true) => std::cmp::Ordering::Less,
                         _ => p.0.partial_cmp(&q.0).unwrap(),
                     };
-                    if desc && !(p.0.is_nan() || q.0.is_nan()) { o.reverse() } else { o }
+                    // Descending order puts NaN first, as MATLAB does.
+                    if desc { o.reverse() } else { o }
                 });
                 for (j, (_, k)) in v.into_iter().enumerate() {
                     order[s[j]] = s[k];

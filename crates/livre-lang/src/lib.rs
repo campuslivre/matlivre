@@ -13,6 +13,7 @@ pub mod format;
 pub mod graphics;
 pub mod indexing;
 pub mod interp;
+pub mod jit;
 pub mod lexer;
 pub mod nd;
 pub mod ops;

@@ -7,52 +7,47 @@ best of 3 runs (`tic`/`toc`), and a checksum so the engines can be checked again
 - Machine: Intel Core i5-10600K (6 cores / 12 threads), 24 GB RAM, Windows 11 Pro.
 - MATLAB R2023b Update 3 (`matlab -batch`), GNU Octave 11.3.0 (`octave-cli`),
   matlivre release build (`matlivre-cli`). Runs were sequential, not concurrent.
-- Run date: 2026-10-28.
+- Run date: 2026-10-29.
 
 | Case | MATLAB (ms) | Octave (ms) | matlivre (ms) | matlivre vs Octave | matlivre vs MATLAB |
 |---|---:|---:|---:|---|---|
-| scalar_loop (2M iterations) | 6.26 | 2,419.39 | 1,923.65 | 1.3x faster | 307.1x slower |
-| while_branch (Collatz, 2.9M steps) | 100.41 | 12,413.43 | 8,006.99 | 1.6x faster | 79.7x slower |
-| fib_recursive (fib(20)) | 0.94 | 132.84 | 49.40 | 2.7x faster | 52.7x slower |
-| array_growth (100k appends) | 7.68 | 406.98 | 106.40 | 3.8x faster | 13.9x slower |
-| indexed_assign (1M writes) | 7.20 | 2,202.50 | 1,154.99 | 1.9x faster | 160.5x slower |
-| vector_math (2M elements) | 143.35 | 122.10 | 209.58 | 1.7x slower | 1.5x slower |
-| matmul_300 | 0.77 | 0.55 | 7.12 | 13.0x slower | 9.2x slower |
-| linsolve_300 | 0.63 | 1.61 | 9.57 | 6.0x slower | 15.3x slower |
-| sort_1e6 | 63.65 | 18.92 | 97.83 | 5.2x slower | 1.5x slower |
-| string_build (20k appends) | 230.25 | 260.31 | 1,879.67 | 7.2x slower | 8.2x slower |
-| struct_fields (500k updates) | 165.86 | 4,658.75 | 682.11 | 6.8x faster | 4.1x slower |
-| cell_ops (100k writes + reads) | 25.47 | 608.51 | 260.21 | 2.3x faster | 10.2x slower |
+| scalar_loop (2M iterations) | 4.92 | 2,265.87 | 2.62 | 865x faster | 1.9x faster |
+| while_branch (Collatz, 2.9M steps) | 102.22 | 11,742.56 | 13.86 | 847x faster | 7.4x faster |
+| fib_recursive (fib(20)) | 0.66 | 128.88 | 0.06 | 2,222x faster | 11.3x faster |
+| array_growth (100k appends) | 8.43 | 402.17 | 1.42 | 283x faster | 5.9x faster |
+| indexed_assign (1M writes) | 4.01 | 2,115.03 | 3.15 | 671x faster | 1.3x faster |
+| vector_math (2M elements) | 121.78 | 127.25 | 86.36 | 1.5x faster | 1.4x faster |
+| matmul_300 | 1.81 | 0.51 | 0.41 | 1.3x faster | 4.5x faster |
+| linsolve_300 | 0.61 | 1.85 | 0.73 | 2.5x faster | 1.2x slower |
+| sort_1e6 | 58.93 | 17.77 | 9.36 | 1.9x faster | 6.3x faster |
+| string_build (20k appends) | 201.63 | 264.22 | 29.53 | 8.9x faster | 6.8x faster |
+| struct_fields (500k updates) | 170.42 | 4,568.02 | 0.68 | 6,767x faster | 252x faster |
+| cell_ops (100k writes + reads) | 31.25 | 581.45 | 17.70 | 33x faster | 1.8x faster |
 
-Geometric mean over the 12 cases: matlivre is **1.2x slower than Octave** and **16.1x slower
-than MATLAB**.
+Geometric mean over the 12 cases: matlivre is **64.8x faster than Octave** and **4.7x faster
+than MATLAB**. matlivre wins 11 of 12 cases against MATLAB; `linsolve_300` is 1.2x behind.
 
-## Reading the results
+MATLAB timings vary by roughly ±30% between runs on small cases (e.g. `matmul_300` measured
+0.77 ms in the previous run and 1.81 ms in this one).
 
-- **Interpreted code (loops, calls, indexing, structs, cells): matlivre beats Octave in all 7
-  cases (1.3x–6.8x)** but is far behind MATLAB, whose execution engine compiles loops to
-  machine code (13x–307x). matlivre is a tree-walking interpreter; every scalar is a heap
-  allocated array, and every variable access is a hash lookup.
-- **Library kernels: MATLAB and Octave call optimized BLAS/LAPACK (MKL / OpenBLAS) and tuned
-  sorting**, so `matmul`, `linsolve` and `sort` are 5x–15x faster than matlivre's plain Rust
-  loops. Elementwise math is within 1.5x–1.7x.
-- **`string_build`** is matlivre's weakest case: chars are stored as `f64` arrays, so each
-  append copies and converts the whole string.
+## What made the difference
 
-## Where the first run went wrong (now fixed)
-
-The first matlivre run exposed three problems, fixed before these numbers were taken:
-indexed assignment (`x(k) = v`), cell writes and reads (`c{k}`) and struct field updates copied
-the whole variable each time (quadratic loops; `indexed_assign` did not finish in 10 minutes),
-and `[s t]` with `s = ''` raised an error where MATLAB ignores 0×0 empties.
-
-## Next steps for performance
-
-1. A scalar fast path (no heap allocation for 1×1 doubles) and slot-indexed variables instead of
-   hash lookups — the interpreter-overhead cases are dominated by these.
-2. Link a BLAS/LAPACK (e.g. via the `faer` crate or OpenBLAS) for `*`, `\`, `inv`, `eig`.
-3. Use `sort_unstable_by` with NaN handling, and a byte/UTF-16 char representation.
-4. Longer term: compile hot loops (bytecode or a JIT), as MATLAB does.
+- **Native compilation of loops and functions** (`src/jit.rs`, Cranelift). `for`/`while` loops
+  over scalar doubles and logicals, elements of numeric arrays (`x(k)`, `A(i,j)`, `x(end+1)`),
+  scalar cell elements (`c{k}`) and scalar struct fields (`p.x`) compile to machine code, as do
+  user functions called with scalar doubles, including recursion. Anything else (display,
+  strings, possibly complex results such as `sqrt` of a negative, whole-array use) stays
+  interpreted, so behaviour is unchanged. Differential tests (`tests/jit.rs`) run every snippet
+  with compilation on and off and require identical output, errors and workspace.
+  `MATLIVRE_NOJIT=1` turns compilation off.
+- **Linear algebra through `faer`**: blocked, multithreaded matrix products (one thread per
+  physical core) and a blocked LU for `\`, `inv` and `det` from order 24.
+- **Parallel elementwise math** (rayon) from 32k elements, and `x.^2` as `x.*x`.
+- **Parallel unstable sort** when only sorted values are requested (sort stays stable when
+  `-0` and `0` both occur or indices are requested).
+- **In-place append** for `s = [s expr]` instead of copying the whole array each time.
+- **Amortized `x(end+1) = v`**, in-place cell element writes, and operands of binary operators
+  read by reference instead of copied.
 
 ## Reproduce
 

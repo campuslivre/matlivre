@@ -10,22 +10,33 @@ use crate::value::{CellArray, Kind, Matrix, StrArray, Value};
 type R<T> = Result<T, LangError>;
 
 /// Elementwise real `f(a, b)` with implicit expansion; result is a real double array.
-pub fn broadcast(a: &Matrix, b: &Matrix, f: impl Fn(f64, f64) -> f64) -> R<Matrix> {
+pub fn broadcast(a: &Matrix, b: &Matrix, f: impl Fn(f64, f64) -> f64 + Sync + Send) -> R<Matrix> {
+    use rayon::prelude::*;
+    let big = a.numel().max(b.numel()) >= PAR_MIN;
     if a.dims == b.dims {
-        let data = a.data.iter().zip(&b.data).map(|(&x, &y)| f(x, y)).collect();
+        let data = if big {
+            a.data.par_iter().zip(&b.data).map(|(&x, &y)| f(x, y)).collect()
+        } else {
+            a.data.iter().zip(&b.data).map(|(&x, &y)| f(x, y)).collect()
+        };
         return Ok(Matrix::from_dims(a.dims.clone(), data));
     }
     if a.is_scalar() {
         let x = a.data[0];
-        return Ok(Matrix::from_dims(b.dims.clone(), b.data.iter().map(|&y| f(x, y)).collect()));
+        let data = if big { b.data.par_iter().map(|&y| f(x, y)).collect() } else { b.data.iter().map(|&y| f(x, y)).collect() };
+        return Ok(Matrix::from_dims(b.dims.clone(), data));
     }
     if b.is_scalar() {
         let y = b.data[0];
-        return Ok(Matrix::from_dims(a.dims.clone(), a.data.iter().map(|&x| f(x, y)).collect()));
+        let data = if big { a.data.par_iter().map(|&x| f(x, y)).collect() } else { a.data.iter().map(|&x| f(x, y)).collect() };
+        return Ok(Matrix::from_dims(a.dims.clone(), data));
     }
     let (dims, pairs) = nd::broadcast_pairs(&a.dims, &b.dims)?;
     Ok(Matrix::from_dims(dims, pairs.into_iter().map(|(i, j)| f(a.data[i], b.data[j])).collect()))
 }
+
+/// Element count from which elementwise work is split across threads.
+pub const PAR_MIN: usize = 1 << 15;
 
 /// Elementwise complex `f(a, b)` with implicit expansion.
 pub fn broadcast_c(a: &Matrix, b: &Matrix, f: impl Fn(C, C) -> C) -> R<Matrix> {
@@ -317,6 +328,9 @@ fn elem_pow(x: &Matrix, y: &Matrix, kind: Kind) -> R<Matrix> {
         }
         return broadcast_c(x, y, |p, q| p.powc(q));
     }
+    if y.is_scalar() && y.data[0] == 2.0 {
+        return broadcast(x, y, |a, _| a * a);
+    }
     broadcast(x, y, f64::powf)
 }
 
@@ -398,6 +412,45 @@ fn imag_part(m: &Matrix) -> Matrix {
     Matrix::from_dims(m.dims.clone(), m.im.clone().unwrap_or_else(|| vec![0.0; m.numel()]))
 }
 
+/// Multiply-add count from which products go to the blocked, multithreaded kernel.
+const FAER_MIN_WORK: usize = 32 * 32 * 32;
+/// Order from which square solves, inverses and determinants use the blocked LU.
+const FAER_MIN_ORDER: usize = 24;
+
+/// `a \ b` for square real `a` through a blocked partial-pivoting LU.
+fn faer_solve(a: &Matrix, b: &Matrix) -> R<Matrix> {
+    use faer::dyn_stack::{MemBuffer, MemStack};
+    use faer::linalg::lu::partial_pivoting::{factor, solve};
+    let (n, k) = (a.rows(), b.cols());
+    // Below ~1000 the panel factorization is latency-bound and threads only add overhead.
+    let par = if n < 1000 { faer::Par::Seq } else { gemm_par() };
+    let req = factor::lu_in_place_scratch::<usize, f64>(n, n, par, Default::default()).or(solve::solve_in_place_scratch::<usize, f64>(n, k, par));
+    let mut buf = MemBuffer::new(req);
+    let stack = MemStack::new(&mut buf);
+    // L (unit diagonal, strictly below) and U share one buffer.
+    let mut lu = a.data.clone();
+    let (mut fwd, mut bwd) = (vec![0usize; n], vec![0usize; n]);
+    let (_, perm) = factor::lu_in_place(faer::MatMut::from_column_major_slice_mut(&mut lu, n, n), &mut fwd, &mut bwd, par, stack, Default::default());
+    if (0..n).any(|i| !(lu[i * n + i].abs() >= 1e-300)) {
+        return rt("Matrix is singular to working precision.");
+    }
+    let f = faer::MatRef::from_column_major_slice(&lu, n, n);
+    let mut x = b.data.clone();
+    solve::solve_in_place(f, f, perm, faer::MatMut::from_column_major_slice_mut(&mut x, n, k), par, stack);
+    Ok(Matrix::new(n, k, x))
+}
+
+/// Threads for blocked products: one per physical core. Two hyperthreads sharing a core
+/// contend for the same FMA units and caches, so using them makes timings worse and erratic.
+fn gemm_par() -> faer::Par {
+    static N: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
+    let n = *N.get_or_init(|| {
+        let logical = std::thread::available_parallelism().map_or(1, |n| n.get());
+        if cfg!(any(target_arch = "x86", target_arch = "x86_64")) && logical >= 4 { logical / 2 } else { logical }
+    });
+    if n <= 1 { faer::Par::Seq } else { faer::Par::rayon(n) }
+}
+
 pub fn matmul(a: &Matrix, b: &Matrix) -> R<Matrix> {
     if !a.is_2d() || !b.is_2d() {
         return rt("Arguments must be 2-D, or at least one argument must be scalar. Use TIMES (.*) for elementwise multiplication.");
@@ -406,6 +459,14 @@ pub fn matmul(a: &Matrix, b: &Matrix) -> R<Matrix> {
         return rt("Incorrect dimensions for matrix multiplication. Check that the number of columns in the first matrix matches the number of rows in the second matrix. To operate on each element of the matrix individually, use TIMES (.*) for elementwise multiplication.");
     }
     let (n, m, p) = (a.rows(), a.cols(), b.cols());
+    if n * m * p >= FAER_MIN_WORK {
+        let mut out = vec![0.0; n * p];
+        let lhs = faer::MatRef::from_column_major_slice(&a.data, n, m);
+        let rhs = faer::MatRef::from_column_major_slice(&b.data, m, p);
+        let dst = faer::MatMut::from_column_major_slice_mut(&mut out, n, p);
+        faer::linalg::matmul::matmul(dst, faer::Accum::Replace, lhs, rhs, 1.0, gemm_par());
+        return Ok(Matrix::new(n, p, out));
+    }
     let mut out = vec![0.0; n * p];
     // Column-major j-k-i loop order keeps the inner loop contiguous.
     for j in 0..p {
@@ -427,7 +488,7 @@ pub fn matmul(a: &Matrix, b: &Matrix) -> R<Matrix> {
 /// Matrix product for real or complex operands.
 pub fn matmul_any(a: &Matrix, b: &Matrix) -> R<Matrix> {
     if !a.is_complex() && !b.is_complex() {
-        return matmul(&real_part(a), &real_part(b));
+        return matmul(a, b);
     }
     let (ar, ai, br, bi) = (real_part(a), imag_part(a), real_part(b), imag_part(b));
     let re = broadcast(&matmul(&ar, &br)?, &matmul(&ai, &bi)?, |x, y| x - y)?;
@@ -480,14 +541,14 @@ fn unstack_complex(s: &Matrix) -> Matrix {
 
 pub fn solve_any(a: &Matrix, b: &Matrix) -> R<Matrix> {
     if !a.is_complex() && !b.is_complex() {
-        return solve(&real_part(a), &real_part(b));
+        return solve(a, b);
     }
     Ok(unstack_complex(&solve(&embed(a), &stack_complex(b))?))
 }
 
 pub fn inv_any(a: &Matrix) -> R<Matrix> {
     if !a.is_complex() {
-        return inv(&real_part(a));
+        return inv(a);
     }
     let n = a.rows();
     solve_any(a, &identity(n))
@@ -568,6 +629,9 @@ pub fn solve(a: &Matrix, b: &Matrix) -> R<Matrix> {
         return rt("Matrix dimensions must agree.");
     }
     if a.rows() == a.cols() {
+        if a.rows() >= FAER_MIN_ORDER {
+            return faer_solve(a, b);
+        }
         let (lu, perm, _) = lu(a)?;
         Ok(lu_solve(&lu, &perm, b))
     } else {
@@ -583,6 +647,9 @@ pub fn inv(a: &Matrix) -> R<Matrix> {
     if !a.is_2d() || a.rows() != a.cols() {
         return rt("Matrix must be square.");
     }
+    if a.rows() >= FAER_MIN_ORDER {
+        return faer_solve(a, &identity(a.rows()));
+    }
     let (lu, perm, _) = lu(a)?;
     Ok(lu_solve(&lu, &perm, &identity(a.rows())))
 }
@@ -593,6 +660,9 @@ pub fn det(a: &Matrix) -> R<f64> {
     }
     if a.rows() == 0 {
         return Ok(1.0);
+    }
+    if a.rows() >= FAER_MIN_ORDER {
+        return Ok(faer::MatRef::from_column_major_slice(&a.data, a.rows(), a.rows()).determinant());
     }
     match lu(a) {
         Ok((lu, _, sign)) => Ok((0..a.rows()).map(|i| lu.get(i, i)).product::<f64>() * sign),
