@@ -170,3 +170,37 @@ fn daspect_sets_and_reports_the_data_aspect_ratio() {
     let (_, out) = run("plot(1:3)\ndaspect([1 0 1])");
     assert!(out.iter().any(|o| o.starts_with("Error")), "{out:?}");
 }
+
+#[test]
+fn symbolic_functions_are_defined_and_called() {
+    let (it, out) = run(concat!(
+        "syms z d ep\n",
+        "f(z) = 2*z + 1;\n",
+        "a = f(3);\n",
+        "b = double(f([1 2 3]));\n",
+        "c = class(f); e = class(a);\n",
+        "g(d, ep) = d - 2*ep;\n",
+        "h = double(g(10, 1));\n",
+        "k = double(subs(g(ep, d), {d, ep}, {1, 10}));\n",
+        "Pr(d, ep) = erf(d/ep);\n",
+        "p = double(Pr(1, 2));\n",
+        "A = zeros(1, 2); A(2) = f(1);\n",
+        "cls = class(A);\n",
+    ));
+    assert!(!out.iter().any(|o| o.starts_with("Error")), "{out:?}");
+    assert_eq!(num(&it, "b"), [3.0, 5.0, 7.0]);
+    assert_eq!(it.get_var("c").unwrap().text().unwrap(), "symfun");
+    assert_eq!(it.get_var("e").unwrap().text().unwrap(), "sym");
+    assert_eq!(num(&it, "h"), [8.0]);
+    // g(ep, d) swaps the inputs: ep - 2*d, which is 8 at d = 1, ep = 10.
+    assert_eq!(num(&it, "k"), [8.0]);
+    // A sym assigned into a double array is converted, as in MATLAB.
+    assert_eq!(it.get_var("cls").unwrap().text().unwrap(), "double");
+    assert_eq!(num(&it, "A"), [0.0, 3.0]);
+    assert!((num(&it, "p")[0] - 0.52049987781304652).abs() < 1e-15);
+
+    let (_, out) = run("syms x\nf(x) = x^2;\nf(1, 2)");
+    assert!(out.iter().any(|o| o.contains("Symbolic function expected 1 input arguments but received 2.")), "{out:?}");
+    let (_, out) = run("syms x\nA = zeros(1,2);\nA(1) = x;");
+    assert!(out.iter().any(|o| o.contains("Unable to convert expression containing symbolic variables into double array.")), "{out:?}");
+}

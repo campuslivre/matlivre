@@ -1983,6 +1983,7 @@ dependencies = [
  "cranelift-module",
  "cranelift-native",
  "faer",
+ "libm",
  "rayon",
 ]
 

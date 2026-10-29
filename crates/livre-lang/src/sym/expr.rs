@@ -643,7 +643,8 @@ impl Expr {
                     return Expr::int(if n.is_zero() { 0 } else if n.is_neg() { -1 } else { 1 });
                 }
             }
-            "asin" | "atan" | "sinh" | "tanh" | "asinh" | "atanh" if a.is_zero() => return Expr::zero(),
+            "asin" | "atan" | "sinh" | "tanh" | "asinh" | "atanh" | "erf" if a.is_zero() => return Expr::zero(),
+            "erfc" if a.is_zero() => return Expr::one(),
             "cosh" if a.is_zero() => return Expr::one(),
             "acos" if a.is_one() => return Expr::zero(),
             "floor" | "ceil" | "round" | "fix" => {
@@ -810,6 +811,8 @@ pub fn eval_fn(name: &str, z: C) -> Option<C> {
         "acosh" => return real(f64::acosh),
         "atanh" => return real(f64::atanh),
         "heaviside" => return real(|x| if x > 0.0 { 1.0 } else if x < 0.0 { 0.0 } else { 0.5 }),
+        "erf" => return real(libm::erf),
+        "erfc" => return real(libm::erfc),
         _ => return None,
     })
 }

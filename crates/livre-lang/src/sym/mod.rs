@@ -32,19 +32,22 @@ fn is_real_var(v: &str) -> bool {
 pub struct SymArray {
     pub dims: Dims,
     pub data: Vec<Expr>,
+    /// The input arguments of a symbolic function (`f(x, y) = ...`, class symfun); empty for
+    /// a plain sym array.
+    pub args: Vec<String>,
 }
 
 impl SymArray {
     pub fn empty() -> Self {
-        Self { dims: vec![0, 0], data: Vec::new() }
+        Self { dims: vec![0, 0], data: Vec::new(), args: Vec::new() }
     }
 
     pub fn scalar(e: Expr) -> Self {
-        Self { dims: vec![1, 1], data: vec![e] }
+        Self { dims: vec![1, 1], data: vec![e], args: Vec::new() }
     }
 
     pub fn from_dims(dims: Dims, data: Vec<Expr>) -> Self {
-        Self { dims: nd::normalize(dims), data }
+        Self { dims: nd::normalize(dims), data, args: Vec::new() }
     }
 
     pub fn from_value(v: &Value) -> R<SymArray> {
@@ -79,7 +82,7 @@ impl SymArray {
     }
 
     pub fn map(&self, f: impl Fn(&Expr) -> Expr) -> SymArray {
-        SymArray { dims: self.dims.clone(), data: self.data.iter().map(f).collect() }
+        SymArray { dims: self.dims.clone(), data: self.data.iter().map(f).collect(), args: self.args.clone() }
     }
 
     /// `double(s)`.
@@ -158,6 +161,14 @@ impl SymArray {
     }
 
     pub fn display(&self, name: &str) -> String {
+        // A symbolic function shows its signature: f(x, y) = ...
+        let signature;
+        let name = if self.args.is_empty() {
+            name
+        } else {
+            signature = format!("{name}({})", self.args.join(", "));
+            &signature
+        };
         if self.data.len() == 1 {
             return format!("{name} = {}", self.data[0]);
         }
@@ -173,6 +184,49 @@ impl SymArray {
         }
         self.rows_text()
     }
+}
+
+/// The symbolic variable named by a value, if it is exactly one bare variable (`syms x`).
+pub fn bare_var(v: &Value) -> Option<String> {
+    match v {
+        Value::Sym(s) if s.data.len() == 1 && s.args.is_empty() => match &s.data[0] {
+            Expr::Var(name) => Some(name.clone()),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// `f(x, y) = body`: the symbolic function with those inputs.
+pub fn define_symfun(args: Vec<String>, body: &Value) -> R<Value> {
+    let mut f = SymArray::from_value(body)?;
+    f.args = args;
+    Ok(Value::Sym(f))
+}
+
+/// `f(a, b)` for a symbolic function: its body with the inputs replaced by the arguments,
+/// as a sym (not a symfun). An array argument evaluates the function elementwise.
+pub fn call_symfun(f: &SymArray, args: Vec<Value>) -> R<Value> {
+    if args.len() != f.args.len() {
+        return rt(format!("Symbolic function expected {} input arguments but received {}.", f.args.len(), args.len()));
+    }
+    let vals = args.iter().map(SymArray::from_value).collect::<R<Vec<_>>>()?;
+    let n = vals.iter().map(|v| v.data.len()).max().unwrap_or(1);
+    if vals.iter().any(|v| v.data.len() != 1 && v.data.len() != n) {
+        return rt("Arguments of a symbolic function call must be scalars or arrays of the same size.");
+    }
+    // Inputs are first renamed to placeholders, so f(y, x) swaps rather than chains.
+    let hold: Vec<String> = (0..f.args.len()).map(|k| format!("\u{0}arg{k}")).collect();
+    let renamed = f.map(|e| f.args.iter().zip(&hold).fold(e.clone(), |acc, (a, h)| acc.subs(a, &Expr::var(h))));
+    let at = |e: &Expr, k: usize| hold.iter().zip(&vals).fold(e.clone(), |acc, (h, v)| acc.subs(h, &v.data[if v.data.len() == 1 { 0 } else { k }]));
+    let mut out = if f.data.len() == 1 && n > 1 {
+        let dims = vals.iter().find(|v| v.data.len() == n).unwrap().dims.clone();
+        SymArray::from_dims(dims, (0..n).map(|k| at(&renamed.data[0], k)).collect())
+    } else {
+        renamed.map(|e| at(e, 0))
+    };
+    out.args.clear();
+    Ok(Value::Sym(out))
 }
 
 /// Parses text such as `'x^2 + 1'` into a symbolic expression.
@@ -388,7 +442,7 @@ pub const NAMES: &[&str] = &[
 /// Elementwise functions that also accept numbers (dispatched here only for sym inputs).
 const ELEMENTWISE: &[&str] = &[
     "sin", "cos", "tan", "asin", "acos", "atan", "sinh", "cosh", "tanh", "asinh", "acosh", "atanh", "exp", "log", "sqrt", "abs", "sign", "floor",
-    "ceil", "round", "fix", "heaviside", "dirac",
+    "ceil", "round", "fix", "heaviside", "dirac", "erf", "erfc",
 ];
 
 fn sym_arg(args: &[Value], i: usize) -> R<SymArray> {

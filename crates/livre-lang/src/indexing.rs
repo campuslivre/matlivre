@@ -123,7 +123,13 @@ pub fn assign(base: Option<Value>, idx: &[IndexArg], rhs: Value) -> R<Value> {
                 m.narrow();
                 Ok(Value::Num(m))
             }
-            Value::Sym(_) => assign(Some(Value::Sym(crate::sym::SymArray::from_value(&Value::Num(m))?)), idx, rhs),
+            // A sym assigned into a double array is converted to double, as in MATLAB (an
+            // error if it still has symbolic variables).
+            Value::Sym(s) => {
+                let mut r = s.to_matrix()?;
+                r.narrow();
+                assign(Some(Value::Num(m)), idx, Value::Num(r))
+            }
             other => rt(format!("Conversion to {} from {} is not possible.", m.kind.name(), other.class_name())),
         },
         Value::Cell(mut c) => match rhs {
@@ -237,7 +243,7 @@ pub fn concat(items: Vec<Value>, dim: usize) -> R<Value> {
     if items.iter().any(|v| matches!(v, Value::Sym(_))) {
         let parts = items.iter().filter(|v| !is_delete_rhs(v)).map(|v| crate::sym::SymArray::from_value(v).map(|s| (s.dims, s.data))).collect::<R<Vec<_>>>()?;
         let (d, data) = nd::concat(parts, dim)?;
-        return Ok(Value::Sym(crate::sym::SymArray { dims: d, data }));
+        return Ok(Value::Sym(crate::sym::SymArray { dims: d, data, args: Vec::new() }));
     }
     let items: Vec<Value> = {
         let non_empty: Vec<Value> = items.iter().filter(|v| !is_delete_rhs(v)).cloned().collect();

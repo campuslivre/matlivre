@@ -62,6 +62,11 @@ pub fn diff(e: &Expr, v: &str) -> Expr {
                 "abs" => Expr::func("sign", vec![u.clone()]),
                 "sign" | "floor" | "ceil" | "round" | "fix" => Expr::zero(),
                 "heaviside" => Expr::func("dirac", vec![u.clone()]),
+                // d/du erf(u) = 2/sqrt(pi) * exp(-u^2); erfc is its negative.
+                "erf" | "erfc" => {
+                    let g = Expr::mul(vec![Expr::int(2), Expr::pow(Expr::Const(Const::Pi), Expr::rat(-1, 2)), Expr::func("exp", vec![Expr::neg(Expr::pow(u.clone(), Expr::int(2)))])]);
+                    if name == "erf" { g } else { Expr::neg(g) }
+                }
                 _ => return Expr::Fn("diff".into(), vec![e.clone(), x_var(v)]),
             };
             Expr::mul(vec![outer, du])

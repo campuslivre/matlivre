@@ -747,6 +747,21 @@ impl Interpreter {
             self.set_var(name, rhs);
             return Ok(());
         }
+        // f(x, y) = expr with symbolic variables as subscripts defines a symbolic function.
+        if let [Accessor::Paren(args)] = chain.as_slice() {
+            let vars: Option<Vec<String>> = args
+                .iter()
+                .map(|a| match a {
+                    Expr::Ident(n) => self.get_var(n).and_then(crate::sym::bare_var),
+                    _ => None,
+                })
+                .collect();
+            if let Some(vars) = vars.filter(|v| !v.is_empty()) {
+                let f = crate::sym::define_symfun(vars, &rhs)?;
+                self.set_var(name, f);
+                return Ok(());
+            }
+        }
         // Pass 1: evaluate subscripts against the current sub-value (for `end`).
         let mut resolved = Vec::with_capacity(chain.len());
         for (k, acc) in chain.iter().enumerate() {
@@ -1173,6 +1188,15 @@ impl Interpreter {
             }
             Expr::SuperRef { name, class } => self.super_call(name, class, Vec::new(), nargout),
             Expr::Index(base, args) => {
+                // Calling a symbolic function, f(3) or f(a, b).
+                if let Expr::Ident(name) = base.as_ref() {
+                    if matches!(self.get_var(name), Some(Value::Sym(s)) if !s.args.is_empty()) {
+                        let argv = self.eval_args(args)?;
+                        let Some(Value::Sym(f)) = self.get_var(name) else { unreachable!() };
+                        let f = f.clone();
+                        return Ok(vec![crate::sym::call_symfun(&f, argv)?]);
+                    }
+                }
                 // Fast path: index a variable (or a scalar-struct field) by reference.
                 if let Some((name, field)) = var_ref(base) {
                     let dims = match self.var_at(name, field) {

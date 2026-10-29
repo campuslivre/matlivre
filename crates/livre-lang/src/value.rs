@@ -556,6 +556,7 @@ impl Value {
             Value::Object(o) => o.class.name.clone(),
             Value::Time(t) => t.class_name().into(),
             Value::Table(_) => "table".into(),
+            Value::Sym(s) if !s.args.is_empty() => "symfun".into(),
             Value::Sym(_) => "sym".into(),
         }
     }
