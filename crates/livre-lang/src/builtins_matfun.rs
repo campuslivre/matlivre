@@ -1154,8 +1154,25 @@ fn eig_general(a: &M) -> R<(Vec<Z>, M)> {
     let fail = |_| LangError::new("EIG did not converge.", 0);
     let e = if a.is_real() { a.faer_re().eigen().map_err(fail)? } else { a.faer().eigen().map_err(fail)? };
     let n = a.r;
-    let vals: Vec<Z> = (0..n).map(|i| e.S().column_vector()[i]).collect();
+    let mut vals: Vec<Z> = (0..n).map(|i| e.S().column_vector()[i]).collect();
     let mut v = M::of_faer(e.U());
+    // Conjugate pairs of a real matrix come positive imaginary part first, as from LAPACK.
+    if a.is_real() {
+        let mut j = 0;
+        while j + 1 < n {
+            if vals[j].im < 0.0 && vals[j + 1] == vals[j].conj() {
+                vals.swap(j, j + 1);
+                for i in 0..n {
+                    let t = v.at(i, j);
+                    v.set(i, j, v.at(i, j + 1));
+                    v.set(i, j + 1, t);
+                }
+                j += 2;
+            } else {
+                j += 1;
+            }
+        }
+    }
     for j in 0..n {
         let nrm = vnorm(&v.col(j));
         if nrm > 0.0 {
@@ -3585,12 +3602,29 @@ fn polyeig(a: &[Value], nargout: usize) -> Ret {
         let (al, be) = (ge.S_a().column_vector()[i], ge.S_b().column_vector()[i]);
         e.push(if be == ZERO { if al == ZERO { re(f64::NAN) } else { re(f64::INFINITY) } } else { dv(al, be) });
     }
+    let mut z = M::of_faer(ge.U());
     let real_coeffs = !cplx;
+    // Conjugate pairs of a real problem come positive imaginary part first, as from LAPACK.
+    if real_coeffs {
+        let mut j = 0;
+        while j + 1 < np {
+            if e[j].im < 0.0 && abs(e[j + 1] - e[j].conj()) <= 1e-10 * abs(e[j]) {
+                e.swap(j, j + 1);
+                for i in 0..np {
+                    let t = z.at(i, j);
+                    z.set(i, j, z.at(i, j + 1));
+                    z.set(i, j + 1, t);
+                }
+                j += 2;
+            } else {
+                j += 1;
+            }
+        }
+    }
     let ce = !real_coeffs || e.iter().any(|z| z.im.abs() > 0.0);
     if nargout <= 1 {
         return one(zcol(&e, ce));
     }
-    let z = M::of_faer(ge.U());
     let mut x = M::zeros(n, np);
     for j in 0..np {
         let lam = e[j];
