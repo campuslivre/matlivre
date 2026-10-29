@@ -58,6 +58,8 @@ pub(crate) enum Flow {
 struct Frame {
     vars: HashMap<String, Value>,
     globals: HashSet<String>,
+    /// The user function running in this frame (for `mfilename`).
+    func: Option<String>,
 }
 
 enum Resolved {
@@ -117,7 +119,7 @@ impl Default for Interpreter {
 impl Interpreter {
     pub fn new() -> Self {
         Self {
-            base: Frame { vars: HashMap::new(), globals: HashSet::new() },
+            base: Frame { vars: HashMap::new(), globals: HashSet::new(), func: None },
             frames: Vec::new(),
             global_vars: HashMap::new(),
             functions: HashMap::new(),
@@ -405,6 +407,16 @@ impl Interpreter {
         None
     }
 
+    /// Where a function or script file on the search path is (for `which`).
+    pub(crate) fn function_file(&self, name: &str) -> Option<String> {
+        self.read_path_file(name).map(|(p, _)| p.display().to_string())
+    }
+
+    /// The source of a function or script file on the search path (for `type`).
+    pub(crate) fn function_source(&self, name: &str) -> Option<String> {
+        self.read_path_file(name).map(|(_, s)| s)
+    }
+
     /// Loads (once) a function or script file from the search path.
     fn find_path_function(&mut self, name: &str) -> Option<Rc<Function>> {
         if let Some(f) = self.path_functions.get(name) {
@@ -472,6 +484,104 @@ impl Interpreter {
         let def = Rc::new(ClassDef::build(ast, &supers));
         self.classes.insert(name.to_string(), def.clone());
         Some(def)
+    }
+
+    // ---- eval --------------------------------------------------------------------------
+
+    /// Runs `src` in the current workspace, as `eval` does. With `nargout > 0` the text
+    /// must be a single expression, whose values are returned.
+    pub(crate) fn eval_text(&mut self, src: &str, nargout: usize) -> R<Vec<Value>> {
+        let prog = crate::parser::parse(src)?;
+        // Statements inside the text must not move the line errors are reported on.
+        let line = self.top_line;
+        let r = self.eval_program(&prog, nargout);
+        self.top_line = line;
+        r
+    }
+
+    fn eval_program(&mut self, prog: &crate::ast::Program, nargout: usize) -> R<Vec<Value>> {
+        if nargout > 0 {
+            return match prog.body.as_slice() {
+                [Stmt { kind: StmtKind::Expr { expr, .. }, .. }] => self.eval_multi(expr, nargout),
+                _ => rt("Unable to return a value from a statement; the text must be an expression."),
+            };
+        }
+        for s in &prog.body {
+            let saved = self.frames.is_empty().then_some(self.top_line);
+            let flow = self.exec_inner(s);
+            if let Some(l) = saved {
+                self.top_line = l;
+            }
+            match flow? {
+                Flow::Normal => {}
+                _ => break,
+            }
+        }
+        Ok(Vec::new())
+    }
+
+    /// Runs `f` with the base workspace (`"base"`) or the caller's (`"caller"`) as the
+    /// current one, for `evalin` and `assignin`.
+    pub(crate) fn in_workspace<T>(&mut self, which: &str, f: impl FnOnce(&mut Self) -> R<T>) -> R<T> {
+        match which {
+            "base" => {
+                let saved = std::mem::take(&mut self.frames);
+                let r = f(self);
+                self.frames = saved;
+                r
+            }
+            "caller" => {
+                let top = self.frames.pop();
+                let r = f(self);
+                if let Some(t) = top {
+                    self.frames.push(t);
+                }
+                r
+            }
+            other => rt(format!("Invalid workspace '{other}'. The workspace must be 'base' or 'caller'.")),
+        }
+    }
+
+    /// Runs `f` and returns the text it would have displayed (for `evalc`); figures are
+    /// still shown.
+    pub(crate) fn capture_text<T>(&mut self, f: impl FnOnce(&mut Self) -> R<T>) -> R<(T, String)> {
+        let flush = self.flush.take();
+        let start = self.pending.len();
+        let r = f(self);
+        let produced: Vec<Output> = self.pending.drain(start..).collect();
+        self.flush = flush;
+        let mut text = String::new();
+        for o in produced {
+            match o.kind {
+                OutputKind::Text(t) => text.push_str(&t),
+                OutputKind::Value { text: t, .. } => {
+                    text.push_str(&t);
+                    text.push('\n');
+                }
+                OutputKind::Warning(w) => text.push_str(&format!("Warning: {w}\n")),
+                other => self.pending.push(Output { line: o.line, kind: other }),
+            }
+        }
+        Ok((r?, text))
+    }
+
+    /// The function running in the innermost function frame, for `mfilename` (None in a
+    /// script or the command line).
+    pub(crate) fn current_function(&self) -> Option<String> {
+        self.frames.iter().rev().find_map(|f| f.func.clone())
+    }
+
+    /// `run(name)`: a script found on the search path (or at a path) run in the current
+    /// workspace.
+    pub(crate) fn run_script(&mut self, name: &str) -> R<()> {
+        let src = match self.read_path_file(name) {
+            Some((_, src)) => src,
+            None => {
+                let p = if name.ends_with(".m") { name.to_string() } else { format!("{name}.m") };
+                std::fs::read_to_string(&p).map_err(|_| LangError::new(format!("RUN cannot execute the file '{name}'. RUN requires a valid MATLAB script"), 0))?
+            }
+        };
+        self.eval_text(&src, 0).map(|_| ())
     }
 
     // ---- statements --------------------------------------------------------------------
@@ -1389,7 +1499,7 @@ impl Interpreter {
     }
 
     fn eval_in_class_scope(&mut self, e: &Expr) -> R<Value> {
-        self.frames.push(Frame { vars: HashMap::new(), globals: HashSet::new() });
+        self.frames.push(Frame { vars: HashMap::new(), globals: HashSet::new(), func: None });
         let r = self.eval(e);
         self.frames.pop();
         r
@@ -1561,7 +1671,7 @@ impl Interpreter {
                 for (p, a) in f.params.iter().zip(args) {
                     vars.insert(p.clone(), a);
                 }
-                self.frames.push(Frame { vars, globals: HashSet::new() });
+                self.frames.push(Frame { vars, globals: HashSet::new(), func: None });
                 let r = self.eval_multi(&f.body, nargout.max(1));
                 self.frames.pop();
                 self.depth -= 1;
@@ -1710,7 +1820,7 @@ impl Interpreter {
         }
         vars.insert("nargin".into(), Value::num(nargin as f64));
         vars.insert("nargout".into(), Value::num(nargout as f64));
-        self.frames.push(Frame { vars, globals: HashSet::new() });
+        self.frames.push(Frame { vars, globals: HashSet::new(), func: Some(f.name.clone()) });
         let r = self.exec_block(&f.body);
         let frame = self.frames.pop().unwrap();
         self.depth -= 1;

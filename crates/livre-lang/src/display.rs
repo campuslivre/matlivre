@@ -301,15 +301,27 @@ pub fn func_text(fv: &crate::value::FuncValue) -> String {
     }
 }
 
-fn cell_item(v: &Value, f: NumFormat) -> String {
+/// How a cell element is aligned within its column: text and descriptions pad on the right
+/// inside the braces; numbers are right-aligned inside their brackets; strings are
+/// left-aligned inside theirs.
+enum CellAlign {
+    Left,
+    NumBrackets,
+    StrBrackets,
+}
+
+/// The text between the braces of a cell element.
+fn cell_item(v: &Value, f: NumFormat) -> (String, CellAlign) {
     match v {
-        Value::Num(m) if m.kind == Kind::Char && m.is_2d() && m.rows() <= 1 => format!("{{'{}'}}", m.to_string_lossy()),
-        Value::Num(m) if m.is_scalar() || (m.is_2d() && m.rows() == 1 && m.cols() <= 10 && !m.is_complex()) || m.is_empty() => {
+        Value::Num(m) if m.kind == Kind::Char && m.is_2d() && m.rows() <= 1 => (format!("'{}'", m.to_string_lossy()), CellAlign::Left),
+        Value::Num(m) if m.is_empty() => (format!("{} {}", nd::size_text(&m.dims), m.kind.name()), CellAlign::Left),
+        Value::Num(m) if m.is_scalar() || (m.is_2d() && m.rows() == 1 && m.cols() <= 10 && !m.is_complex()) => {
             let s = summary(v, f);
-            if s.starts_with('[') { format!("{{{s}}}") } else { format!("{{[{s}]}}") }
+            let inner = s.strip_prefix('[').and_then(|t| t.strip_suffix(']')).unwrap_or(&s).to_string();
+            (inner, CellAlign::NumBrackets)
         }
-        Value::Str(s) if s.data.len() == 1 => format!("{{[{}]}}", summary(v, f)),
-        other => format!("{{{}}}", summary(other, f)),
+        Value::Str(s) if s.data.len() == 1 => (summary(v, f), CellAlign::StrBrackets),
+        other => (summary(other, f), CellAlign::Left),
     }
 }
 
@@ -334,9 +346,28 @@ fn grid(rows: usize, cols: usize, items: &[String], sep: &str) -> String {
 }
 
 fn cell_body(c: &CellArray, f: NumFormat) -> String {
-    let items: Vec<String> = c.data.iter().map(|v| cell_item(v, f)).collect();
-    grid(c.rows(), c.cols(), &items, "    ")
+    let (rows, cols) = (c.rows(), c.cols());
+    let raw: Vec<(String, CellAlign)> = c.data.iter().map(|v| cell_item(v, f)).collect();
+    // Width between the braces, brackets included.
+    let len = |s: &str, a: &CellAlign| s.chars().count() + if matches!(a, CellAlign::Left) { 0 } else { 2 };
+    // Each column is as wide as its widest element.
+    let widths: Vec<usize> = (0..cols).map(|j| (0..rows).map(|i| { let (s, a) = &raw[j * rows + i]; len(s, a) }).max().unwrap_or(0)).collect();
+    let items: Vec<String> = raw
+        .iter()
+        .enumerate()
+        .map(|(k, (s, a))| {
+            let w = widths[k / rows.max(1)];
+            let pad = " ".repeat(w.saturating_sub(len(s, a)));
+            match a {
+                CellAlign::Left => format!("{{{s}{pad}}}"),
+                CellAlign::NumBrackets => format!("{{[{pad}{s}]}}"),
+                CellAlign::StrBrackets => format!("{{[{s}{pad}]}}"),
+            }
+        })
+        .collect();
+    grid(rows, cols, &items, "    ")
 }
+
 
 fn str_body(s: &StrArray) -> String {
     let items: Vec<String> = s.data.iter().map(|x| match x {

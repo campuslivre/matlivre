@@ -11,6 +11,7 @@ pub mod builtins_ops;
 pub mod builtins_plot;
 pub mod builtins_geom;
 pub mod builtins_interpn;
+pub mod builtins_lang;
 pub mod builtins_polyfun;
 pub mod builtins_specfun;
 pub mod builtins_text;
