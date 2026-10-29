@@ -7,10 +7,10 @@ found in the toolbox folders, checked against matlivre. Regenerate with
 
 | Status | Count |
 |---|---:|
-| Implemented | 712 |
+| Implemented | 725 |
 | In a branch not merged yet | 0 |
 | Language keyword (check it works) | 25 |
-| **To implement** | **1310** |
+| **To implement** | **1297** |
 | Out of scope | 1332 |
 
 Out of scope, by category of the function reference: app building, external language
@@ -675,7 +675,7 @@ To implement:
 
 ## MATLAB > Language Fundamentals > Data Types
 
-Implemented: 208. To implement: 190. In a branch: 0. Out of scope: 0.
+Implemented: 220. To implement: 178. In a branch: 0. Out of scope: 0.
 
 To implement:
 
@@ -687,11 +687,9 @@ To implement:
 - [ ] `addtodate`
 - [ ] `addts`
 - [ ] `addvars`
-- [ ] `allfinite`
 - [ ] `alphanumericBoundary`
 - [ ] `alphanumericsPattern`
 - [ ] `anymissing`
-- [ ] `anynan`
 - [ ] `array2timetable`
 - [ ] `asFewOfPattern`
 - [ ] `asManyOfPattern`
@@ -702,8 +700,6 @@ To implement:
 - [ ] `caseSensitivePattern`
 - [ ] `categorical`
 - [ ] `categories`
-- [ ] `cell2mat`
-- [ ] `cell2struct`
 - [ ] `celldisp`
 - [ ] `cellplot`
 - [ ] `characterListPattern`
@@ -734,11 +730,9 @@ To implement:
 - [ ] `extractevents`
 - [ ] `findEvent`
 - [ ] `function_handle`
-- [ ] `functions`
 - [ ] `getabstime`
 - [ ] `getdatasamples`
 - [ ] `getdatasamplesize`
-- [ ] `getfield`
 - [ ] `getinterpmethod`
 - [ ] `getqualitydesc`
 - [ ] `getsamples`
@@ -791,7 +785,6 @@ To implement:
 - [ ] `lweekdate`
 - [ ] `m2xdate`
 - [ ] `maskedPattern`
-- [ ] `mat2cell`
 - [ ] `matlab.datetime.compatibility.convertDatenum`
 - [ ] `mergecats`
 - [ ] `mergevars`
@@ -801,7 +794,6 @@ To implement:
 - [ ] `numEntries`
 - [ ] `nweekdate`
 - [ ] `optionalPattern`
-- [ ] `orderfields`
 - [ ] `outerjoin`
 - [ ] `overlapsrange`
 - [ ] `parquetinfo`
@@ -825,7 +817,6 @@ To implement:
 - [ ] `rows2vars`
 - [ ] `setabstime`
 - [ ] `setcats`
-- [ ] `setfield`
 - [ ] `setinterpmethod`
 - [ ] `settimeseriesnames`
 - [ ] `setuniformtime`
@@ -835,8 +826,6 @@ To implement:
 - [ ] `spreadsheetImportOptions`
 - [ ] `stack`
 - [ ] `stackedplot`
-- [ ] `struct2cell`
-- [ ] `structfun`
 - [ ] `syncevents`
 - [ ] `synchronize`
 - [ ] `table2timetable`
@@ -850,7 +839,6 @@ To implement:
 - [ ] `timezones`
 - [ ] `tscollection`
 - [ ] `tsdata.event`
-- [ ] `typecast`
 - [ ] `types`
 - [ ] `tzoffset`
 - [ ] `underlyingType`
@@ -870,7 +858,7 @@ To implement:
 - [ ] `ymd`
 - [ ] `yyyymmdd`
 
-Implemented: `append`, `array2table`, `arrayfun`, `base2dec`, `between`, `bin2dec`, `blanks`, `caldays`, `calmonths`, `calquarters`, `calweeks`, `calyears`, `cast`, `cell`, `cell2table`, `cellfun`, `cellstr`, `char`, `class`, `compose`, `contains`, `convertCharsToStrings`, `convertContainedStringsToChars`, `convertStringsToChars`, `count`, `datenum`, `dateshift`, `datetime`, `day`, `days`, `deal`, `deblank`, `dec2base`, `dec2bin`, `dec2hex`, `detrend`, `discretize`, `double`, `duration`, `endsWith`, `eps`, `erase`, `eraseBetween`, `extract`, `extractAfter`, `extractBefore`, `extractBetween`, `feval`, `fieldnames`, `fillmissing`, `filter`, `findgroups`, `findstr`, `flintmax`, `func2str`, `groupcounts`, `groupfilter`, `groupsummary`, `grouptransform`, `height`, `hex2dec`, `hex2num`, `hour`, `hours`, `Inf`, `insertAfter`, `insertBefore`, `int16`, `int2str`, `int32`, `int64`, `int8`, `intersect`, `intmax`, `intmin`, `iqr`, `isa`, `iscalendarduration`, `iscell`, `iscellstr`, `ischar`, `isdatetime`, `isduration`, `isfield`, `isfinite`, `isfloat`, `isinf`, `isinteger`, `isletter`, `islogical`, `ismember`, `ismissing`, `isnan`, `isnat`, `isnumeric`, `isobject`, `isreal`, `isspace`, `isstring`, `isStringScalar`, `isstrprop`, `isstruct`, `istable`, `join`, `lettersPattern`, `lower`, `mat2str`, `matches`, `max`, `mean`, `median`, `milliseconds`, `min`, `minute`, `minutes`, `month`, `NaN`, `NaT`, `native2unicode`, `newline`, `now`, `num2cell`, `num2hex`, `num2str`, `pad`, `pivot`, `plot`, `plus`, `posixtime`, `quarter`, `readtable`, `realmax`, `realmin`, `regexp`, `regexpi`, `regexprep`, `regexptranslate`, `removevars`, `renamevars`, `replace`, `replaceBetween`, `reverse`, `rmfield`, `rmmissing`, `second`, `seconds`, `setdiff`, `setxor`, `single`, `split`, `splitapply`, `splitlines`, `sprintf`, `sscanf`, `standardizeMissing`, `startsWith`, `std`, `str2double`, `str2func`, `str2mat`, `str2num`, `strcat`, `strcmp`, `strcmpi`, `strfind`, `string`, `strings`, `strip`, `strjoin`, `strjust`, `strlength`, `strmatch`, `strncmp`, `strncmpi`, `strread`, `strrep`, `strsplit`, `strtok`, `strtrim`, `struct`, `struct2table`, `strvcat`, `sum`, `summary`, `symvar`, `table`, `table2array`, `table2cell`, `table2struct`, `timeofday`, `today`, `topkrows`, `uint16`, `uint32`, `uint64`, `uint8`, `unicode2native`, `union`, `unique`, `upper`, `validateattributes`, `var`, `weekday`, `whos`, `width`, `writetable`, `year`, `years`
+Implemented: `allfinite`, `anynan`, `append`, `array2table`, `arrayfun`, `base2dec`, `between`, `bin2dec`, `blanks`, `caldays`, `calmonths`, `calquarters`, `calweeks`, `calyears`, `cast`, `cell`, `cell2mat`, `cell2struct`, `cell2table`, `cellfun`, `cellstr`, `char`, `class`, `compose`, `contains`, `convertCharsToStrings`, `convertContainedStringsToChars`, `convertStringsToChars`, `count`, `datenum`, `dateshift`, `datetime`, `day`, `days`, `deal`, `deblank`, `dec2base`, `dec2bin`, `dec2hex`, `detrend`, `discretize`, `double`, `duration`, `endsWith`, `eps`, `erase`, `eraseBetween`, `extract`, `extractAfter`, `extractBefore`, `extractBetween`, `feval`, `fieldnames`, `fillmissing`, `filter`, `findgroups`, `findstr`, `flintmax`, `func2str`, `functions`, `getfield`, `groupcounts`, `groupfilter`, `groupsummary`, `grouptransform`, `height`, `hex2dec`, `hex2num`, `hour`, `hours`, `Inf`, `insertAfter`, `insertBefore`, `int16`, `int2str`, `int32`, `int64`, `int8`, `intersect`, `intmax`, `intmin`, `iqr`, `isa`, `iscalendarduration`, `iscell`, `iscellstr`, `ischar`, `isdatetime`, `isduration`, `isfield`, `isfinite`, `isfloat`, `isinf`, `isinteger`, `isletter`, `islogical`, `ismember`, `ismissing`, `isnan`, `isnat`, `isnumeric`, `isobject`, `isreal`, `isspace`, `isstring`, `isStringScalar`, `isstrprop`, `isstruct`, `istable`, `join`, `lettersPattern`, `lower`, `mat2cell`, `mat2str`, `matches`, `max`, `mean`, `median`, `milliseconds`, `min`, `minute`, `minutes`, `month`, `NaN`, `NaT`, `native2unicode`, `newline`, `now`, `num2cell`, `num2hex`, `num2str`, `orderfields`, `pad`, `pivot`, `plot`, `plus`, `posixtime`, `quarter`, `readtable`, `realmax`, `realmin`, `regexp`, `regexpi`, `regexprep`, `regexptranslate`, `removevars`, `renamevars`, `replace`, `replaceBetween`, `reverse`, `rmfield`, `rmmissing`, `second`, `seconds`, `setdiff`, `setfield`, `setxor`, `single`, `split`, `splitapply`, `splitlines`, `sprintf`, `sscanf`, `standardizeMissing`, `startsWith`, `std`, `str2double`, `str2func`, `str2mat`, `str2num`, `strcat`, `strcmp`, `strcmpi`, `strfind`, `string`, `strings`, `strip`, `strjoin`, `strjust`, `strlength`, `strmatch`, `strncmp`, `strncmpi`, `strread`, `strrep`, `strsplit`, `strtok`, `strtrim`, `struct`, `struct2cell`, `struct2table`, `structfun`, `strvcat`, `sum`, `summary`, `symvar`, `table`, `table2array`, `table2cell`, `table2struct`, `timeofday`, `today`, `topkrows`, `typecast`, `uint16`, `uint32`, `uint64`, `uint8`, `unicode2native`, `union`, `unique`, `upper`, `validateattributes`, `var`, `weekday`, `whos`, `width`, `writetable`, `year`, `years`
 
 ## MATLAB > Language Fundamentals > Entering Commands
 
@@ -904,7 +892,7 @@ Implemented: `blkdiag`, `cat`, `circshift`, `colon`, `ctranspose`, `diag`, `eye`
 
 ## MATLAB > Language Fundamentals > Operators and Elementary Operations
 
-Implemented: 36. To implement: 26. In a branch: 0. Out of scope: 0.
+Implemented: 37. To implement: 25. In a branch: 0. Out of scope: 0.
 
 To implement:
 
@@ -929,13 +917,12 @@ To implement:
 - [ ] `ismembertol`
 - [ ] `Short-Circuit &amp;&amp;`
 - [ ] `Short-Circuit ||`
-- [ ] `swapbytes`
 - [ ] `uniquetol`
 - [ ] `|`
 - [ ] `~`
 - [ ] `~=`
 
-Implemented: `all`, `any`, `bitand`, `bitcmp`, `bitget`, `bitor`, `bitset`, `bitshift`, `bitxor`, `bsxfun`, `ceil`, `cumprod`, `cumsum`, `diff`, `find`, `fix`, `floor`, `idivide`, `isequal`, `isequaln`, `isequalwithequalnans`, `logical`, `mod`, `movsum`, `pagectranspose`, `pagemldivide`, `pagemrdivide`, `pagemtimes`, `pagetranspose`, `prod`, `rem`, `round`, `tensorprod`, `uminus`, `uplus`, `xor`
+Implemented: `all`, `any`, `bitand`, `bitcmp`, `bitget`, `bitor`, `bitset`, `bitshift`, `bitxor`, `bsxfun`, `ceil`, `cumprod`, `cumsum`, `diff`, `find`, `fix`, `floor`, `idivide`, `isequal`, `isequaln`, `isequalwithequalnans`, `logical`, `mod`, `movsum`, `pagectranspose`, `pagemldivide`, `pagemrdivide`, `pagemtimes`, `pagetranspose`, `prod`, `rem`, `round`, `swapbytes`, `tensorprod`, `uminus`, `uplus`, `xor`
 
 ## MATLAB > Mathematics > Computational Geometry
 
