@@ -526,6 +526,11 @@ pub fn call(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize) 
             let s = sym_arg(&args, 0)?;
             return one(Value::Sym(s.map(|e| Expr::div(Expr::func("log", vec![e.clone()]), Expr::func("log", vec![Expr::int(base)])))));
         }
+        "mod" | "rem" if any_sym => {
+            let a = sym_arg(&args, 0)?;
+            let m = expr_of_scalar(args.get(1).ok_or_else(|| LangError::new("Not enough input arguments.", 0))?)?;
+            return one(Value::Sym(a.map(|e| Expr::func(name, vec![e.clone(), m.clone()]))));
+        }
         "real" | "imag" | "conj" if any_sym => {
             let s = sym_arg(&args, 0)?;
             return one(Value::Sym(s.map(|e| match name {

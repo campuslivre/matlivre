@@ -204,3 +204,22 @@ fn symbolic_functions_are_defined_and_called() {
     let (_, out) = run("syms x\nA = zeros(1,2);\nA(1) = x;");
     assert!(out.iter().any(|o| o.contains("Unable to convert expression containing symbolic variables into double array.")), "{out:?}");
 }
+
+#[test]
+fn symbolic_mod_and_rem_fold_once_numeric() {
+    let (it, out) = run(concat!(
+        "syms x\n",
+        "q(x) = mod(x + 5, 4) + 1;\n",
+        "a = double(q(2));\n",
+        "b = double(q(-3));\n",
+        "r(x) = rem(x, 3);\n",
+        "c = double(r(-7));\n",
+        "v = [10 20 30 40];\n",
+        "w = v(q(3));\n",
+    ));
+    assert!(!out.iter().any(|o| o.starts_with("Error")), "{out:?}");
+    assert_eq!(num(&it, "a"), [4.0]); // mod(7, 4) + 1
+    assert_eq!(num(&it, "b"), [3.0]); // mod(2, 4) + 1
+    assert_eq!(num(&it, "c"), [-1.0]); // rem(-7, 3)
+    assert_eq!(num(&it, "w"), [10.0]); // q(3) = mod(8, 4) + 1 = 1
+}

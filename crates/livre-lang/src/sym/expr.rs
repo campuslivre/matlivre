@@ -543,6 +543,18 @@ impl Expr {
     }
 
     pub fn func(name: &str, args: Vec<Expr>) -> Expr {
+        // mod(a, m) and rem(a, m) fold once both are numbers; otherwise stay unevaluated.
+        if matches!(name, "mod" | "rem") && args.len() == 2 {
+            if let (Some(x), Some(m)) = (args[0].as_num(), args[1].as_num()) {
+                if m.is_zero() {
+                    return if name == "mod" { args[0].clone() } else { Expr::Const(Const::NaN) };
+                }
+                let t = x.mul(m.recip()).to_f64();
+                let k = if name == "mod" { t.floor() } else { t.trunc() };
+                return Expr::Num(x.add(Num::from_f64(k).mul(m).neg()));
+            }
+            return Expr::Fn(name.into(), args);
+        }
         let a = args.first().cloned().unwrap_or_else(Expr::zero);
         let pi = Expr::Const(Const::Pi);
         // Exact values at multiples of pi/2.
@@ -769,6 +781,14 @@ impl Expr {
                     eval_fn(n, xs[0].eval_c(env)?)?
                 } else if n == "atan2" && xs.len() == 2 {
                     C::new(xs[0].eval_c(env)?.re.atan2(xs[1].eval_c(env)?.re), 0.0)
+                } else if (n == "mod" || n == "rem") && xs.len() == 2 {
+                    let (x, m) = (xs[0].eval_c(env)?.re, xs[1].eval_c(env)?.re);
+                    let r = if m == 0.0 {
+                        if n == "mod" { x } else { f64::NAN }
+                    } else {
+                        x - if n == "mod" { (x / m).floor() } else { (x / m).trunc() } * m
+                    };
+                    C::new(r, 0.0)
                 } else {
                     return None;
                 }
