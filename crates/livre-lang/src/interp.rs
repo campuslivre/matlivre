@@ -1308,6 +1308,14 @@ impl Interpreter {
                 Ok(vec![Value::Table(Box::new(t.paren(&vals)?))])
             }
             Value::Object(o) => {
+                // griddedInterpolant and scatteredInterpolant evaluate with F(args).
+                if matches!(o.class.name.as_str(), "griddedInterpolant" | "scatteredInterpolant") && o.class.method("subsref").is_none() {
+                    let argv = self.eval_args(args)?;
+                    let o = o.clone();
+                    if let Some(r) = crate::polyfun_classes::call_object(self, &o, &argv) {
+                        return Ok(r?.unwrap_or_default());
+                    }
+                }
                 if let Some(f) = o.class.method("subsref").cloned() {
                     let _ = f;
                     return rt("subsref overloading is not supported in this version.");
