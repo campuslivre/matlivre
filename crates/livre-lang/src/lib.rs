@@ -22,6 +22,7 @@ pub mod lexer;
 pub mod nd;
 pub mod ops;
 pub mod parser;
+pub mod polyshape;
 pub mod sym;
 pub mod table;
 pub mod time;

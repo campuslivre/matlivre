@@ -36,7 +36,7 @@ const NAMES: &[&str] = &[
 pub fn exists(name: &str) -> bool {
     static ALL: std::sync::OnceLock<std::collections::HashSet<&'static str>> = std::sync::OnceLock::new();
     ALL.get_or_init(|| {
-        [NAMES, crate::builtins_elfun::NAMES, crate::builtins_elmat::NAMES, crate::builtins_ops::NAMES, crate::builtins_specfun::NAMES, crate::builtins_text::NAMES, crate::builtins_plot::NAMES, crate::time::NAMES, crate::table::NAMES, crate::sym::NAMES]
+        [NAMES, crate::builtins_elfun::NAMES, crate::builtins_elmat::NAMES, crate::builtins_ops::NAMES, crate::builtins_specfun::NAMES, crate::polyshape::NAMES, crate::builtins_text::NAMES, crate::builtins_plot::NAMES, crate::time::NAMES, crate::table::NAMES, crate::sym::NAMES]
             .iter()
             .flat_map(|n| n.iter().copied())
             .collect()
@@ -311,6 +311,34 @@ pub(crate) fn values_equal(a: &Value, b: &Value) -> bool {
     }
 }
 
+/// sind and cosd together: the angle reduced exactly to [-45, 45] degrees and a quadrant,
+/// converted with x*(pi/180), and exact at multiples of 30 and 45 degrees. They agree with
+/// MATLAB exactly there and within one ulp elsewhere.
+pub(crate) fn sind_cosd(x: f64) -> (f64, f64) {
+    if !x.is_finite() {
+        return (f64::NAN, f64::NAN);
+    }
+    let r = x % 360.0;
+    let k = (r / 90.0).round();
+    let r = r - k * 90.0;
+    let (s, c) = if r == 0.0 {
+        (0.0, 1.0)
+    } else if r.abs() == 30.0 {
+        (0.5f64.copysign(r), 0.75f64.sqrt())
+    } else if r.abs() == 45.0 {
+        (0.5f64.sqrt().copysign(r), 0.5f64.sqrt())
+    } else {
+        let a = r * (std::f64::consts::PI / 180.0);
+        (libm::sin(a), libm::cos(a))
+    };
+    match (k as i64).rem_euclid(4) {
+        0 => (s, c),
+        1 => (c, -s),
+        2 => (-s, -c),
+        _ => (-c, s),
+    }
+}
+
 /// Elementwise math with MATLAB's complex extensions of the real domain.
 pub(crate) fn unary_math(name: &str, m: &Matrix) -> Option<R<Matrix>> {
     let real: Option<fn(f64) -> f64> = match name {
@@ -320,8 +348,8 @@ pub(crate) fn unary_math(name: &str, m: &Matrix) -> Option<R<Matrix>> {
         "sign" => Some(|x: f64| if x > 0.0 { 1.0 } else if x < 0.0 { -1.0 } else if x == 0.0 { 0.0 } else { f64::NAN }),
         // Exact zeros and infinities at multiples of 90 degrees, signed as MATLAB signs them
         // (sind(-180) is -0, tand(180) is -0, tand(270) is -Inf).
-        "sind" => Some(|x: f64| if (x % 180.0) == 0.0 { 0.0f64.copysign(x) } else { x.to_radians().sin() }),
-        "cosd" => Some(|x: f64| if ((x - 90.0) % 180.0) == 0.0 { 0.0 } else { x.to_radians().cos() }),
+        "sind" => Some(|x: f64| if (x % 180.0) == 0.0 { 0.0f64.copysign(x) } else { sind_cosd(x).0 }),
+        "cosd" => Some(|x: f64| if ((x - 90.0) % 180.0) == 0.0 { 0.0 } else { sind_cosd(x).1 }),
         "tand" => Some(|x: f64| match x.rem_euclid(360.0) {
             _ if x == 0.0 => x,
             r if r == 0.0 => 0.0,
@@ -533,6 +561,9 @@ pub fn call(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize) 
         return Ok(Some(r));
     }
     if let Some(r) = crate::builtins_specfun::call(name, &args, nargout)? {
+        return Ok(Some(r));
+    }
+    if let Some(r) = crate::polyshape::call(it, name, &args, nargout)? {
         return Ok(Some(r));
     }
     if let Some(r) = crate::builtins_text::call(it, name, &args, nargout)? {
