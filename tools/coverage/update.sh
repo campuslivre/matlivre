@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Regenerates docs/matlab-coverage.md: checks every in-scope MATLAB function name
-# (tools/coverage/scope.tsv, taken from the MATLAB R2023b installation) against the release
-# matlivre-cli, marks names that only exist on unmerged claude/* branches, and prints the
-# names that became implemented since the last run.
+# Regenerates docs/matlab-coverage.md: checks every function of the MATLAB R2023b and Symbolic
+# Math Toolbox function references (documented.tsv), key classes (classes.tsv) and the
+# undocumented public functions of the toolbox folders (scope.tsv) against the release
+# matlivre-cli, marks names provided by unmerged claude/* branches, and prints the names
+# implemented since the last run. See coverage.pl for the scope rules.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 root="$(cd "$here/../.." && pwd)"
@@ -12,33 +13,17 @@ trap 'rm -rf "$tmp"' EXIT
 cli="$root/target/release/matlivre-cli.exe"
 [ -x "$cli" ] || cli="$root/target/release/matlivre-cli"
 
-# Names matlivre does not know.
-awk -F'\t' '{printf "if ~exist(\x27%s\x27), disp(\x27%s\x27); end\n", $2, $2}' "$here/scope.tsv" > "$tmp/check.m"
-"$cli" "$tmp/check.m" | tr -d '\r' | sort -u > "$tmp/missing.txt"
+# Every name, then the ones matlivre's exist() does not know.
+{ cut -f3 "$here/documented.tsv"; cut -f2 "$here/classes.tsv"; cut -f2 "$here/scope.tsv"; } | tr -d '\r' | sort -u > "$tmp/names.txt"
+awk '{gsub(/\x27/, "\x27\x27"); printf "if ~exist(\x27%s\x27), disp(\x27%s\x27); end\n", $0, $0}' "$tmp/names.txt" > "$tmp/check.m"
+"$cli" "$tmp/check.m" | tr -d '\r' | grep -v '^Error' | sort -u > "$tmp/missing.txt" || true
 
 # Names provided by branches not merged into the current HEAD.
-: > "$tmp/branch.txt"
 for b in $(git -C "$root" for-each-ref --format='%(refname)' 'refs/heads/claude/*'); do
   git -C "$root" merge-base --is-ancestor "$b" HEAD && continue
-  for f in $(git -C "$root" ls-tree -r --name-only "$b" crates/livre-lang/src | grep -E 'builtins_|_classes|polyshape'); do
+  for f in $(git -C "$root" ls-tree -r --name-only "$b" crates/livre-lang/src); do
     git -C "$root" show "$b:$f" | awk '/pub const NAMES/,/\];/'
   done
-done | { grep -oE '"[A-Za-z0-9_]+"' || true; } | tr -d '"' | sort -u > "$tmp/branch.txt"
+done | { grep -oE '"[A-Za-z0-9_.]+"' || true; } | tr -d '"' | sort -u > "$tmp/branch.txt"
 
-awk -f "$here/classify.awk" "$tmp/missing.txt" "$here/scope.tsv" |
-  awk -F'\t' -v OFS='\t' -v names="$tmp/branch.txt" '
-    BEGIN { while ((getline n < names) > 0) b[n] = 1 }
-    { if ($3 == "todo" && ($2 in b)) $3 = "branch"; print }' > "$tmp/classified.tsv"
-
-# Newly implemented since the previous checklist.
-doc="$root/docs/matlab-coverage.md"
-if [ -f "$doc" ]; then
-  grep -oE '^- \[ \] `[^`]+`' "$doc" | sed -E 's/.*`(.*)`/\1/' | sort -u > "$tmp/was_todo.txt"
-  awk -F'\t' '$3=="done"{print $2}' "$tmp/classified.tsv" | sort -u > "$tmp/done.txt"
-  comm -12 "$tmp/was_todo.txt" "$tmp/done.txt" > "$tmp/new.txt"
-  echo "Newly implemented: $(wc -l < "$tmp/new.txt")"
-  tr '\n' ' ' < "$tmp/new.txt"; echo
-fi
-
-awk -v date="$(date +%Y-%m-%d)" -f "$here/report.awk" "$tmp/classified.tsv" > "$doc"
-cut -f3 "$tmp/classified.tsv" | sort | uniq -c
+perl "$here/coverage.pl" "$here" "$tmp/missing.txt" "$tmp/branch.txt" "$root/docs/matlab-coverage.md"
