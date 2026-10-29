@@ -4,6 +4,7 @@
 pub mod ast;
 pub mod builtins;
 pub mod builtins_elfun;
+pub mod builtins_elmat;
 pub mod builtins_ops;
 pub mod builtins_plot;
 pub mod builtins_text;
