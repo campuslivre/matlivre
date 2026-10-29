@@ -710,22 +710,18 @@ impl Interpreter {
             };
             resolved.push(r);
         }
-        // Hot path: `x(i) = v` on a numeric array mutates in place.
-        if let ([Resolved::Paren(idx)], Value::Num(r)) = (resolved.as_slice(), &rhs) {
-            let deleting = r.dims == [0, 0] && r.kind != Kind::Char;
-            if !deleting && !r.is_complex() && !self.frame().globals.contains(name.as_str()) {
-                if let Some(Value::Num(m)) = self.frame_mut().vars.get_mut(name.as_str()) {
-                    if !m.is_complex() && (m.kind == r.kind || (m.kind != Kind::Logical && !m.is_empty())) {
-                        let kind = m.kind;
-                        let data: Vec<f64> = r.data.iter().map(|&x| kind.cast(x)).collect();
-                        let mut dims = m.dims.clone();
-                        nd::assign(&mut dims, &mut m.data, idx, &r.dims, data, 0.0)?;
-                        m.dims = dims;
-                        return Ok(());
-                    }
-                }
+        // Hot paths mutate the variable in place (no copy of large arrays per assignment).
+        let rhs = if self.frame().globals.contains(name.as_str()) {
+            rhs
+        } else {
+            match self.frame_mut().vars.get_mut(name.as_str()) {
+                Some(target) => match assign_in_place(target, &resolved, rhs)? {
+                    None => return Ok(()),
+                    Some(rhs) => rhs,
+                },
+                None => rhs,
             }
-        }
+        };
         // General path: on error the variable is restored from this snapshot.
         let cur = self.take_var(name);
         let snapshot = cur.clone();
@@ -745,31 +741,39 @@ impl Interpreter {
 
     /// Dims of the sub-value reached by `path` from variable `name`, and whether it is a table.
     fn sub_info(&self, name: &str, path: &[Resolved]) -> (Dims, bool) {
-        let Some(mut cur) = self.get_var(name).cloned() else {
-            return (vec![0, 0], false);
-        };
-        for p in path {
-            let next = match (p, &cur) {
-                (Resolved::Field(f), Value::Struct(s)) if s.elems.len() == 1 => s.get(f).cloned(),
-                (Resolved::Field(f), Value::Object(o)) => o.get(f),
-                (Resolved::Field(f), Value::Table(t)) => t.var(f).cloned(),
+        /// Walks by reference; only object properties (behind a RefCell) are copied.
+        fn walk(v: &Value, path: &[Resolved]) -> (Dims, bool) {
+            let Some((p, rest)) = path.split_first() else {
+                return (v.dims(), matches!(v, Value::Table(_)));
+            };
+            match (p, v) {
+                (Resolved::Field(f), Value::Struct(s)) if s.elems.len() == 1 => match s.get(f) {
+                    Some(x) => walk(x, rest),
+                    None => (vec![0, 0], false),
+                },
+                (Resolved::Field(f), Value::Object(o)) => match o.get(f) {
+                    Some(x) => walk(&x, rest),
+                    None => (vec![0, 0], false),
+                },
+                (Resolved::Field(f), Value::Table(t)) => match t.var(f) {
+                    Some(x) => walk(x, rest),
+                    None => (vec![0, 0], false),
+                },
                 (Resolved::Brace(idx), Value::Cell(c)) => match nd::index_plan(&c.dims, idx) {
-                    Ok((pos, _)) if pos.len() == 1 => Some(c.data[pos[0]].clone()),
-                    _ => None,
+                    Ok((pos, _)) if pos.len() == 1 => walk(&c.data[pos[0]], rest),
+                    _ => (vec![0, 0], false),
                 },
                 (Resolved::Paren(idx), Value::Struct(s)) => match nd::index_plan(&s.dims, idx) {
-                    Ok((pos, _)) if pos.len() == 1 => Some(Value::Struct(s.element(pos[0]))),
-                    _ => None,
+                    Ok((pos, _)) if pos.len() == 1 => walk(&Value::Struct(s.element(pos[0])), rest),
+                    _ => (vec![0, 0], false),
                 },
-                _ => None,
-            };
-            match next {
-                Some(v) => cur = v,
-                None => return (vec![0, 0], false),
+                _ => (vec![0, 0], false),
             }
         }
-        let is_table = matches!(cur, Value::Table(_));
-        (cur.dims(), is_table)
+        match self.get_var(name) {
+            Some(v) => walk(v, path),
+            None => (vec![0, 0], false),
+        }
     }
 
     fn apply_assign(&mut self, cur: Option<Value>, chain: &[Resolved], rhs: Value) -> R<Value> {
@@ -1072,6 +1076,19 @@ impl Interpreter {
             }
             Expr::SuperRef { name, class } => self.super_call(name, class, Vec::new(), nargout),
             Expr::Index(base, args) => {
+                // Fast path: index a variable (or a scalar-struct field) by reference.
+                if let Some((name, field)) = var_ref(base) {
+                    let dims = match self.var_at(name, field) {
+                        Some(v) if !matches!(v, Value::Func(_) | Value::Table(_) | Value::Object(_)) => Some(v.dims()),
+                        _ => None,
+                    };
+                    if let Some(dims) = dims {
+                        let idx = self.eval_index_args(args, &dims)?;
+                        if let Some(v) = self.var_at(name, field) {
+                            return Ok(vec![indexing::index(v, &idx)?]);
+                        }
+                    }
+                }
                 match base.as_ref() {
                     Expr::Ident(name) if self.get_var(name).is_none() => {
                         if name == "table" {
@@ -1114,6 +1131,19 @@ impl Interpreter {
                 self.index_into(bv, args, nargout)
             }
             Expr::CellIndex(base, args) => {
+                if let Some((name, field)) = var_ref(base) {
+                    let dims = match self.var_at(name, field) {
+                        Some(Value::Cell(c)) => Some(c.dims.clone()),
+                        _ => None,
+                    };
+                    if let Some(dims) = dims {
+                        let idx = self.eval_index_args(args, &dims)?;
+                        if let Some(Value::Cell(c)) = self.var_at(name, field) {
+                            let (pos, _) = nd::index_plan(&c.dims, &idx)?;
+                            return Ok(pos.into_iter().map(|p| c.data[p].clone()).collect());
+                        }
+                    }
+                }
                 let bv = self.eval(base)?;
                 if let Value::Table(t) = &bv {
                     let vals = self.eval_raw_args(args, &bv.dims())?;
@@ -1131,6 +1161,15 @@ impl Interpreter {
                     if self.get_var(cls).is_none() {
                         if let Some(c) = self.find_class(cls) {
                             return self.static_call(&c, f, Vec::new(), nargout);
+                        }
+                    }
+                }
+                if let Expr::Ident(name) = base.as_ref() {
+                    if let Some(Value::Struct(s)) = self.get_var(name) {
+                        if s.elems.len() == 1 {
+                            if let Some(v) = s.get(f) {
+                                return Ok(vec![v.clone()]);
+                            }
                         }
                     }
                 }
@@ -1534,6 +1573,80 @@ impl Interpreter {
         }
         out.truncate(want);
         Ok(out)
+    }
+}
+
+/// Applies common assignment forms directly to the stored value: `x(i) = v` on numeric
+/// arrays, `c{i} = v`, `s.f = v` on scalar structs, and nested paths through them. Returns
+/// the right-hand side back (`Some`) when the form is not handled here. Every case validates
+/// before writing, so an error leaves `target` unchanged.
+fn assign_in_place(target: &mut Value, chain: &[Resolved], rhs: Value) -> R<Option<Value>> {
+    let Some((first, rest)) = chain.split_first() else {
+        return Ok(Some(rhs));
+    };
+    match (first, target) {
+        (Resolved::Paren(idx), Value::Num(m)) if rest.is_empty() => {
+            let Value::Num(r) = &rhs else { return Ok(Some(rhs)) };
+            let deleting = r.dims == [0, 0] && r.kind != Kind::Char;
+            if deleting || r.is_complex() || m.is_complex() || !(m.kind == r.kind || (m.kind != Kind::Logical && !m.is_empty())) {
+                return Ok(Some(rhs));
+            }
+            let kind = m.kind;
+            let data: Vec<f64> = if kind == r.kind || kind == Kind::Double { r.data.clone() } else { r.data.iter().map(|&x| kind.cast(x)).collect() };
+            let mut dims = m.dims.clone();
+            nd::assign(&mut dims, &mut m.data, idx, &r.dims, data, 0.0)?;
+            m.dims = dims;
+            Ok(None)
+        }
+        (Resolved::Brace(idx), Value::Cell(c)) => {
+            if rest.is_empty() {
+                let mut dims = c.dims.clone();
+                nd::assign(&mut dims, &mut c.data, idx, &[1, 1], vec![rhs], Value::empty())?;
+                c.dims = dims;
+                return Ok(None);
+            }
+            match nd::index_plan(&c.dims, idx) {
+                Ok((pos, _)) if pos.len() == 1 => assign_in_place(&mut c.data[pos[0]], rest, rhs),
+                _ => Ok(Some(rhs)),
+            }
+        }
+        (Resolved::Field(f), Value::Struct(s)) if s.elems.len() == 1 => {
+            if rest.is_empty() {
+                s.set(f, rhs);
+                return Ok(None);
+            }
+            match s.field_index(f) {
+                Some(k) => assign_in_place(&mut s.elems[0][k], rest, rhs),
+                None => Ok(Some(rhs)),
+            }
+        }
+        _ => Ok(Some(rhs)),
+    }
+}
+
+/// `x` or `s.f` as (variable, optional field) for by-reference reads.
+fn var_ref(e: &Expr) -> Option<(&str, Option<&str>)> {
+    match e {
+        Expr::Ident(n) => Some((n.as_str(), None)),
+        Expr::Field(b, f) => match b.as_ref() {
+            Expr::Ident(n) => Some((n.as_str(), Some(f.as_str()))),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+impl Interpreter {
+    /// Variable `name`, or field `field` of it when it is a scalar struct.
+    fn var_at(&self, name: &str, field: Option<&str>) -> Option<&Value> {
+        let v = self.get_var(name)?;
+        match field {
+            None => Some(v),
+            Some(f) => match v {
+                Value::Struct(s) if s.elems.len() == 1 => s.get(f),
+                _ => None,
+            },
+        }
     }
 }
 

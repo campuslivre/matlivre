@@ -1,0 +1,25 @@
+﻿23.2.0.2409890 (R2023b) Update 3
+RESULT scalar_loop 0.006264
+CHECK scalar_loop 2.666668667e+18
+RESULT while_branch 0.100408
+CHECK while_branch 2864311
+RESULT fib_recursive 0.000938
+CHECK fib_recursive 6765
+RESULT array_growth 0.007682
+CHECK array_growth 5000050000
+RESULT indexed_assign 0.007197
+CHECK indexed_assign 2.5000025e+11
+RESULT vector_math 0.143349
+CHECK vector_math 2177215.21
+RESULT matmul_300 0.000772
+CHECK matmul_300 5751525.367
+RESULT linsolve_300 0.000625
+CHECK linsolve_300 0.6842105465
+RESULT sort_1e6 0.063648
+CHECK sort_1e6 500000
+RESULT string_build 0.230254
+CHECK string_build 108894
+RESULT struct_fields 0.165863
+CHECK struct_fields 1.2500025e+11
+RESULT cell_ops 0.025466
+CHECK cell_ops 5000050000

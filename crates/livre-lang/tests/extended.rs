@@ -103,6 +103,14 @@ fn mixed_integer_classes_error() {
 }
 
 #[test]
+fn empty_char_concatenation() {
+    let (it, out) = run("s = '';\nfor k = 1:3\n    s = [s sprintf('%d,', k)];\nend\nc = class(['' 65]);");
+    no_errors(&out);
+    assert_eq!(text(&it, "s"), "1,2,3,");
+    assert_eq!(text(&it, "c"), "char");
+}
+
+#[test]
 fn single_precision() {
     let (it, out) = run("s = single(1) / 3;\nk = class(s + 1);");
     no_errors(&out);

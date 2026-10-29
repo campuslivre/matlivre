@@ -309,6 +309,14 @@ pub fn concat(items: Vec<Value>, dim: usize) -> R<Value> {
     } else if mats.iter().all(|m| m.kind == Kind::Logical) {
         kind = Kind::Logical;
     }
+    // 0×0 empties of any class (e.g. '') take part in the class choice but not the shape.
+    let mats: Vec<Matrix> = {
+        let kept: Vec<Matrix> = mats.iter().filter(|m| m.dims != [0, 0]).cloned().collect();
+        if kept.is_empty() {
+            return Ok(Value::Num(Matrix::empty().with_kind(kind)));
+        }
+        kept
+    };
     let complex = mats.iter().any(|m| m.is_complex());
     let re_parts: Vec<(Dims, Vec<f64>)> = mats.iter().map(|m| (m.dims.clone(), m.data.clone())).collect();
     let (d, data) = nd::concat(re_parts, dim)?;
