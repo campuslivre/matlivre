@@ -1143,8 +1143,21 @@ impl App {
                 ui.horizontal_centered(|ui| {
                     ui.spacing_mut().item_spacing.x = 0.0;
                     ui.add_space(12.0);
+                    let start = ui.cursor().left();
                     app_logo(ui, &skin);
                     ui.add_space(10.0);
+                    // The program name in the Windows caption style (12 px).
+                    ui.label(RichText::new("MatLivre").size(12.0).color(skin.text));
+                    ui.add_space(16.0);
+                    // Like the empty part of the bar, the icon and name move the window.
+                    let mark = Rect::from_x_y_ranges(start..=ui.cursor().left(), ui.max_rect().y_range());
+                    let resp = ui.interact(mark, ui.id().with("mark-drag"), Sense::click_and_drag());
+                    if resp.double_clicked() {
+                        let maximized = ctx.input(|i| i.viewport().maximized.unwrap_or(false));
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!maximized));
+                    } else if resp.drag_started_by(egui::PointerButton::Primary) {
+                        ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
+                    }
                     // Tabs take their natural width, and shrink alike when they do not fit
                     // beside the + button, a grab area and the caption buttons.
                     let room = (ui.available_width() - 34.0 - 120.0 - 3.0 * 46.0).max(0.0);
