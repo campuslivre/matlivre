@@ -1,12 +1,15 @@
 //! Live script document model and interchange formats (see `docs/SPEC-live-script.md`
 //! sections 1–2).
 
+mod controls;
+mod json;
 mod mfile;
 mod mlx;
 
 use std::ops::Range;
 use std::path::Path;
 
+pub use controls::{ControlKind, LiveControl};
 pub use mfile::{read_m, write_m};
 pub use mlx::{read_mlx, read_mlx_bytes, write_mlx, write_mlx_bytes};
 
@@ -32,6 +35,8 @@ pub struct Block {
     pub id: u64,
     pub kind: BlockKind,
     pub text: String,
+    /// Live controls over literals of a code block, ordered by position.
+    pub controls: Vec<LiveControl>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -83,13 +88,13 @@ impl Document {
 
     pub fn push(&mut self, kind: BlockKind, text: impl Into<String>) -> u64 {
         let id = self.alloc_id();
-        self.blocks.push(Block { id, kind, text: text.into() });
+        self.blocks.push(Block { id, kind, text: text.into(), controls: Vec::new() });
         id
     }
 
     pub fn insert(&mut self, at: usize, kind: BlockKind, text: impl Into<String>) -> u64 {
         let id = self.alloc_id();
-        self.blocks.insert(at.min(self.blocks.len()), Block { id, kind, text: text.into() });
+        self.blocks.insert(at.min(self.blocks.len()), Block { id, kind, text: text.into(), controls: Vec::new() });
         id
     }
 

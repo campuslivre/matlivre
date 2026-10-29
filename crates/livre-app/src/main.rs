@@ -2,7 +2,9 @@
 
 mod app;
 mod engine;
+mod files;
 mod highlight;
+mod icons;
 mod os;
 mod plot;
 mod theme;

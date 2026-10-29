@@ -55,6 +55,19 @@ Observations are marked **(O)**, inferences **(I)**, and our own design choices 
    replaced span `startOffsetLine/startColumn/endOffsetLine/endColumn` (1-based, relative to
    the code block). The code text already contains the control's current value.
 
+   **(I/D)** Reading is lenient: `type` is matched case-insensitively (`slider`, `comboBox` /
+   `dropdown`, `checkBox`, `editField`, `button`; other types keep only the code); missing
+   slider fields default to `0..100` step `1`; drop-down `items` may be strings, numbers or
+   `{value, label}` objects, labels come from `itemLabels` / `labels`; button labels from
+   `data.label`. Whether `endColumn` is exclusive or inclusive is not known, so a span is
+   accepted under either reading (or from `text`'s length) only when it equals `text`; a span
+   that does not match the code, or spans several lines, is dropped. We write `endColumn`
+   exclusive, `Requires="R2018a"`, `context` as
+   `{"type":…,"data":{"min","max","step","value"}}` (slider), `{"items","itemLabels"?,"value"}`
+   (`comboBox`, value = selected literal), `{"value":bool}` (`checkBox`), `{"value":literal}`
+   (`editField`), `{"label"}` (`button`, zero-width span), starting from the control's original
+   `context` so unknown fields survive; unknown `w:attr` items are written back verbatim.
+
 8. **(O)** `output.xml` root is `embeddedOutputs` with:
    - `metaData/evaluationState` (`manual`), `layoutState` (`code` / `hidecode`, wrapped in
      `mc:AlternateContent`), `outputStatus` (`ready`), `splitterState/proportion` (e.g. `0.4`
@@ -76,8 +89,12 @@ Observations are marked **(O)**, inferences **(I)**, and our own design choices 
 - **(O/D)** A live script is an ordered list of *blocks*: `Title`, `Heading`, `Heading2`, `Text`,
   `Code`, and `SectionBreak`. Sections are the maximal runs of blocks between breaks; the
   document start and end are implicit breaks.
-- **(D)** Unknown paragraph styles load as `Text`, preserving their text. Live controls are
-  preserved as plain code (their current value is already in the code, see 1.7).
+- **(D)** Unknown paragraph styles load as `Text`, preserving their text.
+- **(D)** A code block carries *live controls*, each over a single-line `[start, end)` char span
+  of its text (zero-width for buttons) that always holds the control's current literal. Changing
+  a control rewrites that literal; editing the code shifts spans after the edit and drops
+  controls the edit touches (including a token typed directly against the literal). `.m` files
+  keep only the literals.
 - **(D)** Plain `.m` files are also accepted: `%%` starts a new section; text after `%%` becomes a
   `Heading`; following leading `%` comment lines become a `Text` block.
 

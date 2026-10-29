@@ -70,6 +70,39 @@ mod imp {
     pub fn left_button_down() -> Option<bool> {
         Some(unsafe { GetAsyncKeyState(VK_LBUTTON as i32) } as u16 & 0x8000 != 0)
     }
+
+    /// The drive roots with their Explorer names: "Local Disk (C:)", "Data (D:)".
+    pub fn drives() -> Vec<(std::path::PathBuf, String)> {
+        use windows_sys::Win32::Storage::FileSystem::{GetDriveTypeW, GetLogicalDrives, GetVolumeInformationW};
+        const DRIVE_REMOVABLE: u32 = 2;
+        const DRIVE_REMOTE: u32 = 4;
+        const DRIVE_CDROM: u32 = 5;
+        let mask = unsafe { GetLogicalDrives() };
+        (0..26u8)
+            .filter(|i| mask & (1 << i) != 0)
+            .map(|i| {
+                let letter = (b'A' + i) as char;
+                let root: Vec<u16> = format!("{letter}:\\").encode_utf16().chain(Some(0)).collect();
+                let kind = unsafe { GetDriveTypeW(root.as_ptr()) };
+                let mut label = [0u16; 261];
+                let ok = unsafe {
+                    GetVolumeInformationW(root.as_ptr(), label.as_mut_ptr(), label.len() as u32, std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut(), 0)
+                } != 0;
+                let len = label.iter().position(|&c| c == 0).unwrap_or(0);
+                let mut name = if ok { String::from_utf16_lossy(&label[..len]) } else { String::new() };
+                if name.is_empty() {
+                    name = match kind {
+                        DRIVE_REMOVABLE => "USB Drive",
+                        DRIVE_REMOTE => "Network Drive",
+                        DRIVE_CDROM => "DVD Drive",
+                        _ => "Local Disk",
+                    }
+                    .into();
+                }
+                (std::path::PathBuf::from(format!("{letter}:\\")), format!("{name} ({letter}:)"))
+            })
+            .collect()
+    }
 }
 
 #[cfg(not(windows))]
@@ -102,6 +135,10 @@ mod imp {
 
     pub fn left_button_down() -> Option<bool> {
         None
+    }
+
+    pub fn drives() -> Vec<(std::path::PathBuf, String)> {
+        vec![(std::path::PathBuf::from("/"), "File System".into())]
     }
 }
 
