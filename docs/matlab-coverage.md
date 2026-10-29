@@ -7,10 +7,10 @@ found in the toolbox folders, checked against matlivre. Regenerate with
 
 | Status | Count |
 |---|---:|
-| Implemented | 750 |
+| Implemented | 771 |
 | In a branch not merged yet | 0 |
 | Language keyword (check it works) | 25 |
-| **To implement** | **1272** |
+| **To implement** | **1251** |
 | Out of scope | 1332 |
 
 Out of scope, by category of the function reference: app building, external language
@@ -1074,24 +1074,23 @@ Implemented: `griddata`, `griddatan`, `griddedInterpolant`, `interp1`, `interp2`
 
 ## MATLAB > Mathematics > Linear Algebra
 
-Implemented: 65. To implement: 8. In a branch: 0. Out of scope: 0.
+Implemented: 66. To implement: 7. In a branch: 0. Out of scope: 0.
 
 To implement:
 
 - [ ] `decomposition`
 - [ ] `expmv`
 - [ ] `isIllConditioned`
-- [ ] `lsqnonneg`
 - [ ] `pageinv`
 - [ ] `pagenorm`
 - [ ] `svdappend`
 - [ ] `svdsketch`
 
-Implemented: `balance`, `bandwidth`, `cdf2rdf`, `chol`, `cholupdate`, `cond`, `condeig`, `condest`, `cross`, `det`, `dot`, `eig`, `eigs`, `expm`, `funm`, `gsvd`, `hess`, `inv`, `isbanded`, `isdiag`, `ishermitian`, `issymmetric`, `istril`, `istriu`, `kron`, `ldl`, `linsolve`, `logm`, `lscov`, `lsqminnorm`, `lu`, `mldivide`, `mpower`, `mrdivide`, `mtimes`, `norm`, `normest`, `null`, `ordeig`, `ordqz`, `ordschur`, `orth`, `pageeig`, `pagesvd`, `pinv`, `planerot`, `qr`, `qrdelete`, `qrinsert`, `qrupdate`, `qz`, `rank`, `rcond`, `rref`, `rsf2csf`, `schur`, `sqrtm`, `subspace`, `svd`, `svds`, `sylvester`, `trace`, `tril`, `triu`, `vecnorm`
+Implemented: `balance`, `bandwidth`, `cdf2rdf`, `chol`, `cholupdate`, `cond`, `condeig`, `condest`, `cross`, `det`, `dot`, `eig`, `eigs`, `expm`, `funm`, `gsvd`, `hess`, `inv`, `isbanded`, `isdiag`, `ishermitian`, `issymmetric`, `istril`, `istriu`, `kron`, `ldl`, `linsolve`, `logm`, `lscov`, `lsqminnorm`, `lsqnonneg`, `lu`, `mldivide`, `mpower`, `mrdivide`, `mtimes`, `norm`, `normest`, `null`, `ordeig`, `ordqz`, `ordschur`, `orth`, `pageeig`, `pagesvd`, `pinv`, `planerot`, `qr`, `qrdelete`, `qrinsert`, `qrupdate`, `qz`, `rank`, `rcond`, `rref`, `rsf2csf`, `schur`, `sqrtm`, `subspace`, `svd`, `svds`, `sylvester`, `trace`, `tril`, `triu`, `vecnorm`
 
 ## MATLAB > Mathematics > Numerical Integration and Differential Equations
 
-Implemented: 5. To implement: 39. In a branch: 0. Out of scope: 0.
+Implemented: 20. To implement: 24. In a branch: 0. Out of scope: 0.
 
 To implement:
 
@@ -1101,53 +1100,32 @@ To implement:
 - [ ] `bvpinit`
 - [ ] `bvpset`
 - [ ] `bvpxtend`
-- [ ] `dblquad`
 - [ ] `dde23`
 - [ ] `ddeget`
 - [ ] `ddensd`
 - [ ] `ddesd`
 - [ ] `ddeset`
 - [ ] `decic`
-- [ ] `deval`
-- [ ] `integral`
-- [ ] `integral2`
-- [ ] `integral3`
 - [ ] `ode113`
 - [ ] `ode15i`
 - [ ] `ode15s`
-- [ ] `ode23`
 - [ ] `ode23s`
 - [ ] `ode23t`
 - [ ] `ode23tb`
-- [ ] `ode45`
 - [ ] `ode78`
 - [ ] `ode89`
-- [ ] `odeget`
-- [ ] `odeset`
 - [ ] `odextend`
 - [ ] `pdepe`
 - [ ] `pdeval`
-- [ ] `quad`
-- [ ] `quad2d`
-- [ ] `quadgk`
-- [ ] `quadl`
-- [ ] `quadv`
 - [ ] `solutionFcn`
-- [ ] `triplequad`
 
-Implemented: `cumtrapz`, `del2`, `gradient`, `solve`, `trapz`
+Implemented: `cumtrapz`, `dblquad`, `del2`, `deval`, `gradient`, `integral`, `integral2`, `integral3`, `ode23`, `ode45`, `odeget`, `odeset`, `quad`, `quad2d`, `quadgk`, `quadl`, `quadv`, `solve`, `trapz`, `triplequad`
 
 ## MATLAB > Mathematics > Optimization
 
-Implemented: 0. To implement: 5. In a branch: 0. Out of scope: 0.
+Implemented: 5. To implement: 0. In a branch: 0. Out of scope: 0.
 
-To implement:
-
-- [ ] `fminbnd`
-- [ ] `fminsearch`
-- [ ] `fzero`
-- [ ] `optimget`
-- [ ] `optimset`
+Implemented: `fminbnd`, `fminsearch`, `fzero`, `optimget`, `optimset`
 
 ## MATLAB > Mathematics > Quantum Computing
 
