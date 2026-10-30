@@ -11,6 +11,7 @@ pub mod builtins_elmat;
 pub mod builtins_files;
 pub mod builtins_funfun;
 pub mod builtins_matfun;
+pub mod builtins_media;
 pub mod builtins_ops;
 pub mod builtins_plot;
 pub mod builtins_geom;

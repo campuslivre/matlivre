@@ -13,6 +13,9 @@ chrono = { version = "0.4", default-features = false, features = ["clock"] }
 cpu-time = "1"
 serde_json = { version = "1", features = ["preserve_order"] }
 flate2 = "1"
+png = "0.17"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "bmp", "gif", "tiff"] }
+hound = "3"
 faer = "0.24"
 cranelift-codegen = "0.137"
 cranelift-frontend = "0.137"
