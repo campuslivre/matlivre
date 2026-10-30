@@ -16,6 +16,8 @@ flate2 = "1"
 png = "0.17"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "bmp", "gif", "tiff"] }
 hound = "3"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+tar = "0.4"
 faer = "0.24"
 cranelift-codegen = "0.137"
 cranelift-frontend = "0.137"

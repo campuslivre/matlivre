@@ -132,7 +132,7 @@ fn is_sep(c: char) -> bool {
 }
 
 /// fullfile: parts joined with one separator, separators normalised.
-fn join_parts(parts: &[String]) -> String {
+pub(crate) fn join_parts(parts: &[String]) -> String {
     let mut out = String::new();
     for p in parts.iter().filter(|p| !p.is_empty()) {
         if out.is_empty() {
@@ -175,7 +175,7 @@ fn fileparts(path: &str) -> (String, String, String) {
 }
 
 /// Files matching a name with * wildcards in the last component.
-fn glob(pattern: &str) -> Vec<PathBuf> {
+pub(crate) fn glob(pattern: &str) -> Vec<PathBuf> {
     let p = Path::new(pattern);
     let name = p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
     if !name.contains('*') && !name.contains('?') {
