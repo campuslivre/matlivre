@@ -7,10 +7,10 @@ found in the toolbox folders, checked against matlivre. Regenerate with
 
 | Status | Count |
 |---|---:|
-| Implemented | 842 |
+| Implemented | 848 |
 | In a branch not merged yet | 0 |
 | Language keyword (check it works) | 25 |
-| **To implement** | **1180** |
+| **To implement** | **1174** |
 | Out of scope | 1332 |
 
 Out of scope, by category of the function reference: app building, external language
@@ -885,8 +885,8 @@ To implement:
 - [ ] `isConnected`
 - [ ] `isEdge`
 - [ ] `ishole`
-- [ ] `isinterior`
 - [ ] `isInterior`
+- [ ] `isinterior`
 - [ ] `issimplified`
 - [ ] `nearestNeighbor`
 - [ ] `nearestvertex`
@@ -1187,14 +1187,12 @@ Implemented: `builtin`, `eq`, `import`, `ismethod`, `isprop`, `metaclass`, `meth
 
 ## MATLAB > Programming > Files and Folders
 
-Implemented: 26. To implement: 19. In a branch: 0. Out of scope: 0.
+Implemented: 32. To implement: 13. In a branch: 0. Out of scope: 0.
 
 To implement:
 
 - [ ] `fileattrib`
 - [ ] `filebrowser`
-- [ ] `gunzip`
-- [ ] `gzip`
 - [ ] `matlabdrive`
 - [ ] `path2rc`
 - [ ] `pathtool`
@@ -1202,16 +1200,12 @@ To implement:
 - [ ] `rehash`
 - [ ] `restoredefaultpath`
 - [ ] `savepath`
-- [ ] `tar`
 - [ ] `toolboxdir`
-- [ ] `untar`
-- [ ] `unzip`
 - [ ] `visdiff`
 - [ ] `what`
 - [ ] `winopen`
-- [ ] `zip`
 
-Implemented: `addpath`, `cd`, `copyfile`, `dir`, `exist`, `filemarker`, `fileparts`, `filesep`, `fullfile`, `genpath`, `isdir`, `isfile`, `isfolder`, `ls`, `matlabroot`, `mkdir`, `movefile`, `path`, `pathsep`, `pwd`, `rmdir`, `rmpath`, `tempdir`, `tempname`, `userpath`, `which`
+Implemented: `addpath`, `cd`, `copyfile`, `dir`, `exist`, `filemarker`, `fileparts`, `filesep`, `fullfile`, `genpath`, `gunzip`, `gzip`, `isdir`, `isfile`, `isfolder`, `ls`, `matlabroot`, `mkdir`, `movefile`, `path`, `pathsep`, `pwd`, `rmdir`, `rmpath`, `tar`, `tempdir`, `tempname`, `untar`, `unzip`, `userpath`, `which`, `zip`
 
 ## MATLAB > Programming > Functions
 
