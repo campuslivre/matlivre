@@ -5,7 +5,7 @@ use crate::builtins::{arg, m_arg, none, num2str_scalar, one, Ret};
 use crate::display::fmt_g;
 use crate::error::{rt, LangError};
 use crate::format::{process_escapes, sprintf};
-use crate::interp::{Interpreter, OutputKind};
+use crate::interp::Interpreter;
 use crate::nd::{self, Dims};
 use crate::ops::to_str_array;
 use crate::value::*;
@@ -133,16 +133,20 @@ pub fn call(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize) ->
             one(if matches!(a[0], Value::Str(_)) { Value::string(s) } else { Value::chars(&s) })
         }
         "fprintf" => {
+            // fprintf(fid, format, ...) writes to a file; 1 and 2 are the output.
             let mut rest: &[Value] = a;
+            let mut fid = 1;
             if let Some(Value::Num(m)) = rest.first() {
                 if m.kind != Kind::Char && m.is_scalar() && rest.len() >= 2 {
+                    fid = m.data[0] as i32;
                     rest = &rest[1..];
                 }
             }
             let f = arg(rest, 0, name)?.text()?;
             let s = sprintf(&f, &rest[1..])?;
-            it.emit(OutputKind::Text(s));
-            none()
+            let n = s.len();
+            crate::builtins_files::write_text(it, fid, &s)?;
+            if nargout > 0 { one(Value::num(n as f64)) } else { none() }
         }
         "num2str" => {
             let v = arg(a, 0, name)?;

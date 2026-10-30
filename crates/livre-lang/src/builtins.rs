@@ -36,7 +36,7 @@ const NAMES: &[&str] = &[
 pub fn exists(name: &str) -> bool {
     static ALL: std::sync::OnceLock<std::collections::HashSet<&'static str>> = std::sync::OnceLock::new();
     ALL.get_or_init(|| {
-        [NAMES, crate::builtins_elfun::NAMES, crate::builtins_datafun::NAMES, crate::builtins_lang::NAMES, crate::builtins_strings::NAMES, crate::builtins_types::NAMES, crate::builtins_dates::NAMES, crate::builtins_funfun::NAMES, crate::builtins_matfun::NAMES, crate::builtins_elmat::NAMES, crate::builtins_ops::NAMES, crate::builtins_specfun::NAMES, crate::polyshape::NAMES, crate::builtins_polyfun::NAMES, crate::builtins_geom::NAMES, crate::polyfun_classes::NAMES, crate::builtins_text::NAMES, crate::builtins_plot::NAMES, crate::time::NAMES, crate::table::NAMES, crate::sym::NAMES]
+        [NAMES, crate::builtins_elfun::NAMES, crate::builtins_datafun::NAMES, crate::builtins_lang::NAMES, crate::builtins_strings::NAMES, crate::builtins_types::NAMES, crate::builtins_dates::NAMES, crate::builtins_files::NAMES, crate::builtins_funfun::NAMES, crate::builtins_matfun::NAMES, crate::builtins_elmat::NAMES, crate::builtins_ops::NAMES, crate::builtins_specfun::NAMES, crate::polyshape::NAMES, crate::builtins_polyfun::NAMES, crate::builtins_geom::NAMES, crate::polyfun_classes::NAMES, crate::builtins_text::NAMES, crate::builtins_plot::NAMES, crate::time::NAMES, crate::table::NAMES, crate::sym::NAMES]
             .iter()
             .flat_map(|n| n.iter().copied())
             .collect()
@@ -564,6 +564,9 @@ pub fn call(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize) 
         return Ok(Some(r));
     }
     if let Some(r) = crate::builtins_dates::call(it, name, &args, nargout)? {
+        return Ok(Some(r));
+    }
+    if let Some(r) = crate::builtins_files::call(it, name, &args, nargout)? {
         return Ok(Some(r));
     }
     if let Some(r) = crate::builtins_funfun::call(it, name, &args, nargout)? {
@@ -1140,7 +1143,17 @@ pub fn call(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize) 
         }
         "exist" => {
             let n = arg(a, 0, name)?.text()?;
-            num(if it.get_var(&n).is_some() { 1.0 } else if exists(&n) { 5.0 } else if it.has_function(&n) { 2.0 } else { 0.0 })
+            let kind = a.get(1).map(|v| v.text()).transpose()?.unwrap_or_default();
+            let path = std::path::Path::new(&n);
+            // 1 variable, 5 built-in, 2 function or file, 7 folder.
+            let found = match kind.as_str() {
+                "var" => if it.get_var(&n).is_some() { 1.0 } else { 0.0 },
+                "builtin" => if exists(&n) { 5.0 } else { 0.0 },
+                "dir" => if path.is_dir() { 7.0 } else { 0.0 },
+                "file" => if it.has_function(&n) || path.is_file() { 2.0 } else if path.is_dir() { 7.0 } else { 0.0 },
+                _ => if it.get_var(&n).is_some() { 1.0 } else if exists(&n) { 5.0 } else if it.has_function(&n) || path.is_file() { 2.0 } else if path.is_dir() { 7.0 } else { 0.0 },
+            };
+            num(found)
         }
         "fieldnames" | "properties" => match arg(a, 0, name)? {
             Value::Struct(s) => one(Value::Cell(CellArray::col(s.fields.iter().map(|n| Value::chars(n)).collect()))),
