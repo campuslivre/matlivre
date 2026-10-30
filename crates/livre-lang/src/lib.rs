@@ -13,6 +13,7 @@ pub mod builtins_funfun;
 pub mod builtins_matfun;
 pub mod builtins_media;
 pub mod builtins_archive;
+pub mod builtins_structio;
 pub mod builtins_ops;
 pub mod builtins_plot;
 pub mod builtins_geom;
