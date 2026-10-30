@@ -396,15 +396,34 @@ fn struct_fields_body(s: &StructArray, f: NumFormat) -> String {
     let w = s.fields.iter().map(|n| n.len()).max().unwrap_or(0);
     let mut out = String::new();
     for (k, n) in s.fields.iter().enumerate() {
-        // A 1×1 cell holding a simple value shows its content inline, as {[1]} or {'hi'}.
+        // As MATLAB shows fields: a small cell row inline ({[1]  'a'}), other cells and
+        // arrays as a bracketed size ({1×5 cell}, [3×1 double], [1×1 struct]).
         let v = &s.elems[0][k];
+        let simple = |x: &Value| match x {
+            Value::Num(m) => m.numel() == 1 || (m.kind == Kind::Char && m.rows() <= 1),
+            Value::Str(s) => s.data.len() == 1,
+            _ => false,
+        };
         let shown = match v {
-            Value::Cell(c) if c.data.len() == 1 && !matches!(c.data[0], Value::Cell(_) | Value::Struct(_)) => {
-                let (t, a) = cell_item(&c.data[0], f);
-                match a {
-                    CellAlign::Left => format!("{{{t}}}"),
-                    _ => format!("{{[{t}]}}"),
-                }
+            Value::Cell(c) if c.rows() == 1 && c.data.len() <= 10 && !c.data.is_empty() && c.data.iter().all(simple) => {
+                let items: Vec<String> = c
+                    .data
+                    .iter()
+                    .map(|x| {
+                        let (t, a) = cell_item(x, f);
+                        match a {
+                            CellAlign::Left => t,
+                            _ => format!("[{t}]"),
+                        }
+                    })
+                    .collect();
+                format!("{{{}}}", items.join("  "))
+            }
+            Value::Cell(_) => format!("{{{}}}", summary(v, f)),
+            Value::Struct(_) | Value::Object(_) | Value::Table(_) => format!("[{}]", summary(v, f)),
+            Value::Num(m) if m.kind != Kind::Char => {
+                let s = summary(v, f);
+                if s.contains('×') && !s.starts_with('[') { format!("[{s}]") } else { s }
             }
             other => summary(other, f),
         };
