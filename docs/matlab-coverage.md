@@ -3,14 +3,14 @@
 Every function in the MATLAB R2023b and Symbolic Math Toolbox function references (the
 installation's `help/*/helpfuncbycat.xml`), plus key classes and undocumented public functions
 found in the toolbox folders, checked against matlivre. Regenerate with
-`tools/coverage/update.sh` after merging work (2026-10-30).
+`tools/coverage/update.sh` after merging work (2026-10-31).
 
 | Status | Count |
 |---|---:|
-| Implemented | 899 |
+| Implemented | 957 |
 | In a branch not merged yet | 0 |
 | Language keyword (check it works) | 25 |
-| **To implement** | **1123** |
+| **To implement** | **1065** |
 | Out of scope | 1332 |
 
 Out of scope, by category of the function reference: app building, external language
@@ -271,7 +271,7 @@ Out of scope: `addFields` (External Language Interfaces), `callSoapService` (Ext
 
 ## MATLAB > Graphics > 2-D and 3-D Plots
 
-Implemented: 14. To implement: 134. In a branch: 0. Out of scope: 0.
+Implemented: 40. To implement: 108. In a branch: 0. Out of scope: 0.
 
 To implement:
 
@@ -288,22 +288,15 @@ To implement:
 - [ ] `bubblelegend`
 - [ ] `bubblelim`
 - [ ] `bubblesize`
-- [ ] `clabel`
 - [ ] `clearpoints`
 - [ ] `comet`
 - [ ] `comet3`
 - [ ] `compass`
 - [ ] `coneplot`
-- [ ] `contour`
-- [ ] `contour3`
-- [ ] `contourc`
-- [ ] `contourf`
 - [ ] `contourslice`
 - [ ] `curl`
-- [ ] `cylinder`
 - [ ] `divergence`
 - [ ] `donutchart`
-- [ ] `ellipsoid`
 - [ ] `ezcontour`
 - [ ] `ezcontourf`
 - [ ] `ezmesh`
@@ -313,17 +306,13 @@ To implement:
 - [ ] `ezpolar`
 - [ ] `ezsurf`
 - [ ] `ezsurfc`
-- [ ] `fcontour`
 - [ ] `feather`
 - [ ] `fewerbins`
 - [ ] `fill3`
 - [ ] `fimplicit`
 - [ ] `fimplicit3`
 - [ ] `flow`
-- [ ] `fmesh`
-- [ ] `fplot3`
 - [ ] `frame2im`
-- [ ] `fsurf`
 - [ ] `geoaxes`
 - [ ] `geobasemap`
 - [ ] `geobubble`
@@ -335,7 +324,6 @@ To implement:
 - [ ] `getframe`
 - [ ] `getpoints`
 - [ ] `heatmap`
-- [ ] `hidden`
 - [ ] `hist`
 - [ ] `histogram2`
 - [ ] `im2frame`
@@ -344,19 +332,13 @@ To implement:
 - [ ] `isocolors`
 - [ ] `isonormals`
 - [ ] `isosurface`
-- [ ] `mesh`
-- [ ] `meshc`
-- [ ] `meshz`
 - [ ] `morebins`
 - [ ] `movie`
 - [ ] `parallelplot`
 - [ ] `pareto`
-- [ ] `pcolor`
-- [ ] `peaks`
 - [ ] `pie`
 - [ ] `pie3`
 - [ ] `piechart`
-- [ ] `plot3`
 - [ ] `plotmatrix`
 - [ ] `polar`
 - [ ] `polaraxes`
@@ -364,8 +346,6 @@ To implement:
 - [ ] `polarhistogram`
 - [ ] `polarplot`
 - [ ] `polarscatter`
-- [ ] `quiver`
-- [ ] `quiver3`
 - [ ] `reducepatch`
 - [ ] `reducevolume`
 - [ ] `refreshdata`
@@ -377,15 +357,12 @@ To implement:
 - [ ] `rtickformat`
 - [ ] `rticklabels`
 - [ ] `rticks`
-- [ ] `scatter3`
 - [ ] `scatterhistogram`
 - [ ] `shrinkfaces`
 - [ ] `slice`
 - [ ] `smooth3`
 - [ ] `sortx`
 - [ ] `sorty`
-- [ ] `sphere`
-- [ ] `stem3`
 - [ ] `stream2`
 - [ ] `stream3`
 - [ ] `streamline`
@@ -394,10 +371,7 @@ To implement:
 - [ ] `streamslice`
 - [ ] `streamtube`
 - [ ] `subvolume`
-- [ ] `surf`
 - [ ] `surf2patch`
-- [ ] `surface`
-- [ ] `surfc`
 - [ ] `surfl`
 - [ ] `surfnorm`
 - [ ] `swarmchart`
@@ -410,21 +384,18 @@ To implement:
 - [ ] `waterfall`
 - [ ] `wordcloud`
 
-Implemented: `bar`, `barh`, `drawnow`, `errorbar`, `fill`, `fplot`, `histc`, `histogram`, `loglog`, `scatter`, `semilogx`, `semilogy`, `stairs`, `stem`
+Implemented: `bar`, `barh`, `clabel`, `contour`, `contour3`, `contourc`, `contourf`, `cylinder`, `drawnow`, `ellipsoid`, `errorbar`, `fcontour`, `fill`, `fmesh`, `fplot`, `fplot3`, `fsurf`, `hidden`, `histc`, `histogram`, `loglog`, `mesh`, `meshc`, `meshz`, `pcolor`, `peaks`, `plot3`, `quiver`, `quiver3`, `scatter`, `scatter3`, `semilogx`, `semilogy`, `sphere`, `stairs`, `stem`, `stem3`, `surf`, `surface`, `surfc`
 
 ## MATLAB > Graphics > Formatting and Annotation
 
-Implemented: 45. To implement: 79. In a branch: 0. Out of scope: 0.
+Implemented: 68. To implement: 56. In a branch: 0. Out of scope: 0.
 
 To implement:
 
-- [ ] `abyss`
 - [ ] `alim`
 - [ ] `alpha`
 - [ ] `alphamap`
 - [ ] `annotation`
-- [ ] `autumn`
-- [ ] `bone`
 - [ ] `brighten`
 - [ ] `camdolly`
 - [ ] `cameratoolbar`
@@ -439,66 +410,46 @@ To implement:
 - [ ] `camup`
 - [ ] `camva`
 - [ ] `camzoom`
-- [ ] `clim`
 - [ ] `colorcube`
 - [ ] `colordef`
-- [ ] `colormap`
 - [ ] `Colormap Editor`
 - [ ] `colororder`
 - [ ] `contrast`
-- [ ] `cool`
-- [ ] `copper`
 - [ ] `datatip`
 - [ ] `datetick`
 - [ ] `diffuse`
-- [ ] `flag`
 - [ ] `fontname`
 - [ ] `ginput`
-- [ ] `gray`
 - [ ] `graymon`
 - [ ] `gtext`
-- [ ] `hot`
-- [ ] `hsv`
-- [ ] `jet`
 - [ ] `light`
 - [ ] `lightangle`
 - [ ] `lighting`
-- [ ] `lines`
 - [ ] `makehgtform`
 - [ ] `material`
 - [ ] `nexttile`
 - [ ] `num2ruler`
 - [ ] `orderedcolors`
-- [ ] `parula`
 - [ ] `pbaspect`
-- [ ] `pink`
 - [ ] `plotyy`
-- [ ] `prism`
 - [ ] `rectangle`
 - [ ] `rgbplot`
 - [ ] `ruler2num`
-- [ ] `shading`
-- [ ] `sky`
 - [ ] `specular`
 - [ ] `spinmap`
-- [ ] `spring`
-- [ ] `summer`
 - [ ] `texlabel`
 - [ ] `tightPosition`
 - [ ] `tiledlayout`
 - [ ] `tilenum`
 - [ ] `tilerowcol`
-- [ ] `turbo`
-- [ ] `view`
 - [ ] `viewmtx`
 - [ ] `whitebg`
-- [ ] `winter`
 - [ ] `xsecondarylabel`
 - [ ] `ysecondarylabel`
 - [ ] `yyaxis`
 - [ ] `zsecondarylabel`
 
-Implemented: `axes`, `axis`, `box`, `cla`, `clf`, `colorbar`, `daspect`, `figure`, `fontsize`, `grid`, `hold`, `hsv2rgb`, `legend`, `line`, `rgb2hsv`, `sgtitle`, `subplot`, `subtitle`, `text`, `title`, `xlabel`, `xlim`, `xline`, `xregion`, `xscale`, `xtickangle`, `xtickformat`, `xticklabels`, `xticks`, `ylabel`, `ylim`, `yline`, `yregion`, `yscale`, `ytickangle`, `ytickformat`, `yticklabels`, `yticks`, `zlabel`, `zlim`, `zscale`, `ztickangle`, `ztickformat`, `zticklabels`, `zticks`
+Implemented: `abyss`, `autumn`, `axes`, `axis`, `bone`, `box`, `cla`, `clf`, `clim`, `colorbar`, `colormap`, `cool`, `copper`, `daspect`, `figure`, `flag`, `fontsize`, `gray`, `grid`, `hold`, `hot`, `hsv`, `hsv2rgb`, `jet`, `legend`, `line`, `lines`, `parula`, `pink`, `prism`, `rgb2hsv`, `sgtitle`, `shading`, `sky`, `spring`, `subplot`, `subtitle`, `summer`, `text`, `title`, `turbo`, `view`, `winter`, `xlabel`, `xlim`, `xline`, `xregion`, `xscale`, `xtickangle`, `xtickformat`, `xticklabels`, `xticks`, `ylabel`, `ylim`, `yline`, `yregion`, `yscale`, `ytickangle`, `ytickformat`, `yticklabels`, `yticks`, `zlabel`, `zlim`, `zscale`, `ztickangle`, `ztickformat`, `zticklabels`, `zticks`
 
 ## MATLAB > Graphics > Graphics Objects
 
@@ -538,7 +489,7 @@ To implement:
 
 ## MATLAB > Graphics > Images
 
-Implemented: 0. To implement: 18. In a branch: 0. Out of scope: 0.
+Implemented: 7. To implement: 11. In a branch: 0. Out of scope: 0.
 
 To implement:
 
@@ -547,19 +498,14 @@ To implement:
 - [ ] `cmunique`
 - [ ] `dither`
 - [ ] `getrangefromclass`
-- [ ] `im2double`
-- [ ] `im2gray`
 - [ ] `im2java`
-- [ ] `image`
-- [ ] `imagesc`
 - [ ] `imapprox`
 - [ ] `imformats`
 - [ ] `imresize`
-- [ ] `imshow`
 - [ ] `imtile`
-- [ ] `ind2rgb`
-- [ ] `rgb2gray`
 - [ ] `rgb2ind`
+
+Implemented: `im2double`, `im2gray`, `image`, `imagesc`, `imshow`, `ind2rgb`, `rgb2gray`
 
 ## MATLAB > Graphics > Printing and Saving
 
@@ -838,8 +784,8 @@ To implement:
 - [ ] `isConnected`
 - [ ] `isEdge`
 - [ ] `ishole`
-- [ ] `isInterior`
 - [ ] `isinterior`
+- [ ] `isInterior`
 - [ ] `issimplified`
 - [ ] `nearestNeighbor`
 - [ ] `nearestvertex`
@@ -1405,19 +1351,20 @@ Out of scope: `arrowline` (internal helper, not a user function), `axischild` (i
 
 ## Not in the function reference > matlab/graph3d
 
-Implemented: 0. To implement: 3. In a branch: 0. Out of scope: 3.
+Implemented: 1. To implement: 2. In a branch: 0. Out of scope: 3.
 
 To implement:
 
 - [ ] `camrotate`
-- [ ] `caxis`
 - [ ] `objbounds`
+
+Implemented: `caxis`
 
 Out of scope: `cameramenu` (desktop, IDE, GUI, printing or interactive tool), `cmapeditor` (desktop, IDE, GUI, printing or interactive tool), `colormapeditor` (desktop, IDE, GUI, printing or interactive tool)
 
 ## Not in the function reference > matlab/graphics
 
-Implemented: 0. To implement: 7. In a branch: 0. Out of scope: 39.
+Implemented: 1. To implement: 6. In a branch: 0. Out of scope: 39.
 
 To implement:
 
@@ -1427,7 +1374,8 @@ To implement:
 - [ ] `getcrosssection`
 - [ ] `is2D`
 - [ ] `tex`
-- [ ] `white`
+
+Implemented: `white`
 
 Out of scope: `axescheck` (internal helper, not a user function), `bwcontr` (internal helper, not a user function), `capturescreen` (desktop, IDE, GUI, printing or interactive tool), `closereq` (desktop, IDE, GUI, printing or interactive tool), `copyoptionsfcn` (internal helper, not a user function), `dateTickPicker` (desktop, IDE, GUI, printing or interactive tool), `datetickstr` (internal helper, not a user function), `defaulterrorcallback` (internal helper, not a user function), `figcopytemplatelistener` (internal helper, not a user function), `figcopytemplatelistener_legacy` (internal helper, not a user function), `figureheaderdlg` (desktop, IDE, GUI, printing or interactive tool), `figureToolbarCreateFcn` (desktop, IDE, GUI, printing or interactive tool), `findprinters` (desktop, IDE, GUI, printing or interactive tool), `getFigureToolManager` (desktop, IDE, GUI, printing or interactive tool), `getprinttemplate` (desktop, IDE, GUI, printing or interactive tool), `handle2struct` (internal helper, not a user function), `hasbehavior` (internal helper, not a user function), `hgaddbehavior` (internal helper, not a user function), `hgbehaviorfactory` (internal helper, not a user function), `hgclose` (internal helper, not a user function), `hgdisp` (internal helper, not a user function), `hgfeval` (internal helper, not a user function), `hggetbehavior` (internal helper, not a user function), `hggetdisp` (internal helper, not a user function), `hgrc` (internal helper, not a user function), `hgsetdisp` (internal helper, not a user function), `openFigure` (desktop, IDE, GUI, printing or interactive tool), `parseChartInputs` (internal helper, not a user function), `parseparams` (internal helper, not a user function), `printjob` (desktop, IDE, GUI, printing or interactive tool), `printtables` (desktop, IDE, GUI, printing or interactive tool), `printtemplate` (desktop, IDE, GUI, printing or interactive tool), `regionpicker` (desktop, IDE, GUI, printing or interactive tool), `resetplotview` (desktop, IDE, GUI, printing or interactive tool), `saveFigure` (desktop, IDE, GUI, printing or interactive tool), `setprinttemplate` (desktop, IDE, GUI, printing or interactive tool), `struct2handle` (internal helper, not a user function), `vertexpicker` (desktop, IDE, GUI, printing or interactive tool), `vga` (desktop, IDE, GUI, printing or interactive tool)
 
