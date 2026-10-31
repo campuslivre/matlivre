@@ -7,10 +7,10 @@ found in the toolbox folders, checked against matlivre. Regenerate with
 
 | Status | Count |
 |---|---:|
-| Implemented | 957 |
+| Implemented | 991 |
 | In a branch not merged yet | 0 |
 | Language keyword (check it works) | 25 |
-| **To implement** | **1065** |
+| **To implement** | **1031** |
 | Out of scope | 1332 |
 
 Out of scope, by category of the function reference: app building, external language
@@ -1558,7 +1558,7 @@ Implemented: `assume`, `assumeAlso`
 
 ## Symbolic Math Toolbox > Mathematics > Calculus
 
-Implemented: 4. To implement: 23. In a branch: 0. Out of scope: 0.
+Implemented: 10. To implement: 17. In a branch: 0. Out of scope: 0.
 
 To implement:
 
@@ -1566,43 +1566,34 @@ To implement:
 - [ ] `fourier`
 - [ ] `functionalDerivative`
 - [ ] `funtool`
-- [ ] `hessian`
 - [ ] `htrans`
 - [ ] `ifourier`
 - [ ] `ihtrans`
-- [ ] `ilaplace`
 - [ ] `integrateByParts`
 - [ ] `iztrans`
-- [ ] `laplace`
 - [ ] `pade`
 - [ ] `potential`
 - [ ] `rsums`
-- [ ] `series`
-- [ ] `symprod`
-- [ ] `symsum`
 - [ ] `taylortool`
 - [ ] `vectorPotential`
 - [ ] `vpaintegral`
 - [ ] `vpasum`
 - [ ] `ztrans`
 
-Implemented: `int`, `jacobian`, `limit`, `taylor`
+Implemented: `hessian`, `ilaplace`, `int`, `jacobian`, `laplace`, `limit`, `series`, `symprod`, `symsum`, `taylor`
 
 ## Symbolic Math Toolbox > Mathematics > Equation Solving
 
-Implemented: 0. To implement: 20. In a branch: 0. Out of scope: 0.
+Implemented: 4. To implement: 16. In a branch: 0. Out of scope: 0.
 
 To implement:
 
 - [ ] `daeFunction`
 - [ ] `dsolve`
 - [ ] `eliminate`
-- [ ] `equationsToMatrix`
 - [ ] `findDecoupledBlocks`
-- [ ] `finverse`
 - [ ] `incidenceMatrix`
 - [ ] `isLowIndexDAE`
-- [ ] `isolate`
 - [ ] `massMatrixForm`
 - [ ] `odeFunction`
 - [ ] `odeToVectorField`
@@ -1613,41 +1604,38 @@ To implement:
 - [ ] `reduceDAEToODE`
 - [ ] `reduceDifferentialOrder`
 - [ ] `reduceRedundancies`
-- [ ] `vpasolve`
+
+Implemented: `equationsToMatrix`, `finverse`, `isolate`, `vpasolve`
 
 ## Symbolic Math Toolbox > Mathematics > Formula Manipulation and Simplification
 
-Implemented: 6. To implement: 7. In a branch: 0. Out of scope: 0.
+Implemented: 10. To implement: 3. In a branch: 0. Out of scope: 0.
 
 To implement:
 
 - [ ] `combine`
 - [ ] `displayFormula`
-- [ ] `divisors`
-- [ ] `horner`
-- [ ] `partfrac`
-- [ ] `simplifyFraction`
 - [ ] `subexpr`
 
-Implemented: `coeffs`, `collect`, `expand`, `lhs`, `numden`, `rhs`
+Implemented: `coeffs`, `collect`, `divisors`, `expand`, `horner`, `lhs`, `numden`, `partfrac`, `rhs`, `simplifyFraction`
 
 ## Symbolic Math Toolbox > Mathematics > Linear Algebra
 
-Implemented: 0. To implement: 7. In a branch: 0. Out of scope: 0.
+Implemented: 2. To implement: 5. In a branch: 0. Out of scope: 0.
 
 To implement:
 
-- [ ] `adjoint`
 - [ ] `bernsteinMatrix`
-- [ ] `charpoly`
 - [ ] `colspace`
 - [ ] `hermiteForm`
 - [ ] `jordan`
 - [ ] `smithForm`
 
+Implemented: `adjoint`, `charpoly`
+
 ## Symbolic Math Toolbox > Mathematics > Mathematical Functions
 
-Implemented: 0. To implement: 55. In a branch: 0. Out of scope: 0.
+Implemented: 4. To implement: 51. In a branch: 0. Out of scope: 0.
 
 To implement:
 
@@ -1688,16 +1676,13 @@ To implement:
 - [ ] `jacobiSD`
 - [ ] `jacobiSN`
 - [ ] `jacobiZeta`
-- [ ] `kroneckerDelta`
 - [ ] `kummerU`
-- [ ] `lambertw`
 - [ ] `logint`
 - [ ] `meijerG`
 - [ ] `pochhammer`
 - [ ] `polylog`
 - [ ] `rectangularPulse`
 - [ ] `signIm`
-- [ ] `sinc`
 - [ ] `sinhint`
 - [ ] `sinint`
 - [ ] `ssinint`
@@ -1705,25 +1690,21 @@ To implement:
 - [ ] `whittakerM`
 - [ ] `whittakerW`
 - [ ] `wrightOmega`
-- [ ] `zeta`
+
+Implemented: `kroneckerDelta`, `lambertw`, `sinc`, `zeta`
 
 ## Symbolic Math Toolbox > Mathematics > Number Theory
 
-Implemented: 0. To implement: 11. In a branch: 0. Out of scope: 0.
+Implemented: 7. To implement: 4. In a branch: 0. Out of scope: 0.
 
 To implement:
 
-- [ ] `bernoulli`
 - [ ] `euler`
-- [ ] `eulerPhi`
 - [ ] `factorIntegerPower`
-- [ ] `fibonacci`
-- [ ] `harmonic`
 - [ ] `isPrimitiveRoot`
 - [ ] `jacobiSymbol`
-- [ ] `nextprime`
-- [ ] `nthprime`
-- [ ] `prevprime`
+
+Implemented: `bernoulli`, `eulerPhi`, `fibonacci`, `harmonic`, `nextprime`, `nthprime`, `prevprime`
 
 ## Symbolic Math Toolbox > Mathematics > Numbers and Precision
 
@@ -1733,7 +1714,7 @@ Implemented: `digits`
 
 ## Symbolic Math Toolbox > Mathematics > Polynomials
 
-Implemented: 0. To implement: 14. In a branch: 0. Out of scope: 0.
+Implemented: 1. To implement: 13. In a branch: 0. Out of scope: 0.
 
 To implement:
 
@@ -1747,10 +1728,11 @@ To implement:
 - [ ] `laguerreL`
 - [ ] `legendreP`
 - [ ] `minpoly`
-- [ ] `polynomialDegree`
 - [ ] `polynomialReduce`
 - [ ] `resultant`
 - [ ] `root`
+
+Implemented: `polynomialDegree`
 
 ## Symbolic Math Toolbox > MuPAD to MATLAB Migration
 
@@ -1771,34 +1753,28 @@ Implemented: `matlabFunction`, `poly2sym`, `subs`, `sym2poly`, `vpa`
 
 ## Symbolic Math Toolbox > Symbolic Computations in MATLAB > Operators and Elementary Operations
 
-Implemented: 14. To implement: 5. In a branch: 0. Out of scope: 0.
+Implemented: 16. To implement: 3. In a branch: 0. Out of scope: 0.
 
 To implement:
 
 - [ ] `in`
 - [ ] `powermod`
 - [ ] `quorem`
-- [ ] `symfalse`
-- [ ] `symtrue`
 
-Implemented: `and`, `ge`, `gt`, `isAlways`, `ldivide`, `le`, `lt`, `minus`, `ne`, `not`, `or`, `power`, `rdivide`, `times`
+Implemented: `and`, `ge`, `gt`, `isAlways`, `ldivide`, `le`, `lt`, `minus`, `ne`, `not`, `or`, `power`, `rdivide`, `symfalse`, `symtrue`, `times`
 
 ## Symbolic Math Toolbox > Symbolic Computations in MATLAB > Symbolic Variables, Expressions, Functions, and Preferences
 
-Implemented: 5. To implement: 17. In a branch: 0. Out of scope: 0.
+Implemented: 9. To implement: 13. In a branch: 0. Out of scope: 0.
 
 To implement:
 
-- [ ] `argnames`
 - [ ] `findSymType`
 - [ ] `fold`
-- [ ] `formula`
-- [ ] `has`
 - [ ] `hasSymType`
 - [ ] `isSymType`
 - [ ] `mapSymType`
 - [ ] `piecewise`
-- [ ] `str2sym`
 - [ ] `symfunmatrix`
 - [ ] `symfunmatrix2symfun`
 - [ ] `symFunType`
@@ -1807,7 +1783,7 @@ To implement:
 - [ ] `sympref`
 - [ ] `symType`
 
-Implemented: `children`, `pretty`, `sym`, `symfun`, `syms`
+Implemented: `argnames`, `children`, `formula`, `has`, `pretty`, `str2sym`, `sym`, `symfun`, `syms`
 
 ## Symbolic Math Toolbox > Symbolic Computations in MATLAB > Units of Measurement
 
