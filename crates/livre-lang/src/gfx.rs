@@ -109,6 +109,10 @@ fn series_class(s: &Series) -> &'static str {
         SeriesKind::Text => "matlab.graphics.primitive.Text",
         SeriesKind::ConstantLine => "matlab.graphics.chart.decoration.ConstantLine",
         SeriesKind::Region => "matlab.graphics.chart.decoration.ConstantRegion",
+        SeriesKind::Surface => "matlab.graphics.chart.primitive.Surface",
+        SeriesKind::Image => "matlab.graphics.primitive.Image",
+        SeriesKind::Contour => "matlab.graphics.chart.primitive.Contour",
+        SeriesKind::Quiver => "matlab.graphics.chart.primitive.Quiver",
     }
 }
 
@@ -243,7 +247,8 @@ fn table() -> &'static PropTable {
 
 fn props_of(class: &str) -> &'static [(&'static str, &'static str)] {
     let t = table();
-    t.by_class.get(class).map(|v| v.as_slice()).unwrap_or(&[])
+    // surf makes a chart Surface, which shares the primitive surface's properties.
+    t.by_class.get(class).or_else(|| t.by_class.get(class.replace(".chart.primitive.", ".primitive.").as_str())).map(|v| v.as_slice()).unwrap_or(&[])
 }
 
 /// MATLAB's spelling of a property name given in any case, or `None`.
@@ -308,7 +313,7 @@ fn render_to_rgb(c: [u8; 3]) -> [f64; 3] {
 
 /// A color argument: a name, a short name, '#rrggbb', an RGB triplet or 'none'.
 /// Returns the render color and the MATLAB RGB value.
-fn color_arg(v: &Value) -> R<Option<([u8; 3], [f64; 3])>> {
+pub(crate) fn color_arg(v: &Value) -> R<Option<([u8; 3], [f64; 3])>> {
     if v.is_text() || matches!(v, Value::Str(_)) {
         let t = v.text()?.to_lowercase();
         if t == "none" {
@@ -562,11 +567,30 @@ fn computed(it: &mut Interpreter, id: u64, t: Target, name: &str) -> R<Option<Va
         Target::Series(f, a, si) => {
             let s = &it.figures[f].axes[a].series[si];
             match name {
+                "XData" | "YData" | "ZData" | "CData" if s.kind == SeriesKind::Surface => {
+                    let v = match name {
+                        "XData" => &s.x,
+                        "YData" => &s.y,
+                        "ZData" => &s.z,
+                        _ => &s.c,
+                    };
+                    Value::Num(Matrix::new(s.grid.0, s.grid.1, v.clone()))
+                }
+                "CData" if s.kind == SeriesKind::Image => {
+                    let dims = if s.channels == 3 { vec![s.grid.0, s.grid.1, 3] } else { vec![s.grid.0, s.grid.1] };
+                    Value::Num(Matrix::from_dims(dims, s.c.clone()))
+                }
+                "LevelList" if s.kind == SeriesKind::Contour => {
+                    let mut l: Vec<f64> = s.c.iter().chain(&s.w).copied().filter(|v| v.is_finite()).collect();
+                    l.sort_by(|a, b| a.partial_cmp(b).unwrap());
+                    l.dedup();
+                    row(&l)
+                }
                 "XData" if s.kind == SeriesKind::BarH => row(&s.x),
                 "XData" => row(&s.x),
                 "YData" => row(&s.y),
-                "ZData" => row(&[]),
-                "Color" | "FaceColor" if s.kind != SeriesKind::Text => match stored(it, id, name) {
+                "ZData" => row(&s.z),
+                "Color" | "FaceColor" if !matches!(s.kind, SeriesKind::Text | SeriesKind::Surface | SeriesKind::Image | SeriesKind::Contour) => match stored(it, id, name) {
                     Some(v) => v,
                     None => rgb_value(match s.color {
                         Some(c) => render_to_rgb(c),
@@ -610,6 +634,10 @@ fn computed(it: &mut Interpreter, id: u64, t: Target, name: &str) -> R<Option<Va
                     SeriesKind::Text => "text",
                     SeriesKind::ConstantLine => "constantline",
                     SeriesKind::Region => "constantregion",
+                    SeriesKind::Surface => "surface",
+                    SeriesKind::Image => "image",
+                    SeriesKind::Contour => "contour",
+                    SeriesKind::Quiver => "quiver",
                 }),
                 "Parent" => {
                     let id = axes_id(it, f, a);
@@ -748,6 +776,25 @@ fn set_prop(it: &mut Interpreter, id: u64, name: &str, v: Value) -> R<()> {
             match name {
                 "XData" => s.x = v.to_matrix()?.data,
                 "YData" => s.y = v.to_matrix()?.data,
+                "FaceColor" | "EdgeColor" if s.kind == SeriesKind::Surface => {
+                    let mode = if v.is_text() { v.text()?.to_lowercase() } else { String::new() };
+                    let face = name == "FaceColor";
+                    match mode.as_str() {
+                        "none" => {
+                            if face { s.face_none = true } else { s.edge_color = None; s.edge_mapped = false }
+                        }
+                        "flat" | "interp" | "texturemap" => {
+                            if face { s.face_none = false; s.face_mapped = true } else { s.edge_mapped = true }
+                        }
+                        _ => {
+                            let c = color_arg(&v)?.map(|c| c.0);
+                            if face { s.face_none = c.is_none(); s.face_mapped = false; s.color = c } else { s.edge_mapped = false; s.edge_color = c }
+                        }
+                    }
+                    keep = true;
+                }
+                "ZData" => s.z = v.to_matrix()?.data,
+                "CData" => s.c = v.to_matrix()?.data,
                 "Color" | "FaceColor" | "MarkerFaceColor" | "MarkerEdgeColor" if !(name.starts_with("Marker") && auto) => {
                     let c = color_arg(&v)?;
                     if name == "Color" || name == "FaceColor" || c.is_some() {

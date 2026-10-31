@@ -218,6 +218,11 @@ impl Interpreter {
         self.base.vars.clear();
     }
 
+    /// A copy of the open figures, oldest first.
+    pub fn figures_snapshot(&self) -> Vec<Figure> {
+        self.figures.clone()
+    }
+
     /// Installs the renderer `saveas`, `print` and `exportgraphics` use.
     pub fn set_figure_exporter(&mut self, f: impl FnMut(&Figure, ExportFormat, f32) -> Result<Vec<u8>, String> + 'static) {
         self.exporter = Some(Box::new(f));

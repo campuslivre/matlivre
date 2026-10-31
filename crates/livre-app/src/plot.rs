@@ -85,6 +85,8 @@ trait Canvas {
     fn polygon(&mut self, pts: &[Pos2], fill: Color32, stroke: Stroke);
     /// Text whose baseline starts, centres or ends (`align`) at `pos`, rotated about `pos`.
     fn text(&mut self, pos: Pos2, align: Align, text: &str, font: Font, color: Color32, angle: f32);
+    /// An RGBA image (`w` × `h` pixels, rows top to bottom) stretched over `r`.
+    fn image(&mut self, r: Rect, w: usize, h: usize, rgba: &[u8]);
     fn clip(&mut self, r: Option<Rect>);
 
     fn text_width(&self, text: &str, font: Font) -> f32 {
@@ -168,6 +170,12 @@ impl Canvas for PainterCanvas {
     fn clip(&mut self, r: Option<Rect>) {
         let r = r.map_or(self.full, |r| Rect::from_min_max(self.pt(r.min), self.pt(r.max)).intersect(self.full));
         self.p.set_clip_rect(r);
+    }
+
+    fn image(&mut self, r: Rect, w: usize, h: usize, rgba: &[u8]) {
+        let tex = cached_texture(self.p.ctx(), w, h, rgba);
+        let uv = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
+        self.p.image(tex.id(), Rect::from_min_max(self.pt(r.min), self.pt(r.max)), uv, Color32::WHITE);
     }
 }
 
@@ -254,6 +262,23 @@ impl Canvas for SvgCanvas<'_> {
             let _ = write!(self.out, r#"<clipPath id="c{id}"><rect x="{}" y="{}" width="{}" height="{}"/></clipPath><g clip-path="url(#c{id})">"#, num(r.left()), num(r.top()), num(r.width()), num(r.height()));
             self.clipped = true;
         }
+    }
+
+    fn image(&mut self, r: Rect, w: usize, h: usize, rgba: &[u8]) {
+        let Some(mut pm) = tiny_skia::Pixmap::new(w as u32, h as u32) else { return };
+        for (px, c) in pm.pixels_mut().iter_mut().zip(rgba.chunks(4)) {
+            *px = tiny_skia::ColorU8::from_rgba(c[0], c[1], c[2], c[3]).premultiply();
+        }
+        let Ok(png) = pm.encode_png() else { return };
+        let _ = write!(
+            self.out,
+            r#"<image x="{}" y="{}" width="{}" height="{}" preserveAspectRatio="none" style="image-rendering:pixelated" href="data:image/png;base64,{}"/>"#,
+            num(r.left()),
+            num(r.top()),
+            num(r.width()),
+            num(r.height()),
+            base64(&png)
+        );
     }
 }
 
@@ -348,6 +373,401 @@ pub fn copy_to_clipboard(ctx: &egui::Context, skin: &Skin, fig: &Figure, size: e
     arboard::Clipboard::new().and_then(|mut cb| cb.set_image(image)).map_err(|e| e.to_string())
 }
 
+/// Textures of recently drawn images, kept alive while they are on screen.
+fn cached_texture(ctx: &egui::Context, w: usize, h: usize, rgba: &[u8]) -> egui::TextureHandle {
+    use std::hash::{Hash, Hasher};
+    thread_local! {
+        static CACHE: std::cell::RefCell<Vec<(u64, egui::TextureHandle)>> = const { std::cell::RefCell::new(Vec::new()) };
+    }
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    (w, h, rgba).hash(&mut hasher);
+    let key = hasher.finish();
+    CACHE.with(|c| {
+        let mut c = c.borrow_mut();
+        if let Some((_, t)) = c.iter().find(|(k, _)| *k == key) {
+            return t.clone();
+        }
+        let img = egui::ColorImage::from_rgba_unmultiplied([w, h], rgba);
+        let t = ctx.load_texture("figure-image", img, egui::TextureOptions::NEAREST);
+        c.push((key, t.clone()));
+        if c.len() > 32 {
+            drop(c.remove(0));
+        }
+        t
+    })
+}
+
+fn base64(data: &[u8]) -> String {
+    const A: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(data.len().div_ceil(3) * 4);
+    for chunk in data.chunks(3) {
+        let b = [chunk[0], *chunk.get(1).unwrap_or(&0), *chunk.get(2).unwrap_or(&0)];
+        let n = (b[0] as u32) << 16 | (b[1] as u32) << 8 | b[2] as u32;
+        for k in 0..4 {
+            if k <= chunk.len() {
+                out.push(A[(n >> (18 - 6 * k) & 63) as usize] as char);
+            } else {
+                out.push('=');
+            }
+        }
+    }
+    out
+}
+
+/// Colormap and color limits of an axes.
+struct ColorScale<'a> {
+    map: &'a [[f64; 3]],
+    lim: (f64, f64),
+}
+
+impl ColorScale<'_> {
+    fn color(&self, v: f64) -> Option<Color32> {
+        graphics::map_color(self.map, self.lim, v).map(rgb32)
+    }
+
+    /// A colormap row by 1-based index (direct image indexing).
+    fn direct(&self, v: f64) -> Option<Color32> {
+        if !v.is_finite() || self.map.is_empty() {
+            return None;
+        }
+        Some(rgb32(self.map[(v.floor() as i64 - 1).clamp(0, self.map.len() as i64 - 1) as usize]))
+    }
+}
+
+fn rgb32(c: [f64; 3]) -> Color32 {
+    Color32::from_rgb((c[0].clamp(0.0, 1.0) * 255.0).round() as u8, (c[1].clamp(0.0, 1.0) * 255.0).round() as u8, (c[2].clamp(0.0, 1.0) * 255.0).round() as u8)
+}
+
+/// NaN-separated runs of (x, y) points with the first value of `c` in each run.
+fn runs<'a>(x: &'a [f64], y: &'a [f64], c: &'a [f64]) -> Vec<(Vec<usize>, f64)> {
+    let mut out = Vec::new();
+    let mut cur: Vec<usize> = Vec::new();
+    for i in 0..x.len() {
+        if x[i].is_nan() || y[i].is_nan() {
+            if !cur.is_empty() {
+                let v = c.get(cur[0]).copied().unwrap_or(f64::NAN);
+                out.push((std::mem::take(&mut cur), v));
+            }
+        } else {
+            cur.push(i);
+        }
+    }
+    if !cur.is_empty() {
+        let v = c.get(cur[0]).copied().unwrap_or(f64::NAN);
+        out.push((cur, v));
+    }
+    out
+}
+
+/// The RGBA pixels of an image series (rows top to bottom as stored).
+fn image_pixels(s: &Series, cs: &ColorScale) -> Vec<u8> {
+    let (rows, cols) = s.grid;
+    let n = rows * cols;
+    let mut out = Vec::with_capacity(n * 4);
+    for r in 0..rows {
+        for j in 0..cols {
+            let k = j * rows + r;
+            let c = if s.channels == 3 {
+                Some(rgb32([s.c[k], s.c[n + k], s.c[2 * n + k]]))
+            } else if s.direct {
+                cs.direct(s.c[k])
+            } else {
+                cs.color(s.c[k])
+            };
+            let c = c.unwrap_or(Color32::TRANSPARENT);
+            out.extend([c.r(), c.g(), c.b(), c.a()]);
+        }
+    }
+    out
+}
+
+/// The arrow of a quiver: the shaft and two head strokes.
+fn arrow(c: &mut dyn Canvas, a: Pos2, b: Pos2, stroke: Stroke) {
+    c.line(&[a, b], stroke, &[]);
+    let d = b - a;
+    let len = d.length();
+    if len < 1e-3 {
+        return;
+    }
+    let head = (len * 0.3).min(9.0);
+    let dir = d / len;
+    for side in [-1.0f32, 1.0] {
+        let rot = Rot2::from_angle(side * 0.45);
+        c.line(&[b, b - rot * dir * head], stroke, &[]);
+    }
+}
+
+/// A vertical colorbar in `r` with tick labels on its right.
+fn draw_colorbar(c: &mut dyn Canvas, t: &Tokens, cs: &ColorScale, r: Rect) {
+    let n = cs.map.len().max(1);
+    for (i, col) in cs.map.iter().enumerate() {
+        let y0 = r.bottom() - (i as f32 + 1.0) * r.height() / n as f32;
+        c.rect(Rect::from_min_max(pos2(r.left(), y0), pos2(r.right(), y0 + r.height() / n as f32 + 0.5)), 0.0, rgb32(*col), Stroke::NONE);
+    }
+    c.rect(r, 0.0, Color32::TRANSPARENT, Stroke::new(1.0_f32, t.axis));
+    let (lo, hi) = cs.lim;
+    let step = nice_step(hi - lo, 5.0);
+    for v in ticks_within(lo, hi, step) {
+        let y = r.bottom() - ((v - lo) / (hi - lo)) as f32 * r.height();
+        c.line(&[pos2(r.right() - 3.0, y), pos2(r.right(), y)], Stroke::new(1.0_f32, t.axis), &[]);
+        c.text(pos2(r.right() + 4.0, y + TICK.mid()), Align::Min, &tick_label(v, step), TICK, t.text, 0.0);
+    }
+}
+
+/// An orthographic 3-D view: data scaled into the unit cube, turned to (azimuth, elevation)
+/// as MATLAB's `view`, and fitted into the plot box.
+struct View3 {
+    lim: [(f64, f64); 3],
+    sin_az: f64,
+    cos_az: f64,
+    sin_el: f64,
+    cos_el: f64,
+    scale: f32,
+    centre: Pos2,
+}
+
+impl View3 {
+    fn unit(&self, p: [f64; 3]) -> [f64; 3] {
+        let mut q = [0.0; 3];
+        for k in 0..3 {
+            let (lo, hi) = self.lim[k];
+            q[k] = (p[k] - lo) / (hi - lo) - 0.5;
+        }
+        q
+    }
+
+    /// Screen offset (x right, y up) and depth (larger is farther) of a unit-cube point.
+    fn turn(&self, q: [f64; 3]) -> (f64, f64, f64) {
+        let fwd = -q[0] * self.sin_az + q[1] * self.cos_az;
+        let sx = q[0] * self.cos_az + q[1] * self.sin_az;
+        let sy = q[2] * self.cos_el + fwd * self.sin_el;
+        let depth = fwd * self.cos_el - q[2] * self.sin_el;
+        (sx, sy, depth)
+    }
+
+    fn screen_unit(&self, q: [f64; 3]) -> Pos2 {
+        let (sx, sy, _) = self.turn(q);
+        pos2(self.centre.x + sx as f32 * self.scale, self.centre.y - sy as f32 * self.scale)
+    }
+
+    fn screen(&self, p: [f64; 3]) -> Option<Pos2> {
+        p.iter().all(|v| v.is_finite()).then(|| self.screen_unit(self.unit(p)))
+    }
+
+    fn depth(&self, p: [f64; 3]) -> f64 {
+        self.turn(self.unit(p)).2
+    }
+}
+
+enum Prim {
+    Poly(Vec<Pos2>, Color32, Stroke),
+    Line([Pos2; 2], Stroke, LineStyle),
+    Marker(Pos2, Marker, f32, Color32, bool),
+}
+
+fn draw_axes_3d(c: &mut dyn Canvas, t: &Tokens, ax: &Axes, cs: &ColorScale, cell: Rect, plot: Rect, m: &Frame) {
+    let ((x0, x1), (y0, y1)) = ax.bounds();
+    let (z0, z1) = ax.zbounds();
+    let sx = Scale::new((x0, x1), ax.xlim.is_some(), false, 1.0, 4.0, false);
+    let sy = Scale::new((y0, y1), ax.ylim.is_some(), false, 1.0, 4.0, false);
+    let sz = Scale::new((z0, z1), ax.zlim.is_some(), false, 1.0, 4.0, false);
+    let (az, el) = ax.view.unwrap_or((-37.5, 30.0));
+    let (az, el) = (az.to_radians(), el.to_radians());
+    let mut v = View3 { lim: [(sx.lo, sx.hi), (sy.lo, sy.hi), (sz.lo, sz.hi)], sin_az: az.sin(), cos_az: az.cos(), sin_el: el.sin(), cos_el: el.cos(), scale: 1.0, centre: Pos2::ZERO };
+    // Fit the projected cube into the plot box, leaving room for tick labels.
+    let corners: Vec<[f64; 3]> = (0..8).map(|k| [if k & 1 == 0 { -0.5 } else { 0.5 }, if k & 2 == 0 { -0.5 } else { 0.5 }, if k & 4 == 0 { -0.5 } else { 0.5 }]).collect();
+    let proj: Vec<(f64, f64, f64)> = corners.iter().map(|&q| v.turn(q)).collect();
+    let (minx, maxx) = proj.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |a, p| (a.0.min(p.0), a.1.max(p.0)));
+    let (miny, maxy) = proj.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |a, p| (a.0.min(p.1), a.1.max(p.1)));
+    let room = plot.shrink2(vec2(24.0, 14.0));
+    v.scale = (room.width() / (maxx - minx) as f32).min(room.height() / (maxy - miny) as f32);
+    v.centre = room.center() + vec2(-((minx + maxx) / 2.0) as f32 * v.scale, ((miny + maxy) / 2.0) as f32 * v.scale);
+
+    c.text(pos2(plot.center().x, cell.top() + m.title_y), Align::Center, &ax.title, TITLE, t.fg, 0.0);
+    let grid = Stroke::new(1.0_f32, t.grid);
+    let axis = Stroke::new(1.0_f32, t.axis);
+    let show_axes = ax.visible_axes.unwrap_or(true);
+    // Back faces: for each axis, the side of the cube farther from the viewer.
+    let back = |k: usize| -> f64 {
+        let mut q = [0.0; 3];
+        q[k] = 0.5;
+        if v.turn(q).2 > 0.0 { 0.5 } else { -0.5 }
+    };
+    let (bx, by, bz) = (back(0), back(1), back(2));
+    let lims = [(sx.lo, sx.hi), (sy.lo, sy.hi), (sz.lo, sz.hi)];
+    let unit_of = |k: usize, val: f64| (val - lims[k].0) / (lims[k].1 - lims[k].0) - 0.5;
+    if show_axes {
+        // The three back planes, with grid lines at the ticks of the axes spanning them.
+        let planes: [(usize, f64, usize, usize); 3] = [(0, bx, 1, 2), (1, by, 0, 2), (2, bz, 0, 1)];
+        for (fixed, at, a, b) in planes {
+            let pt = |ua: f64, ub: f64| {
+                let mut q = [0.0; 3];
+                q[fixed] = at;
+                q[a] = ua;
+                q[b] = ub;
+                v.screen_unit(q)
+            };
+            if ax.grid {
+                for axis_k in [a, b] {
+                    let ticks = [&sx.ticks, &sy.ticks, &sz.ticks][axis_k];
+                    for &tv in ticks.iter() {
+                        let u = unit_of(axis_k, tv);
+                        if !(-0.5001..=0.5001).contains(&u) {
+                            continue;
+                        }
+                        let (p, q) = if axis_k == a { (pt(u, -0.5), pt(u, 0.5)) } else { (pt(-0.5, u), pt(0.5, u)) };
+                        c.line(&[p, q], grid, &[]);
+                    }
+                }
+            }
+            let outline = [pt(-0.5, -0.5), pt(0.5, -0.5), pt(0.5, 0.5), pt(-0.5, 0.5), pt(-0.5, -0.5)];
+            c.line(&outline, axis, &[]);
+        }
+        // Tick labels along the front edges of the floor (x, y) and a left vertical edge (z).
+        let floor = -0.5;
+        let label = |c: &mut dyn Canvas, q: [f64; 3], text: &str, away: Vec2| {
+            let p = v.screen_unit(q) + away;
+            let align = if away.x < -1.0 { Align::Max } else if away.x > 1.0 { Align::Min } else { Align::Center };
+            c.text(p + vec2(0.0, TICK.mid()), align, text, TICK, t.text, 0.0);
+        };
+        let centre = v.screen_unit([0.0, 0.0, floor]);
+        for (k, s) in [(0usize, &sx), (1usize, &sy)] {
+            let other = if k == 0 { 1 } else { 0 };
+            let front = if k == 0 { -by } else { -bx };
+            let mut edge_mid = [0.0; 3];
+            edge_mid[other] = front;
+            edge_mid[2] = floor;
+            let out = v.screen_unit(edge_mid) - centre;
+            let away = if out.length() > 1e-3 { out.normalized() * 14.0 } else { vec2(0.0, 14.0) };
+            for &tv in &s.ticks {
+                let u = unit_of(k, tv);
+                if !(-0.5001..=0.5001).contains(&u) {
+                    continue;
+                }
+                let mut q = edge_mid;
+                q[k] = u;
+                label(c, q, &tick_label(tv, s.step()), away);
+            }
+            let name = if k == 0 { &ax.xlabel } else { &ax.ylabel };
+            if !name.is_empty() {
+                label(c, edge_mid, name, away * 2.6);
+            }
+        }
+        // z: the vertical edge drawn farthest left.
+        let mut best = (f32::INFINITY, [0.0, 0.0]);
+        for (ex, ey) in [(-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5)] {
+            let p = v.screen_unit([ex, ey, 0.0]);
+            if p.x < best.0 {
+                best = (p.x, [ex, ey]);
+            }
+        }
+        for &tv in &sz.ticks {
+            let u = unit_of(2, tv);
+            if (-0.5001..=0.5001).contains(&u) {
+                label(c, [best.1[0], best.1[1], u], &tick_label(tv, sz.step()), vec2(-8.0, 0.0));
+            }
+        }
+        if !ax.zlabel.is_empty() {
+            let p = v.screen_unit([best.1[0], best.1[1], 0.0]) + vec2(-34.0, 0.0);
+            c.text(p, Align::Center, &ax.zlabel, LABEL, t.text, -std::f32::consts::FRAC_PI_2);
+        }
+    }
+
+    // Data, far to near.
+    let mut prims: Vec<(f64, Prim)> = Vec::new();
+    for (k, s) in ax.series.iter().enumerate().filter(|(_, s)| s.visible) {
+        let color = t.color(s, k);
+        let zat = |i: usize| s.z.get(i).copied().unwrap_or(0.0);
+        match s.kind {
+            SeriesKind::Surface => {
+                let (rows, cols) = s.grid;
+                let idx = |i: usize, j: usize| j * rows + i;
+                for i in 0..rows.saturating_sub(1) {
+                    for j in 0..cols.saturating_sub(1) {
+                        let q = [idx(i, j), idx(i, j + 1), idx(i + 1, j + 1), idx(i + 1, j)];
+                        let pts3: Vec<[f64; 3]> = q.iter().map(|&n| [s.x[n], s.y[n], zat(n)]).collect();
+                        let quad: Option<Vec<Pos2>> = pts3.iter().map(|&p| v.screen(p)).collect();
+                        let Some(quad) = quad else { continue };
+                        let depth = pts3.iter().map(|&p| v.depth(p)).sum::<f64>() / 4.0;
+                        let value = s.c.get(q[0]).copied().unwrap_or(f64::NAN);
+                        let fill = if s.face_none { Color32::TRANSPARENT } else if s.face_mapped { cs.color(value).unwrap_or(Color32::TRANSPARENT) } else { color };
+                        let edge = if s.edge_mapped { cs.color(value).map(|e| Stroke::new(0.8_f32, e)).unwrap_or(Stroke::NONE) } else { s.edge_color.map(|e| Stroke::new(0.4_f32, Color32::from_rgb(e[0], e[1], e[2]))).unwrap_or(Stroke::NONE) };
+                        // Faces filled with the edge color hide the seams between quads.
+                        let fill_edge = if edge == Stroke::NONE && fill != Color32::TRANSPARENT { Stroke::new(0.6_f32, fill) } else { edge };
+                        prims.push((depth, Prim::Poly(quad, fill, fill_edge)));
+                    }
+                }
+            }
+            SeriesKind::Quiver => {
+                for i in 0..s.x.len() {
+                    let a = [s.x[i], s.y[i], zat(i)];
+                    let b = [a[0] + s.u.get(i).copied().unwrap_or(0.0), a[1] + s.v.get(i).copied().unwrap_or(0.0), a[2] + s.w.get(i).copied().unwrap_or(0.0)];
+                    if let (Some(p), Some(q)) = (v.screen(a), v.screen(b)) {
+                        prims.push((v.depth(a), Prim::Line([p, q], Stroke::new(1.2_f32, color), LineStyle::Solid)));
+                        let d = q - p;
+                        if d.length() > 1e-3 {
+                            let head = (d.length() * 0.3).min(9.0);
+                            for side in [-1.0f32, 1.0] {
+                                let r = Rot2::from_angle(side * 0.45);
+                                prims.push((v.depth(b), Prim::Line([q, q - r * d.normalized() * head], Stroke::new(1.2_f32, color), LineStyle::Solid)));
+                            }
+                        }
+                    }
+                }
+            }
+            SeriesKind::Stem => {
+                for i in 0..s.x.len() {
+                    let top = [s.x[i], s.y[i], zat(i)];
+                    let foot = [s.x[i], s.y[i], 0.0f64.clamp(sz.lo, sz.hi)];
+                    if let (Some(p), Some(q)) = (v.screen(foot), v.screen(top)) {
+                        prims.push((v.depth(top), Prim::Line([p, q], Stroke::new(1.5_f32, color), LineStyle::Solid)));
+                        prims.push((v.depth(top) - 1e-6, Prim::Marker(q, Marker::Circle, 4.0, color, false)));
+                    }
+                }
+            }
+            _ => {
+                // Lines (plot3, contour3, contours on the floor) and markers.
+                let line_color = |i: usize| -> Color32 {
+                    if s.kind == SeriesKind::Contour && s.edge_mapped {
+                        cs.color(s.c.get(i).copied().unwrap_or(f64::NAN)).unwrap_or(color)
+                    } else {
+                        color
+                    }
+                };
+                let pts: Vec<[f64; 3]> = (0..s.x.len()).map(|i| [s.x[i], s.y.get(i).copied().unwrap_or(f64::NAN), zat(i)]).collect();
+                if s.line_style != LineStyle::None {
+                    for i in 1..pts.len() {
+                        if let (Some(p), Some(q)) = (v.screen(pts[i - 1]), v.screen(pts[i])) {
+                            let depth = (v.depth(pts[i - 1]) + v.depth(pts[i])) / 2.0;
+                            prims.push((depth, Prim::Line([p, q], Stroke::new(s.line_width.max(1.5), line_color(i - 1)), s.line_style)));
+                        }
+                    }
+                }
+                if let Some(mk) = s.marker {
+                    for &p3 in &pts {
+                        if let Some(p) = v.screen(p3) {
+                            prims.push((v.depth(p3) - 1e-6, Prim::Marker(p, mk, s.marker_size / 2.0 + 1.0, color, s.kind == SeriesKind::Scatter)));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    prims.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+    c.clip(Some(plot.expand(20.0).intersect(cell)));
+    for (_, p) in prims {
+        match p {
+            Prim::Poly(pts, fill, stroke) => c.polygon(&pts, fill, stroke),
+            Prim::Line(seg, stroke, style) => draw_polyline(c, &[Some(seg[0]), Some(seg[1])], stroke, style),
+            Prim::Marker(p, mk, r, color, filled) => draw_marker(c, mk, p, r, color, filled),
+        }
+    }
+    c.clip(None);
+    if let Some(names) = &ax.legend {
+        draw_legend(c, t, ax, names, plot);
+    }
+}
+
 fn draw_figure(c: &mut dyn Canvas, skin: &Skin, fig: &Figure, size: Vec2, hover: Option<Pos2>) {
     let t = Tokens::new(skin);
     c.rect(Rect::from_min_size(Pos2::ZERO, size).shrink(0.5), RADIUS, t.bg, Stroke::new(1.0_f32, t.border));
@@ -356,7 +776,7 @@ fn draw_figure(c: &mut dyn Canvas, skin: &Skin, fig: &Figure, size: Vec2, hover:
     for (i, ax) in fig.axes.iter().enumerate() {
         let (r, col) = (i / gc, i % gc);
         let rect = Rect::from_min_size(pos2(col as f32 * cell.x, r as f32 * cell.y), cell);
-        draw_axes(c, &t, ax, rect, gr * gc > 1, hover);
+        draw_axes(c, &t, ax, fig.colormap.as_deref(), rect, gr * gc > 1, hover);
     }
 }
 
@@ -555,9 +975,26 @@ fn in_legend(s: &Series) -> bool {
     !matches!(s.kind, SeriesKind::Text | SeriesKind::ConstantLine | SeriesKind::Region)
 }
 
-fn draw_axes(c: &mut dyn Canvas, t: &Tokens, ax: &Axes, cell: Rect, multi: bool, hover: Option<Pos2>) {
+fn draw_axes(c: &mut dyn Canvas, t: &Tokens, ax: &Axes, fig_map: Option<&[[f64; 3]]>, cell: Rect, multi: bool, hover: Option<Pos2>) {
     let m = Frame::new(ax, multi);
     let mut plot = Rect::from_min_max(cell.min + vec2(m.left, m.top), cell.max - vec2(m.right, m.bottom));
+    let parula;
+    let map: &[[f64; 3]] = match (ax.colormap.as_deref(), fig_map) {
+        (Some(m), _) | (None, Some(m)) => m,
+        _ => {
+            parula = graphics::colormap("parula", 256).unwrap_or_default();
+            &parula
+        }
+    };
+    let cs = ColorScale { map, lim: ax.color_limits() };
+    if ax.colorbar {
+        plot.max.x -= 56.0;
+        draw_colorbar(c, t, &cs, Rect::from_min_max(pos2(plot.right() + 14.0, plot.top()), pos2(plot.right() + 28.0, plot.bottom())));
+    }
+    if ax.is_3d() {
+        draw_axes_3d(c, t, ax, &cs, cell, plot, &m);
+        return;
+    }
     let (xt, yt) = (((plot.width() / 82.0) as f64).clamp(2.0, 8.0), ((plot.height() / 44.0) as f64).clamp(2.0, 6.0));
     let ((dx0, dx1), (dy0, dy1)) = ax.bounds();
     let mut sx = Scale::new((dx0, dx1), ax.xlim.is_some(), ax.xlog, positive_min(ax, true), xt, ax.x_kind != XAxisKind::Numeric);
@@ -609,7 +1046,7 @@ fn draw_axes(c: &mut dyn Canvas, t: &Tokens, ax: &Axes, cell: Rect, multi: bool,
     }
     let (x0, x1, y0, y1) = (sx.lo, sx.hi, sy.lo, sy.hi);
     let mx = |x: f64| sx.frac(x).map(|f| plot.left() + f as f32 * plot.width());
-    let my = |y: f64| sy.frac(y).map(|f| plot.bottom() - f as f32 * plot.height());
+    let my = |y: f64| sy.frac(y).map(|f| if ax.y_reverse { plot.top() + f as f32 * plot.height() } else { plot.bottom() - f as f32 * plot.height() });
     let ty = |y: f64| my(y).unwrap_or(plot.bottom());
     let at = |x: f64, y: f64| match (mx(x), my(y)) {
         (Some(a), Some(b)) => Some(pos2(a, b)),
@@ -758,6 +1195,61 @@ fn draw_axes(c: &mut dyn Canvas, t: &Tokens, ax: &Axes, cell: Rect, multi: bool,
                 if !s.label.is_empty() {
                     let label_color = if s.color.is_some() { color } else { t.text };
                     c.text(label_at, align, &s.label, TICK, label_color, angle);
+                }
+            }
+            SeriesKind::Image => {
+                let (dx, dy) = graphics::image_pixel(s);
+                let (xa, xb) = (s.x[0] - dx / 2.0, s.x[s.x.len() - 1] + dx / 2.0);
+                let (ya, yb) = (s.y[0] - dy / 2.0, s.y[s.y.len() - 1] + dy / 2.0);
+                let (Some(l), Some(r), Some(top_row), Some(bottom_row)) = (mx(xa), mx(xb), my(ya), my(yb)) else { continue };
+                let mut px = image_pixels(s, &cs);
+                let (rows, cols) = s.grid;
+                // Row 0 is at y0: flip when y0 is drawn at the bottom.
+                if top_row > bottom_row {
+                    let row = cols * 4;
+                    px = (0..rows).rev().flat_map(|r| px[r * row..(r + 1) * row].to_vec()).collect();
+                }
+                if rows > 0 && cols > 0 {
+                    c.image(Rect::from_min_max(pos2(l.min(r), top_row.min(bottom_row)), pos2(l.max(r), top_row.max(bottom_row))), cols, rows, &px);
+                }
+            }
+            SeriesKind::Surface => {
+                let (rows, cols) = s.grid;
+                for i in 0..rows.saturating_sub(1) {
+                    for j in 0..cols.saturating_sub(1) {
+                        let at_ij = |i: usize, j: usize| j * rows + i;
+                        let corners = [at_ij(i, j), at_ij(i, j + 1), at_ij(i + 1, j + 1), at_ij(i + 1, j)];
+                        let quad: Option<Vec<Pos2>> = corners.iter().map(|&q| at(s.x[q], s.y[q])).collect();
+                        let Some(quad) = quad else { continue };
+                        let value = s.c.get(corners[0]).copied().unwrap_or(f64::NAN);
+                        let fill = if s.face_none { Color32::TRANSPARENT } else if s.face_mapped { cs.color(value).unwrap_or(Color32::TRANSPARENT) } else { color };
+                        let edge = if s.edge_mapped { cs.color(value).map(|e| Stroke::new(0.6_f32, e)).unwrap_or(Stroke::NONE) } else { s.edge_color.map(|e| Stroke::new(0.5_f32, Color32::from_rgb(e[0], e[1], e[2]))).unwrap_or(Stroke::NONE) };
+                        c.polygon(&quad, fill, edge);
+                    }
+                }
+            }
+            SeriesKind::Contour => {
+                for (idx, v) in runs(&s.u, &s.v, &s.w) {
+                    let poly: Vec<Pos2> = idx.iter().filter_map(|&i| at(s.u[i], s.v[i])).collect();
+                    if poly.len() >= 3 {
+                        let fill = cs.color(v).unwrap_or(Color32::TRANSPARENT);
+                        c.polygon(&poly, fill, Stroke::new(0.6_f32, fill));
+                    }
+                }
+                if s.line_style != LineStyle::None {
+                    for (idx, v) in runs(&s.x, &s.y, &s.c) {
+                        let line: Vec<Option<Pos2>> = idx.iter().map(|&i| at(s.x[i], s.y[i])).collect();
+                        let color = if s.edge_mapped { cs.color(v).unwrap_or(t.axis) } else { s.edge_color.map(|e| Color32::from_rgb(e[0], e[1], e[2])).unwrap_or(t.fg) };
+                        draw_polyline(c, &line, Stroke::new(s.line_width.max(1.2), color), LineStyle::Solid);
+                    }
+                }
+            }
+            SeriesKind::Quiver => {
+                let thin = Stroke::new(s.line_width.max(1.2), color);
+                for i in 0..s.x.len() {
+                    if let (Some(a), Some(b)) = (at(s.x[i], s.y[i]), at(s.x[i] + s.u.get(i).copied().unwrap_or(0.0), s.y[i] + s.v.get(i).copied().unwrap_or(0.0))) {
+                        arrow(c, a, b, thin);
+                    }
                 }
             }
             SeriesKind::Line | SeriesKind::Scatter => draw_polyline(c, &pts, stroke, s.line_style),
@@ -988,6 +1480,45 @@ mod tests {
             let target = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target");
             std::fs::copy(dir.join("fmt.png"), target.join("plot-fmt.png")).unwrap();
             std::fs::copy(dir.join("log.png"), target.join("plot-log.png")).unwrap();
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Surfaces, contours, images and 3-D lines render (written to `target/` for previews).
+    #[test]
+    fn renders_3d_images_and_contours() {
+        let ctx = ctx();
+        let mut it = livre_lang::Interpreter::new();
+        let c2 = ctx.clone();
+        it.set_figure_exporter(move |fig, format, scale| match format {
+            livre_lang::ExportFormat::Svg => Ok(to_svg(&c2, &Skin::light(), fig, vec2(560.0, 420.0)).into_bytes()),
+            livre_lang::ExportFormat::Png => to_png(&c2, &Skin::light(), fig, vec2(560.0, 420.0), scale),
+        });
+        let dir = std::env::temp_dir().join(format!("matlivre-3d-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let p = |n: &str| dir.join(n).display().to_string().replace('\'', "''");
+        let src = format!(
+            concat!(
+                "surf(peaks(25)); title('surf'); xlabel('x'); ylabel('y'); zlabel('z'); colorbar; saveas(gcf, '{a}');\n",
+                "figure; subplot(2, 2, 1); contour(peaks(40), 12); subplot(2, 2, 2); contourf(peaks(40), 6); colormap(jet);\n",
+                "subplot(2, 2, 3); imagesc(magic(8)); subplot(2, 2, 4); [x, y] = meshgrid(-2:0.5:2); quiver(x, y, -y, x); saveas(gcf, '{b}');\n",
+                "figure; t = linspace(0, 6*pi, 200); plot3(sin(t), cos(t), t, 'LineWidth', 2); hold on; [X, Y, Z] = sphere(16); mesh(X, Y, Z + 10); grid on; saveas(gcf, '{c}');\n",
+            ),
+            a = p("surf.png"),
+            b = p("2d.png"),
+            c = p("lines3.png"),
+        );
+        it.run_source(&src).unwrap();
+        let svg = to_svg(&ctx, &Skin::light(), &it.figures_snapshot()[1], vec2(560.0, 420.0));
+        assert!(svg.contains("data:image/png;base64,"), "imagesc embeds an image");
+        for n in ["surf.png", "2d.png", "lines3.png"] {
+            assert!(std::fs::read(dir.join(n)).unwrap().starts_with(b"\x89PNG"));
+        }
+        if std::env::var_os("LIVRE_PLOT_PREVIEW").is_some() {
+            let target = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target");
+            for n in ["surf.png", "2d.png", "lines3.png"] {
+                std::fs::copy(dir.join(n), target.join(format!("plot-{n}"))).unwrap();
+            }
         }
         let _ = std::fs::remove_dir_all(&dir);
     }

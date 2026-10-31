@@ -43,6 +43,18 @@ pub enum SeriesKind {
     ConstantLine,
     /// `xregion` (between x[0] and x[1]) or `yregion` (`horizontal`, between y[0] and y[1]).
     Region,
+    /// A grid of `grid.0` × `grid.1` points (x, y, z column-major), faces colored from `c`
+    /// through the colormap (`surf`, `mesh`, `pcolor`).
+    Surface,
+    /// An image: `c` holds `grid.0` × `grid.1` × `channels` values; x and y are the centres
+    /// of the first and last pixels.
+    Image,
+    /// Contour lines: NaN-separated polylines (x, y, and z for `contour3`) with the level of
+    /// each point in `c`. Filled contours (`contourf`) keep their band polygons in u, v (x, y,
+    /// NaN-separated) and w (the band value of each point).
+    Contour,
+    /// Arrows from (x, y, z) along (u, v, w).
+    Quiver,
 }
 
 /// How x values are labeled: plain numbers, wall-clock milliseconds (datetime) or
@@ -83,6 +95,25 @@ pub struct Series {
     pub edge_color: Option<[u8; 3]>,
     pub font_size: Option<f32>,
     pub visible: bool,
+    /// z coordinates (empty for 2-D objects).
+    pub z: Vec<f64>,
+    /// Color data mapped through the colormap (surfaces, images, contours).
+    pub c: Vec<f64>,
+    /// Rows and columns of a surface or image.
+    pub grid: (usize, usize),
+    /// Values per image pixel: 1 (colormapped) or 3 (RGB, 0..1).
+    pub channels: usize,
+    /// Image values index the colormap directly (`image`) instead of being scaled (`imagesc`).
+    pub direct: bool,
+    /// Surface faces and edges: colored through the colormap, a fixed color (`color` /
+    /// `edge_color`), or not drawn.
+    pub face_mapped: bool,
+    pub face_none: bool,
+    pub edge_mapped: bool,
+    /// Quiver directions.
+    pub u: Vec<f64>,
+    pub v: Vec<f64>,
+    pub w: Vec<f64>,
 }
 
 impl Series {
@@ -109,6 +140,17 @@ impl Series {
             edge_color: None,
             font_size: None,
             visible: true,
+            z: Vec::new(),
+            c: Vec::new(),
+            grid: (0, 0),
+            channels: 1,
+            direct: false,
+            face_mapped: false,
+            face_none: false,
+            edge_mapped: false,
+            u: Vec::new(),
+            v: Vec::new(),
+            w: Vec::new(),
         }
     }
 }
@@ -149,6 +191,14 @@ pub struct Axes {
     pub font_size: Option<f32>,
     pub colorbar: bool,
     pub visible_axes: Option<bool>,
+    /// View (azimuth, elevation) in degrees; `None` is the 2-D view (0, 90).
+    pub view: Option<(f64, f64)>,
+    /// Color limits (`clim`); `None` = the range of the color data.
+    pub clim: Option<(f64, f64)>,
+    /// The axes colormap (`colormap(ax, ...)`); `None` uses the figure's.
+    pub colormap: Option<Vec<[f64; 3]>>,
+    /// y increases downwards (images).
+    pub y_reverse: bool,
 }
 
 /// One unit of the default tick count: MATLAB-like automatic limits, rounded out to ticks.
@@ -188,6 +238,18 @@ impl Axes {
                     continue;
                 }
                 _ => {}
+            }
+            if s.kind == SeriesKind::Image {
+                let (dx, dy) = image_pixel(s);
+                if let (Some(&x0), Some(&x1), Some(&y0), Some(&y1)) = (s.x.first(), s.x.last(), s.y.first(), s.y.last()) {
+                    xs.extend([x0.min(x1) - dx / 2.0, x0.max(x1) + dx / 2.0]);
+                    ys.extend([y0.min(y1) - dy / 2.0, y0.max(y1) + dy / 2.0]);
+                }
+                continue;
+            }
+            if s.kind == SeriesKind::Quiver {
+                xs.extend(s.x.iter().zip(&s.u).map(|(x, u)| x + u));
+                ys.extend(s.y.iter().zip(&s.v).map(|(y, v)| y + v));
             }
             xs.extend(&s.x);
             ys.extend(&s.y);
@@ -245,6 +307,176 @@ impl Axes {
     }
 }
 
+/// Pixel width and height of an image in data units.
+pub fn image_pixel(s: &Series) -> (f64, f64) {
+    let (rows, cols) = s.grid;
+    let step = |v: &[f64], n: usize| match (v.first(), v.last()) {
+        (Some(a), Some(b)) if n > 1 && a != b => (b - a).abs() / (n - 1) as f64,
+        _ => 1.0,
+    };
+    (step(&s.x, cols), step(&s.y, rows))
+}
+
+impl Axes {
+    /// Whether the axes show a 3-D view.
+    pub fn is_3d(&self) -> bool {
+        matches!(self.view, Some((az, el)) if !(az == 0.0 && el == 90.0))
+    }
+
+    /// Extent of the z data ((-1, 1) without any); `zlim` wins.
+    pub fn zbounds(&self) -> (f64, f64) {
+        if let Some(l) = self.zlim {
+            return l;
+        }
+        let mut lo = f64::INFINITY;
+        let mut hi = f64::NEG_INFINITY;
+        for s in self.series.iter().filter(|s| s.visible) {
+            let tips: Vec<f64> = s.z.iter().zip(&s.w).map(|(z, w)| z + w).collect();
+            for &z in s.z.iter().chain(&tips) {
+                if z.is_finite() {
+                    lo = lo.min(z);
+                    hi = hi.max(z);
+                }
+            }
+        }
+        if !lo.is_finite() {
+            return (-1.0, 1.0);
+        }
+        if lo == hi {
+            return (lo - 1.0, hi + 1.0);
+        }
+        (lo, hi)
+    }
+
+    /// Color limits: `clim`, or the range of the scaled color data.
+    pub fn color_limits(&self) -> (f64, f64) {
+        if let Some(l) = self.clim {
+            return l;
+        }
+        let mut lo = f64::INFINITY;
+        let mut hi = f64::NEG_INFINITY;
+        for s in self.series.iter().filter(|s| s.visible && !(s.kind == SeriesKind::Image && (s.direct || s.channels == 3))) {
+            for &c in &s.c {
+                if c.is_finite() {
+                    lo = lo.min(c);
+                    hi = hi.max(c);
+                }
+            }
+        }
+        if !lo.is_finite() {
+            return (0.0, 1.0);
+        }
+        if lo == hi {
+            return (lo - 1.0, hi + 1.0);
+        }
+        (lo, hi)
+    }
+}
+
+/// A MATLAB colormap by name with `n` colors (`None` for unknown names).
+pub fn colormap(name: &str, n: usize) -> Option<Vec<[f64; 3]>> {
+    let name = name.to_ascii_lowercase();
+    let lin = |i: usize| if n > 1 { i as f64 / (n - 1) as f64 } else { 0.0 };
+    let gray: Vec<f64> = (0..n).map(lin).collect();
+    let hot = || {
+        let n1 = (3 * n / 8).max(1);
+        (0..n)
+            .map(|i| {
+                let r = if i < n1 { (i + 1) as f64 / n1 as f64 } else { 1.0 };
+                let g = if i < n1 { 0.0 } else if i < 2 * n1 { (i - n1 + 1) as f64 / n1 as f64 } else { 1.0 };
+                let b = if i < 2 * n1 { 0.0 } else { (i - 2 * n1 + 1) as f64 / (n - 2 * n1) as f64 };
+                [r, g, b]
+            })
+            .collect::<Vec<_>>()
+    };
+    Some(match name.as_str() {
+        "parula" | "turbo" | "sky" | "abyss" => {
+            let line = include_str!("colormaps.txt").lines().find(|l| l.split(' ').next() == Some(name.as_str()))?;
+            let v: Vec<f64> = line.split(' ').skip(1).filter_map(|t| t.parse().ok()).collect();
+            (0..n)
+                .map(|i| {
+                    let p = if n > 1 { i as f64 * 255.0 / (n - 1) as f64 } else { 0.0 };
+                    let a = p.floor() as usize;
+                    let b = (a + 1).min(255);
+                    let f = p - a as f64;
+                    [0, 1, 2].map(|k| v[3 * a + k] * (1.0 - f) + v[3 * b + k] * f)
+                })
+                .collect()
+        }
+        "gray" | "grey" => gray.iter().map(|&g| [g, g, g]).collect(),
+        "cool" => gray.iter().map(|&g| [g, 1.0 - g, 1.0]).collect(),
+        "spring" => gray.iter().map(|&g| [1.0, g, 1.0 - g]).collect(),
+        "summer" => gray.iter().map(|&g| [g, 0.5 + g / 2.0, 0.4]).collect(),
+        "autumn" => gray.iter().map(|&g| [1.0, g, 0.0]).collect(),
+        "winter" => gray.iter().map(|&g| [0.0, g, 0.5 + (1.0 - g) / 2.0]).collect(),
+        "copper" => gray.iter().map(|&g| [(g * 1.25).min(1.0), (g * 0.7812).min(1.0), (g * 0.4975).min(1.0)]).collect(),
+        "white" => vec![[1.0; 3]; n],
+        "hot" => hot(),
+        "bone" => {
+            let h = hot();
+            gray.iter().zip(&h).map(|(&g, h)| [(7.0 * g + h[2]) / 8.0, (7.0 * g + h[1]) / 8.0, (7.0 * g + h[0]) / 8.0]).collect()
+        }
+        "pink" => {
+            let h = hot();
+            gray.iter().zip(&h).map(|(&g, h)| [0, 1, 2].map(|k| ((2.0 * g + h[k]) / 3.0).sqrt())).collect()
+        }
+        "jet" => {
+            let q = n.div_ceil(4);
+            let mut u: Vec<f64> = (1..=q).map(|i| i as f64 / q as f64).collect();
+            u.extend(std::iter::repeat(1.0).take(q.saturating_sub(1)));
+            u.extend((1..=q).rev().map(|i| i as f64 / q as f64));
+            let g0 = q.div_ceil(2) as i64 - if n % 4 == 1 { 1 } else { 0 };
+            let mut out = vec![[0.0; 3]; n];
+            for (k, &val) in u.iter().enumerate() {
+                let g = g0 + k as i64 + 1;
+                for (ch, row) in [(0usize, g + q as i64), (1, g), (2, g - q as i64)] {
+                    if row >= 1 && row as usize <= n {
+                        out[row as usize - 1][ch] = val;
+                    }
+                }
+            }
+            out
+        }
+        "hsv" => (0..n).map(|i| hsv_to_rgb(i as f64 / n as f64, 1.0, 1.0)).collect(),
+        "lines" => (0..n).map(|i| crate::gfx::COLOR_ORDER[i % 7]).collect(),
+        "prism" => {
+            let p = [[1.0, 0.0, 0.0], [1.0, 0.5, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [2.0 / 3.0, 0.0, 1.0]];
+            (0..n).map(|i| p[i % 6]).collect()
+        }
+        "flag" => {
+            let p = [[1.0, 0.0, 0.0], [1.0, 1.0, 1.0], [0.0, 0.0, 1.0], [0.0, 0.0, 0.0]];
+            (0..n).map(|i| p[i % 4]).collect()
+        }
+        _ => return None,
+    })
+}
+
+pub fn hsv_to_rgb(h: f64, s: f64, v: f64) -> [f64; 3] {
+    let h6 = (h * 6.0).rem_euclid(6.0);
+    let k = h6.floor();
+    let f = h6 - k;
+    let (p, q, t) = (v * (1.0 - s), v * (1.0 - s * f), v * (1.0 - s * (1.0 - f)));
+    match k as i32 {
+        0 => [v, t, p],
+        1 => [q, v, p],
+        2 => [p, v, t],
+        3 => [p, q, v],
+        4 => [t, p, v],
+        _ => [v, p, q],
+    }
+}
+
+/// The color for value `v` under limits `lim` (clamped to the ends of `map`).
+pub fn map_color(map: &[[f64; 3]], lim: (f64, f64), v: f64) -> Option<[f64; 3]> {
+    if !v.is_finite() || map.is_empty() {
+        return None;
+    }
+    let n = map.len();
+    let f = if lim.1 > lim.0 { (v - lim.0) / (lim.1 - lim.0) } else { 0.5 };
+    let i = ((f * n as f64).floor() as i64).clamp(0, n as i64 - 1) as usize;
+    Some(map[i])
+}
+
 /// Smallest positive spacing between successive x values (1 when there is none).
 pub fn bar_spacing(x: &[f64]) -> f64 {
     let mut d = f64::INFINITY;
@@ -265,11 +497,13 @@ pub struct Figure {
     pub grid: (usize, usize),
     pub axes: Vec<Axes>,
     pub current_axes: usize,
+    /// The figure colormap (`None` = parula).
+    pub colormap: Option<Vec<[f64; 3]>>,
 }
 
 impl Figure {
     pub fn new(id: u32) -> Self {
-        Self { id, name: String::new(), grid: (1, 1), axes: vec![Axes::default()], current_axes: 0 }
+        Self { id, name: String::new(), grid: (1, 1), axes: vec![Axes::default()], current_axes: 0, colormap: None }
     }
 
     pub fn axes_mut(&mut self) -> &mut Axes {
