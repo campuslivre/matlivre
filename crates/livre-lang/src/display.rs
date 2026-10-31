@@ -295,6 +295,7 @@ pub fn summary(v: &Value, f: NumFormat) -> String {
         Value::Struct(s) => format!("{} struct", nd::size_text(&s.dims)),
         Value::Func(fv) => func_text(fv),
         Value::Object(o) if crate::gfx::is_gfx_class(&o.class.name) => format!("{} {}", nd::size_text(&v.dims()), o.class.name.rsplit('.').next().unwrap_or("")),
+        Value::Object(_) if crate::containers::is_categorical(v) => crate::containers::inline_text(v).unwrap_or_default(),
         Value::Object(o) => format!("1×1 {}", o.class.name),
         Value::Time(t) => t.summary(),
         Value::Table(t) => format!("{}×{} table", t.nrows, t.vars.len()),
@@ -337,6 +338,7 @@ fn cell_item(v: &Value, f: NumFormat) -> (String, CellAlign) {
             (inner, CellAlign::NumBrackets)
         }
         Value::Str(s) if s.data.len() == 1 => (summary(v, f), CellAlign::StrBrackets),
+        Value::Object(_) if crate::containers::is_categorical(v) && !summary(v, f).ends_with("categorical") => (summary(v, f), CellAlign::NumBrackets),
         other => (summary(other, f), CellAlign::Left),
     }
 }
@@ -421,6 +423,7 @@ pub(crate) fn struct_fields_body(s: &StructArray, f: NumFormat) -> String {
                 format!("{{{}}}", items.join("  "))
             }
             Value::Cell(_) => format!("{{{}}}", summary(v, f)),
+            Value::Object(_) if crate::containers::is_categorical(v) && v.numel() == 1 => summary(v, f),
             Value::Struct(_) | Value::Object(_) | Value::Table(_) => format!("[{}]", summary(v, f)),
             Value::Num(m) if m.kind != Kind::Char => {
                 let s = summary(v, f);
@@ -496,7 +499,7 @@ pub fn display_value(name: &str, v: &Value, f: NumFormat) -> String {
             format!("{name} = {what} with fields:\n\n{}", struct_names_body(s).trim_end_matches('\n'))
         }
         Value::Func(fv) => format!("{name} = function_handle with value:\n\n    {}", func_text(fv)),
-        Value::Object(o) => crate::class::display_object(name, o, f),
+        Value::Object(o) => crate::containers::display(name, v, f).unwrap_or_else(|| crate::class::display_object(name, o, f)),
         Value::Time(t) => t.display(name),
         Value::Table(t) => t.display(name, f),
         Value::Sym(s) => s.display(name),
@@ -533,7 +536,7 @@ pub fn disp_value(v: &Value, f: NumFormat) -> String {
             }
         }
         Value::Func(fv) => func_text(fv),
-        Value::Object(o) => crate::class::display_object("", o, f).trim_start_matches(" = ").to_string(),
+        Value::Object(o) => crate::containers::disp(v, f).unwrap_or_else(|| crate::class::display_object("", o, f).trim_start_matches(" = ").to_string()),
         Value::Time(t) => t.disp(),
         Value::Table(t) => t.body(f),
         Value::Sym(s) => s.disp(),

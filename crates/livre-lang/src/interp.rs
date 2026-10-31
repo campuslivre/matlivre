@@ -637,6 +637,10 @@ impl Interpreter {
             self.emit(OutputKind::Value { name: name.to_string(), text });
             return Ok(());
         }
+        if let Some(text) = crate::containers::display(name, v, self.format) {
+            self.emit(OutputKind::Value { name: name.to_string(), text });
+            return Ok(());
+        }
         if let Value::Object(o) = v {
             if let Some(f) = o.class.method("display").cloned() {
                 self.call_method(&f, &o.class.clone(), vec![v.clone()], 0)?;
@@ -951,7 +955,7 @@ impl Interpreter {
         /// Walks by reference; only object properties (behind a RefCell) are copied.
         fn walk(v: &Value, path: &[Resolved]) -> (Dims, bool) {
             let Some((p, rest)) = path.split_first() else {
-                return (v.dims(), matches!(v, Value::Table(_)));
+                return (v.dims(), matches!(v, Value::Table(_)) || crate::containers::is_keyed(v));
             };
             match (p, v) {
                 (Resolved::Field(f), Value::Struct(s)) if s.elems.len() == 1 => match s.get(f) {
@@ -1061,6 +1065,9 @@ impl Interpreter {
             }
             Resolved::Paren(idx) => {
                 if rest.is_empty() {
+                    if cur.as_ref().map(crate::containers::is_categorical).unwrap_or(false) {
+                        return crate::containers::cat_assign(cur.unwrap(), idx, rhs);
+                    }
                     return indexing::assign(cur, idx, rhs);
                 }
                 match cur {
@@ -1102,6 +1109,15 @@ impl Interpreter {
                         indexing::assign(Some(Value::Struct(s)), idx, Value::Struct(ns))
                     }
                 }
+            }
+            Resolved::TableParen(args) if cur.as_ref().map(crate::containers::is_keyed).unwrap_or(false) => {
+                if !rest.is_empty() {
+                    return rt("Only one level of indexing is supported in assignments to a map.");
+                }
+                crate::containers::keyed_assign(cur.unwrap(), args, rhs)
+            }
+            Resolved::TableBrace(_) if cur.as_ref().map(crate::containers::is_keyed).unwrap_or(false) => {
+                rt("Brace indexing is not supported for variables of this type.")
             }
             Resolved::TableParen(args) => {
                 let Some(Value::Table(t)) = cur else { unreachable!() };
@@ -1370,6 +1386,10 @@ impl Interpreter {
                     }
                     // obj.method(args), Class.staticMethod(args), pkg-like calls.
                     Expr::Field(obj_expr, member) => {
+                        if let Some(full) = self.package_function(base) {
+                            let argv = self.eval_args(args)?;
+                            return self.call_function(&full, argv, nargout);
+                        }
                         if let Expr::Ident(cls) = obj_expr.as_ref() {
                             if self.get_var(cls).is_none() {
                                 if let Some(c) = self.find_class(cls) {
@@ -1424,6 +1444,9 @@ impl Interpreter {
                 Ok(pos.into_iter().map(|p| c.data[p].clone()).collect())
             }
             Expr::Field(base, f) => {
+                if let Some(full) = self.package_function(e) {
+                    return self.call_function(&full, Vec::new(), nargout);
+                }
                 if let Expr::Ident(cls) = base.as_ref() {
                     if self.get_var(cls).is_none() {
                         if let Some(c) = self.find_class(cls) {
@@ -1466,6 +1489,30 @@ impl Interpreter {
         }
     }
 
+    /// `pkg.name` naming a builtin (`containers.Map`) when `pkg` is not a variable or class.
+    fn package_function(&self, e: &Expr) -> Option<String> {
+        fn parts(e: &Expr, out: &mut Vec<String>) -> bool {
+            match e {
+                Expr::Ident(n) => {
+                    out.push(n.clone());
+                    true
+                }
+                Expr::Field(b, f) => {
+                    let ok = parts(b, out);
+                    out.push(f.clone());
+                    ok
+                }
+                _ => false,
+            }
+        }
+        let mut p = Vec::new();
+        if !parts(e, &mut p) || p.len() < 2 || self.get_var(&p[0]).is_some() {
+            return None;
+        }
+        let full = p.join(".");
+        crate::builtins::exists(&full).then_some(full)
+    }
+
     /// `v(args)`: indexing, or calling a function handle.
     fn index_into(&mut self, bv: Value, args: &[Expr], nargout: usize) -> R<Vec<Value>> {
         match &bv {
@@ -1480,6 +1527,14 @@ impl Interpreter {
             Value::Object(o) if crate::gfx::is_gfx_class(&o.class.name) => {
                 let idx = self.eval_index_args(args, &bv.dims())?;
                 Ok(vec![crate::gfx::index(self, &bv, &idx)?])
+            }
+            Value::Object(o) if o.class.name == "categorical" => {
+                let idx = self.eval_index_args(args, &bv.dims())?;
+                Ok(vec![crate::containers::cat_index(&bv, &idx)?])
+            }
+            Value::Object(o) if crate::containers::is_container(&o.class.name) => {
+                let vals = self.eval_raw_args(args, &[1, 1])?;
+                Ok(vec![crate::containers::lookup(&bv, &vals)?])
             }
             Value::Object(o) => {
                 // An overloaded subsref receives S = struct('type', '()', 'subs', {args}).
@@ -1643,7 +1698,14 @@ impl Interpreter {
         let mut row_vals = Vec::with_capacity(rows.len());
         for row in rows {
             let items = self.eval_list(row)?;
-            row_vals.push(indexing::hconcat(items)?);
+            if items.iter().any(crate::containers::is_categorical) {
+                row_vals.push(crate::containers::concat(items, 2)?);
+            } else {
+                row_vals.push(indexing::hconcat(items)?);
+            }
+        }
+        if row_vals.iter().any(crate::containers::is_categorical) {
+            return crate::containers::concat(row_vals, 1);
         }
         indexing::vconcat(row_vals)
     }

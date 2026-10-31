@@ -576,6 +576,7 @@ impl Value {
                 Some(n) => vec![n, 1],
                 None => vec![1, 1],
             },
+            Value::Object(o) if crate::containers::is_container(&o.class.name) => crate::containers::dims(o),
             Value::Func(_) | Value::Object(_) => vec![1, 1],
         }
     }
