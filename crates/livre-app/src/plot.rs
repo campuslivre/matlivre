@@ -154,7 +154,47 @@ impl Canvas for PainterCanvas {
     }
 
     fn polygon(&mut self, pts: &[Pos2], fill: Color32, stroke: Stroke) {
-        self.p.add(Shape::convex_polygon(pts.iter().map(|&q| self.pt(q)).collect(), fill, self.stroke(stroke)));
+        // egui's anti-aliasing feathers each edge along its normal; a zero-length edge or a
+        // sliver polygon (a dense surface seen edge-on) sends that feathering off as long spikes.
+        // Drop repeated points and skip polygons with next to no area.
+        let mut q: Vec<Pos2> = Vec::with_capacity(pts.len());
+        for p in pts.iter().map(|&p| self.pt(p)) {
+            if q.last().map_or(true, |l: &Pos2| l.distance(p) > 0.05) {
+                q.push(p);
+            }
+        }
+        while q.len() > 1 && q[0].distance(q[q.len() - 1]) <= 0.05 {
+            q.pop();
+        }
+        if q.len() < 3 {
+            return;
+        }
+        let area: f32 = (0..q.len()).map(|i| q[i].x * q[(i + 1) % q.len()].y - q[(i + 1) % q.len()].x * q[i].y).sum::<f32>().abs() / 2.0;
+        if area < 0.02 {
+            return;
+        }
+        // egui joins outline segments with unbounded miters: on a sliver they become needles.
+        let perimeter: f32 = (0..q.len()).map(|i| q[i].distance(q[(i + 1) % q.len()])).sum();
+        let stroke = if area < 0.02 * perimeter * perimeter { Stroke::NONE } else { self.stroke(stroke) };
+        if area < 2000.0 {
+            // Small faces (surface quads, bar3 sides) as a plain mesh: no feathering at all, and
+            // neighbouring faces meet without seams.
+            if fill.a() > 0 {
+                let mut mesh = egui::Mesh::default();
+                for &p in &q {
+                    mesh.colored_vertex(p, fill);
+                }
+                for i in 1..q.len() as u32 - 1 {
+                    mesh.add_triangle(0, i, i + 1);
+                }
+                self.p.add(Shape::mesh(mesh));
+            }
+            if stroke != Stroke::NONE {
+                self.p.add(Shape::closed_line(q, stroke));
+            }
+            return;
+        }
+        self.p.add(Shape::convex_polygon(q, fill, stroke));
     }
 
     fn text(&mut self, pos: Pos2, align: Align, text: &str, font: Font, color: Color32, angle: f32) {
@@ -772,7 +812,7 @@ fn draw_axes_3d(c: &mut dyn Canvas, t: &Tokens, ax: &Axes, cs: &ColorScale, cell
     c.clip(Some(plot.expand(20.0).intersect(cell)));
     for (_, p) in prims {
         match p {
-            Prim::Poly(pts, fill, stroke) => c.polygon(&pts, fill, stroke),
+            Prim::Poly(pts, fill, stroke) => fill_polygon(c, &pts, fill, stroke),
             Prim::Line(seg, stroke, style) => draw_polyline(c, &[Some(seg[0]), Some(seg[1])], stroke, style),
             Prim::Marker(p, mk, r, color, filled) => draw_marker(c, mk, p, r, color, filled),
         }
@@ -1732,7 +1772,7 @@ mod tests {
             concat!(
                 "t = tiledlayout(2, 2); nexttile; pie([1 2 3 4]); nexttile; bar3(magic(3)); nexttile; hist(randn(1, 500)); nexttile; rectangle('Position', [0 0 2 1], 'Curvature', 0.4, 'FaceColor', 'y'); axis equal;\n",
                 "title(t, 'Tiles'); annotation('arrow', [0.1 0.4], [0.9 0.6]); annotation('textbox', [0.6 0.85 0.2 0.08], 'String', 'note'); saveas(gcf, '{a}');\n",
-                "figure; surf(peaks(30)); shading interp; camlight; colororder('reef'); saveas(gcf, '{b}');\n",
+                "figure; [X, Y] = meshgrid(linspace(-3, 3, 50)); surf(X, Y, peaks(X, Y)); shading interp; camlight; colorbar; colororder('reef'); saveas(gcf, '{b}');\n",
                 "figure; colororder('dye'); subplot(1, 2, 1); plot(magic(4)); subplot(1, 2, 2); ribbon(peaks(8)); saveas(gcf, '{c}');\n",
             ),
             a = p(names[0]),
@@ -1750,6 +1790,46 @@ mod tests {
             }
         }
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Live script benchmark (benchmarks/livescript): runs the code blocks of the live script in
+    /// `LIVRE_BENCH_MLX` as Run all does, and renders each figure as the UI shows it inline.
+    /// `cargo test --release -p livre-app bench_live_script -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn bench_live_script() {
+        let Some(path) = std::env::var_os("LIVRE_BENCH_MLX") else {
+            panic!("set LIVRE_BENCH_MLX to a .mlx or .m file");
+        };
+        let path = std::path::PathBuf::from(path);
+        let ctx = ctx();
+        let skin = Skin::light();
+        let mut times = Vec::new();
+        for _ in 0..4 {
+            let started = std::time::Instant::now();
+            let doc = livre_doc::Document::load(&path).unwrap();
+            let code: Vec<String> = doc.blocks.iter().filter(|b| b.kind == livre_doc::BlockKind::Code).map(|b| b.text.clone()).collect();
+            let mut it = livre_lang::Interpreter::new();
+            for src in &code {
+                if let Ok(p) = livre_lang::parser::parse(src) {
+                    it.define_functions(&p);
+                }
+            }
+            for src in &code {
+                let prog = livre_lang::parser::parse(src).unwrap();
+                it.run(&prog.body).unwrap();
+            }
+            let outputs = it.take_outputs();
+            let figures = it.figures_snapshot();
+            let mut bytes = 0;
+            for fig in &figures {
+                bytes += to_png(&ctx, &skin, fig, vec2(560.0, 420.0), 1.0).unwrap().len();
+            }
+            times.push(started.elapsed().as_secs_f64());
+            assert!(!outputs.is_empty() && bytes > 0);
+        }
+        println!("RESULT mlx_first {:.4}", times[0]);
+        println!("RESULT mlx_best {:.4}", times[1..].iter().cloned().fold(f64::INFINITY, f64::min));
     }
 
     /// `LIVRE_PLOT_PREVIEW=1 cargo test -p livre-app preview` writes sample renders to `target/`.

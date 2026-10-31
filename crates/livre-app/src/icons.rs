@@ -434,10 +434,29 @@ mod tests {
         std::fs::write(ICO, super::app_ico()).unwrap();
     }
 
+    /// The images of an .ico: (width byte, data). PNG entries are decoded to pixels, since the
+    /// compressed bytes depend on which deflate backend the build links.
+    fn images(ico: &[u8]) -> Vec<(u8, Vec<u8>)> {
+        let n = u16::from_le_bytes([ico[4], ico[5]]) as usize;
+        (0..n)
+            .map(|i| {
+                let e = &ico[6 + 16 * i..22 + 16 * i];
+                let size = u32::from_le_bytes([e[8], e[9], e[10], e[11]]) as usize;
+                let off = u32::from_le_bytes([e[12], e[13], e[14], e[15]]) as usize;
+                let data = &ico[off..off + size];
+                let data = match resvg::tiny_skia::Pixmap::decode_png(data) {
+                    Ok(p) if data.starts_with(b"\x89PNG") => p.data().to_vec(),
+                    _ => data.to_vec(),
+                };
+                (e[0], data)
+            })
+            .collect()
+    }
+
     #[test]
     fn app_ico_matches_the_svgs() {
         let ico = std::fs::read(ICO).unwrap();
-        assert!(ico == super::app_ico(), "assets/matlivre.ico is stale; run the ignored write_app_ico test");
+        assert!(images(&ico) == images(&super::app_ico()), "assets/matlivre.ico is stale; run the ignored write_app_ico test");
         assert_eq!(u16::from_le_bytes([ico[4], ico[5]]), 9);
     }
 }
