@@ -13,7 +13,7 @@ trap 'rm -rf "$tmp"' EXIT
 cli="$root/target/release/matlivre-cli.exe"
 [ -x "$cli" ] || cli="$root/target/release/matlivre-cli"
 
-# Every name, then the ones matlivre's exist() does not know.
+# Every name, then the ones MatLivre's exist() does not know.
 { cut -f3 "$here/documented.tsv"; cut -f2 "$here/classes.tsv"; cut -f2 "$here/scope.tsv"; } | tr -d '\r' | sort -u > "$tmp/names.txt"
 awk '{gsub(/\x27/, "\x27\x27"); printf "if ~exist(\x27%s\x27), disp(\x27%s\x27); end\n", $0, $0}' "$tmp/names.txt" > "$tmp/check.m"
 "$cli" "$tmp/check.m" | tr -d '\r' | grep -v '^Error' | sort -u > "$tmp/missing.txt" || true

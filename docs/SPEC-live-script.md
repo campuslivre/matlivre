@@ -1,4 +1,4 @@
-# matlivre — Live Script behavioral specification (clean room)
+# MatLivre — Live Script behavioral specification (clean room)
 
 This document is the **only** input the implementation is written from. It records
 observed *behavior* and *on-disk interchange formats*; it contains no MathWorks source
@@ -147,7 +147,7 @@ plotting functions (`plot`, `figure`, `hold`, `title`, `xlabel`, `ylabel`, `lege
 
 MATLAB compatibility is a requirement, not a goal: syntax, semantics, function names and
 signatures, error conditions, value display and file interchange follow MATLAB's public,
-documented behavior. Where matlivre does not match yet, the gap is listed in section 6 as a
+documented behavior. Where MatLivre does not match yet, the gap is listed in section 6 as a
 limitation — never redefined as a design choice.
 
 ### 5.2 Extended language (public MATLAB behavior)

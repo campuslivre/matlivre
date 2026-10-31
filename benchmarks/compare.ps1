@@ -15,7 +15,7 @@ foreach ($e in $engines) {
 $cases = $times["matlivre"].Keys | Sort-Object { [array]::IndexOf(@(Get-Content (Join-Path $dir "matlivre.txt") | Where-Object { $_ -like 'RESULT*' } | ForEach-Object { ($_ -split ' ')[1] }), $_) }
 function ms($s) { if ($null -eq $s) { "-" } else { "{0:N2}" -f ($s * 1000) } }
 function ratio($a, $b) { if ($null -eq $a -or $null -eq $b -or $b -eq 0) { "n/a" } else { $r = $a / $b; if ($r -ge 1) { "{0:N1}x slower" -f $r } else { "{0:N1}x faster" -f (1 / $r) } } }
-$out = @("| Case | MATLAB (ms) | Octave (ms) | matlivre (ms) | matlivre vs Octave | matlivre vs MATLAB | Checksums |", "|---|---:|---:|---:|---|---|---|")
+$out = @("| Case | MATLAB (ms) | Octave (ms) | MatLivre (ms) | MatLivre vs Octave | MatLivre vs MATLAB | Checksums |", "|---|---:|---:|---:|---|---|---|")
 $lvo = 0.0; $lvm = 0.0
 foreach ($c in $cases) {
     $m = $times["matlab"][$c]; $o = $times["octave"][$c]; $l = $times["matlivre"][$c]

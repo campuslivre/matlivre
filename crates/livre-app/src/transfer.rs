@@ -44,7 +44,7 @@ pub fn read(manifest: &Path) -> Result<Payload, String> {
     let text = std::fs::read_to_string(manifest).map_err(|e| e.to_string())?;
     let lines: Vec<&str> = text.lines().collect();
     if lines.len() < 5 || lines[0] != MAGIC {
-        return Err("not a matlivre tab".into());
+        return Err("not a MatLivre tab".into());
     }
     let doc_file = PathBuf::from(lines[1]);
     let doc = Document::load(&doc_file).map_err(|e| e.to_string());

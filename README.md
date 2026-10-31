@@ -1,4 +1,4 @@
-# matlivre
+# MatLivre
 
 A clean-room, proof-of-concept live script environment for a MATLAB-compatible language,
 written in Rust, with a Windows 11 look modeled on

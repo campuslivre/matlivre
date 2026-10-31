@@ -1,5 +1,5 @@
 @echo off
-rem Builds matlivre. Usage: build.bat [debug|fast]
+rem Builds MatLivre. Usage: build.bat [debug|fast]
 rem Release output: target\release\matlivre.exe  (debug: target\debug\matlivre.exe,
 rem fast: target\fast\matlivre.exe, optimised but much quicker to rebuild than release)
 setlocal

@@ -26,7 +26,7 @@ pub struct LiveControl {
     pub line: usize,
     pub start: usize,
     pub end: usize,
-    /// customXml attributes this crate does not interpret, kept verbatim so a round trip through matlivre does not lose them.
+    /// customXml attributes this crate does not interpret, kept verbatim so a round trip through MatLivre does not lose them.
     /// A control read from `.mlx` also keeps its original `context` JSON here, so unknown fields in it survive.
     pub extra: Vec<(String, String)>,
 }

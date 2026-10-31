@@ -5,7 +5,7 @@
 #   classes.tsv     category path<TAB>name               (classes the function reference omits)
 #   scope.tsv       folder<TAB>name                      (public files of toolbox folders, for
 #                   functions that exist but are not in the reference)
-#   missing.txt     names matlivre's exist() does not know
+#   missing.txt     names MatLivre's exist() does not know
 #   branch.txt      names provided by unmerged branches
 # and prints the names implemented since the previous checklist.
 use strict;
@@ -111,7 +111,7 @@ print $o <<"HEAD";
 
 Every function in the MATLAB R2023b and Symbolic Math Toolbox function references (the
 installation's `help/*/helpfuncbycat.xml`), plus key classes and undocumented public functions
-found in the toolbox folders, checked against matlivre. Regenerate with
+found in the toolbox folders, checked against MatLivre. Regenerate with
 `tools/coverage/update.sh` after merging work ($date).
 
 | Status | Count |

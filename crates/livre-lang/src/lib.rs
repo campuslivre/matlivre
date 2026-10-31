@@ -1,4 +1,4 @@
-//! matlivre language engine: a clean-room implementation of a MATLAB-compatible language
+//! MatLivre language engine: a clean-room implementation of a MATLAB-compatible language
 //! (see `docs/SPEC-live-script.md`, section 5).
 
 pub mod ast;

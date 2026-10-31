@@ -1,3 +1,4 @@
-// The app icon embedded in matlivre.exe (Explorer, taskbar, Alt+Tab). Regenerate the .ico
+// The MatLivre icon embedded in matlivre.exe (Explorer, taskbar, Alt+Tab). Regenerate the .ico
 // from the SVGs with: cargo test -p livre-app write_app_ico -- --ignored
+// build.rs appends the version block (FileDescription "MatLivre", shown in the taskbar).
 1 ICON "matlivre.ico"

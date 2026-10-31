@@ -1,6 +1,6 @@
 //! The few native window calls tab dragging needs: where the cursor is, whether the left
 //! button is still down (the drag can end outside our window, where egui stops seeing the
-//! pointer), and which matlivre instance, if any, owns the window under the cursor. Each
+//! pointer), and which MatLivre instance, if any, owns the window under the cursor. Each
 //! instance marks its top-level window with the port it accepts tabs on. Also the Windows 11
 //! frame of the borderless window (rounded corners, border, shadow) and where it opens.
 
@@ -33,7 +33,7 @@ mod imp {
     pub enum Under {
         /// Our own window.
         Own,
-        /// Another matlivre instance, reachable on this port.
+        /// Another MatLivre instance, reachable on this port.
         Instance(u16),
         /// Anything else: the desktop, another program, nothing.
         Other,
@@ -109,7 +109,7 @@ mod imp {
             }
         }
 
-        /// Marks the window as a matlivre instance that accepts tabs on `port`.
+        /// Marks the window as a MatLivre instance that accepts tabs on `port`.
         pub fn advertise(&self, port: u16) {
             unsafe { SetPropW(self.0, prop_name().as_ptr(), port as usize as _) };
         }

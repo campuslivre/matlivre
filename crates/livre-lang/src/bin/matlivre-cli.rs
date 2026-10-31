@@ -1,4 +1,4 @@
-//! Headless runner: `matlivre-cli script.m` runs a script in a fresh workspace and prints its
+//! MatLivre headless runner: `matlivre-cli script.m` runs a script in a fresh workspace and prints its
 //! output (like `matlab -batch` / `octave-cli`). The script's folder is on the search path.
 
 use livre_lang::{Interpreter, OutputKind};

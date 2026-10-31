@@ -1,15 +1,15 @@
-# Benchmark: MATLAB vs Octave vs matlivre
+# Benchmark: MATLAB vs Octave vs MatLivre
 
 `bench.m` (with `bench_fib.m`) runs unchanged in all three engines. Each case reports the
 best of 3 runs (`tic`/`toc`), and a checksum so the engines can be checked against each other:
-**all 12 checksums agree across MATLAB, Octave and matlivre.**
+**all 12 checksums agree across MATLAB, Octave and MatLivre.**
 
 - Machine: Intel Core i5-10600K (6 cores / 12 threads), 24 GB RAM, Windows 11 Pro.
 - MATLAB R2023b Update 3 (`matlab -batch`), GNU Octave 11.3.0 (`octave-cli`),
   matlivre release build (`matlivre-cli`). Runs were sequential, not concurrent.
 - Run date: 2026-10-29.
 
-| Case | MATLAB (ms) | Octave (ms) | matlivre (ms) | matlivre vs Octave | matlivre vs MATLAB |
+| Case | MATLAB (ms) | Octave (ms) | MatLivre (ms) | MatLivre vs Octave | MatLivre vs MATLAB |
 |---|---:|---:|---:|---|---|
 | scalar_loop (2M iterations) | 4.92 | 2,265.87 | 2.62 | 865x faster | 1.9x faster |
 | while_branch (Collatz, 2.9M steps) | 102.22 | 11,742.56 | 13.86 | 847x faster | 7.4x faster |
@@ -24,8 +24,8 @@ best of 3 runs (`tic`/`toc`), and a checksum so the engines can be checked again
 | struct_fields (500k updates) | 170.42 | 4,568.02 | 0.68 | 6,767x faster | 252x faster |
 | cell_ops (100k writes + reads) | 31.25 | 581.45 | 17.70 | 33x faster | 1.8x faster |
 
-Geometric mean over the 12 cases: matlivre is **64.8x faster than Octave** and **4.7x faster
-than MATLAB**. matlivre wins 11 of 12 cases against MATLAB; `linsolve_300` is 1.2x behind.
+Geometric mean over the 12 cases: MatLivre is **64.8x faster than Octave** and **4.7x faster
+than MATLAB**. MatLivre wins 11 of 12 cases against MATLAB; `linsolve_300` is 1.2x behind.
 
 MATLAB timings vary by roughly ±30% between runs on small cases (e.g. `matmul_300` measured
 0.77 ms in the previous run and 1.81 ms in this one).

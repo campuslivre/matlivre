@@ -1,6 +1,6 @@
 [package]
 name = "livre-app"
-description = "matlivre live script editor (ModernWinForms look)"
+description = "MatLivre live script editor (ModernWinForms look)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

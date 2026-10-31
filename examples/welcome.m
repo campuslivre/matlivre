@@ -1,4 +1,4 @@
-%% Getting Started with matlivre
+%% Getting Started with MatLivre
 % A live script mixes formatted text, code, and results. Click in a section and press Ctrl+Enter to run it, or press F5 to run everything. Results appear right below the code.
 
 %% Variables and matrices

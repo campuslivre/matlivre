@@ -465,7 +465,7 @@ fn write_matrix(name: &str, v: &Value) -> R<Vec<u8>> {
 fn write_mat(path: &str, vars: &[(String, Value)], append: bool) -> R<()> {
     let mut body = if append { std::fs::read(path).ok().filter(|b| b.len() >= 128 && &b[126..128] == b"IM").unwrap_or_default() } else { Vec::new() };
     if body.is_empty() {
-        let text = format!("MATLAB 5.0 MAT-file, Platform: PCWIN64, Created on: {} by matlivre", crate::time::format_datetime(crate::time::now_utc_ms() + crate::time::local_offset_ms(), "EEE MMM dd HH:mm:ss yyyy"));
+        let text = format!("MATLAB 5.0 MAT-file, Platform: PCWIN64, Created on: {} by MatLivre", crate::time::format_datetime(crate::time::now_utc_ms() + crate::time::local_offset_ms(), "EEE MMM dd HH:mm:ss yyyy"));
         let mut header = text.into_bytes();
         header.resize(116, b' ');
         header.extend([0u8; 8]);
@@ -555,7 +555,7 @@ fn load(it: &mut Interpreter, a: &[Value], nargout: usize) -> Ret {
             }
             match v {
                 Some(v) => all.push((name, v)),
-                None => it.emit(OutputKind::Warning(format!("Variable '{name}' has a class matlivre cannot load yet and was skipped."))),
+                None => it.emit(OutputKind::Warning(format!("Variable '{name}' has a class MatLivre cannot load yet and was skipped."))),
             }
         }
         for p in &rest {

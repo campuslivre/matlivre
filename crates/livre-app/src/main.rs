@@ -40,7 +40,7 @@ fn main() -> eframe::Result<()> {
         }
     }
     let mut viewport = egui::ViewportBuilder::default()
-        .with_title("matlivre")
+        .with_title("MatLivre")
         .with_inner_size(app::DEFAULT_SIZE)
         .with_min_inner_size(app::MIN_SIZE)
         .with_icon(std::sync::Arc::new(icons::window_icon()))

@@ -1,6 +1,6 @@
 [package]
 name = "livre-lang"
-description = "Lexer, parser and interpreter for the matlivre MATLAB-compatible language"
+description = "Lexer, parser and interpreter for the MatLivre MATLAB-compatible language"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

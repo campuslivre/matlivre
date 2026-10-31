@@ -20,7 +20,7 @@ const KEYWORDS: &[&str] = &[
     "persistent", "return", "spmd", "switch", "try", "while",
 ];
 
-/// The release matlivre follows.
+/// The release MatLivre follows.
 const RELEASE: &str = "R2023b";
 const VERSION: &str = "23.2.0";
 
@@ -358,7 +358,7 @@ pub fn call(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
             let text = if it.get_var(&n).is_some() {
                 format!("{n} is a variable.")
             } else if crate::builtins::exists(&n) {
-                format!("built-in (matlivre)  % {n}")
+                format!("built-in (MatLivre)  % {n}")
             } else if let Some(p) = it.function_file(&n) {
                 p
             } else {
@@ -402,7 +402,7 @@ pub fn call(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
             }
             let bar = "-".repeat(100);
             it.emit(OutputKind::Text(format!(
-                "{bar}\nmatlivre, compatible with MATLAB Version {VERSION} ({RELEASE})\n{bar}\nMATLAB                                                Version 23.2        ({RELEASE})\nSymbolic Math Toolbox                                 Version 23.2        ({RELEASE})\n"
+                "{bar}\nMatLivre, compatible with MATLAB Version {VERSION} ({RELEASE})\n{bar}\nMATLAB                                                Version 23.2        ({RELEASE})\nSymbolic Math Toolbox                                 Version 23.2        ({RELEASE})\n"
             )));
             none()
         }
@@ -446,7 +446,7 @@ pub fn call(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
         }
         // No packages: `import pkg.*` has nothing to bring into scope.
         "import" => none(),
-        "input" => rt("input is not supported: matlivre runs scripts without an interactive command window."),
+        "input" => rt("input is not supported: MatLivre runs scripts without an interactive command window."),
         _ => Ok(None),
     }
 }

@@ -521,7 +521,7 @@ impl App {
     }
 
     /// Follows a tab drag: reorders within the row, and on release away from it moves the
-    /// tab to the matlivre window under the pointer or to a new one.
+    /// tab to the MatLivre window under the pointer or to a new one.
     fn drag_tabs(&mut self, ctx: &egui::Context, rects: &[Rect]) {
         let Some(drag) = &self.drag else { return };
         let id = drag.id;
@@ -1970,7 +1970,7 @@ impl eframe::App for App {
         if self.tabs.is_empty() {
             return;
         }
-        ctx.send_viewport_cmd(egui::ViewportCommand::Title(format!("{} - matlivre", self.tab().title())));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Title(format!("{} - MatLivre", self.tab().title())));
         self.command_bar(ctx);
         self.status_bar(ctx);
         self.body(ctx);
@@ -1991,7 +1991,7 @@ fn rgb(c: Color32) -> [u8; 3] {
     [c.r(), c.g(), c.b()]
 }
 
-/// True on the user's first launch of matlivre, which a marker file in the per-user app data
+/// True on the user's first launch of MatLivre, which a marker file in the per-user app data
 /// folder (`%APPDATA%\matlivre`) then records.
 fn first_launch() -> bool {
     let base = std::env::var_os("APPDATA")
