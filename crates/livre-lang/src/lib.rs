@@ -46,6 +46,7 @@ pub mod polyfun_classes;
 pub mod polyshape;
 pub mod sym;
 pub mod table;
+pub mod table_ops;
 pub mod time;
 pub mod value;
 

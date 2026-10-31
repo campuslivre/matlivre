@@ -284,21 +284,72 @@ impl Table {
         }
     }
 
-    /// The rows under the header, as MATLAB prints them.
+    /// The cells of one variable as an aligned block (every string the same width): numbers
+    /// right-aligned per sub-column, text left-aligned, cell contents padded inside the braces.
+    fn column_block(v: &Value, nrows: usize, f: NumFormat) -> Vec<String> {
+        let pad_left = |cells: Vec<String>| {
+            let w = cells.iter().map(|c| c.chars().count()).max().unwrap_or(0);
+            cells.into_iter().map(|c| format!("{c:<w$}")).collect::<Vec<_>>()
+        };
+        match v {
+            Value::Num(m) if m.kind != Kind::Char => {
+                let (rows, cols) = (m.rows(), m.cols());
+                let sub: Vec<Vec<String>> = (0..cols)
+                    .map(|c| {
+                        let cells: Vec<String> = (0..nrows)
+                            .map(|r| {
+                                let i = c * rows + r;
+                                match m.kind {
+                                    Kind::Logical => (if m.data[i] != 0.0 { "true" } else { "false" }).to_string(),
+                                    // Each number on its own, as %.5g (3.1416, 12346, 1e+06).
+                                    Kind::Double | Kind::Single if !m.is_complex() => crate::display::fmt_g(m.data[i], 5),
+                                    _ => fmt_elem(m, i, f),
+                                }
+                            })
+                            .collect();
+                        let w = cells.iter().map(|x| x.chars().count()).max().unwrap_or(0);
+                        if m.kind == Kind::Logical {
+                            cells.into_iter().map(|x| format!("{x:<w$}")).collect()
+                        } else {
+                            cells.into_iter().map(|x| format!("{x:>w$}")).collect()
+                        }
+                    })
+                    .collect();
+                (0..nrows).map(|r| sub.iter().map(|col| col[r].clone()).collect::<Vec<_>>().join("    ")).collect()
+            }
+            Value::Cell(c) => {
+                let inner: Vec<String> = (0..nrows)
+                    .map(|r| match &c.data[r] {
+                        Value::Num(m) if m.kind == Kind::Char && !m.is_empty() => format!("'{}'", m.to_string_lossy()),
+                        Value::Num(m) if m.is_empty() => format!("{} {}", crate::nd::size_text(&m.dims), m.kind.name()),
+                        other => crate::display::summary(other, f),
+                    })
+                    .collect();
+                pad_left(inner).into_iter().map(|x| format!("{{{x}}}")).collect()
+            }
+            _ if crate::containers::is_categorical(v) => {
+                let names = crate::containers::cat_strings(v).unwrap_or_default();
+                pad_left(names.into_iter().take(nrows).map(|n| n.unwrap_or_else(|| "<undefined>".into())).collect())
+            }
+            _ => pad_left((0..nrows).map(|r| Table::cell_text(v, r, f)).collect()),
+        }
+    }
+
+    /// The rows under the header, as MATLAB prints them: each variable's block is centered
+    /// under its name.
     pub fn body(&self, f: NumFormat) -> String {
-        let mut cols: Vec<(String, Vec<String>, bool)> = Vec::new();
+        let mut cols: Vec<(String, Vec<String>)> = Vec::new();
         if let Some(rn) = &self.row_names {
             let w = rn.iter().map(|s| s.chars().count()).max().unwrap_or(0);
-            cols.push((String::new(), rn.iter().map(|s| format!("{s:<w$}")).collect(), false));
+            cols.push((String::new(), rn.iter().map(|s| format!("{s:<w$}")).collect()));
         }
         for (n, v) in self.names.iter().zip(&self.vars) {
-            let numeric = matches!(v, Value::Num(m) if m.kind != Kind::Char);
-            cols.push((n.clone(), (0..self.nrows).map(|r| Table::cell_text(v, r, f)).collect(), numeric));
+            cols.push((n.clone(), Table::column_block(v, self.nrows, f)));
         }
-        let widths: Vec<usize> = cols.iter().map(|(n, cells, _)| cells.iter().map(|c| c.chars().count()).max().unwrap_or(0).max(n.chars().count())).collect();
+        let widths: Vec<usize> = cols.iter().map(|(n, cells)| cells.iter().map(|c| c.chars().count()).max().unwrap_or(0).max(n.chars().count())).collect();
         let mut out = String::new();
         let center = |s: &str, w: usize| {
-            let pad = w - s.chars().count();
+            let pad = w.saturating_sub(s.chars().count());
             format!("{}{}{}", " ".repeat(pad / 2), s, " ".repeat(pad - pad / 2))
         };
         let line = |out: &mut String, items: Vec<String>| {
@@ -306,17 +357,11 @@ impl Table {
             out.push_str(&items.join("    "));
             out.push('\n');
         };
-        line(&mut out, cols.iter().zip(&widths).map(|((n, _, _), &w)| center(n, w)).collect());
-        line(&mut out, cols.iter().zip(&widths).map(|((n, _, _), &w)| if n.is_empty() { " ".repeat(w) } else { "_".repeat(w) }).collect());
+        line(&mut out, cols.iter().zip(&widths).map(|((n, _), &w)| center(n, w)).collect());
+        line(&mut out, cols.iter().zip(&widths).map(|((n, _), &w)| if n.is_empty() { " ".repeat(w) } else { "_".repeat(w) }).collect());
         out.push('\n');
         for r in 0..self.nrows {
-            line(
-                &mut out,
-                cols.iter()
-                    .zip(&widths)
-                    .map(|((_, cells, numeric), &w)| if *numeric { format!("{:>w$}", cells[r]) } else { format!("{:<w$}", cells[r]) })
-                    .collect(),
-            );
+            line(&mut out, cols.iter().zip(&widths).map(|((_, cells), &w)| center(&cells[r], w)).collect());
         }
         out.trim_end_matches('\n').to_string()
     }

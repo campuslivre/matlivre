@@ -1305,6 +1305,15 @@ pub fn inline_text(v: &Value) -> Option<String> {
     Some(c.names().into_iter().map(|s| s.unwrap_or_else(|| UNDEF.into())).collect::<Vec<_>>().join("    "))
 }
 
+/// Element names of a categorical (None = undefined).
+pub fn cat_strings(v: &Value) -> Option<Vec<Option<String>>> {
+    Cat::from_value(v).map(|c| c.names())
+}
+
+pub fn cat_categories(v: &Value) -> Option<Vec<String>> {
+    Cat::from_value(v).map(|c| c.cats)
+}
+
 pub fn dims(o: &Object) -> Dims {
     match o.class.name.as_str() {
         CAT => match o.get("Codes") {

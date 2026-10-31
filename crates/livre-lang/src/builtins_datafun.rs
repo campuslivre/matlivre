@@ -4479,26 +4479,27 @@ fn error_metric(name: &str, a: &[Value]) -> R<Matrix> {
 // ---- grouping ----------------------------------------------------------------------------------
 
 #[derive(Clone, PartialEq, PartialOrd, Debug)]
-enum Key {
+pub(crate) enum Key {
     Num(f64),
     Text(String),
 }
 
 /// Per-row keys of one grouping variable (None = missing).
-fn row_keys(v: &Value) -> R<Vec<Option<Key>>> {
+pub(crate) fn row_keys(v: &Value) -> R<Vec<Option<Key>>> {
     Ok(match v {
         Value::Num(m) if m.kind == Kind::Char && m.rows() <= 1 => vec![Some(Key::Text(m.to_string_lossy()))],
         Value::Num(m) => (0..m.numel()).map(|i| if m.data[i].is_nan() { None } else { Some(Key::Num(m.data[i])) }).collect(),
         Value::Str(s) => s.data.iter().map(|x| x.clone().map(Key::Text)).collect(),
         Value::Cell(c) => c.data.iter().map(|x| x.text().map(|t| if t.is_empty() { None } else { Some(Key::Text(t)) })).collect::<R<_>>()?,
         Value::Time(t) => t.data.iter().map(|p| if p[0].is_nan() { None } else { Some(Key::Num(p[0])) }).collect(),
+        Value::Object(_) if crate::containers::is_categorical(v) => crate::containers::cat_strings(v).unwrap_or_default().into_iter().map(|x| x.map(Key::Text)).collect(),
         other => return rt(format!("Grouping variables of class '{}' are not supported.", other.class_name())),
     })
 }
 
 /// Groups from one or more grouping variables: the group number of each row (None when any
 /// key is missing) and the first row of each group, groups sorted by their keys.
-fn groups_of(vars: &[Value]) -> R<(Vec<Option<usize>>, Vec<usize>)> {
+pub(crate) fn groups_of(vars: &[Value]) -> R<(Vec<Option<usize>>, Vec<usize>)> {
     let keys: Vec<Vec<Option<Key>>> = vars.iter().map(row_keys).collect::<R<_>>()?;
     let n = keys.first().map(|k| k.len()).unwrap_or(0);
     if keys.iter().any(|k| k.len() != n) {

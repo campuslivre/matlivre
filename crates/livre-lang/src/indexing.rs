@@ -43,6 +43,9 @@ pub fn to_index_arg(v: &Value) -> R<IndexArg> {
 
 /// `v(idx)`.
 pub fn index(v: &Value, idx: &[IndexArg]) -> R<Value> {
+    if crate::containers::is_categorical(v) {
+        return crate::containers::cat_index(v, idx);
+    }
     let (pos, dims) = nd::index_plan(&v.dims(), idx)?;
     Ok(match v {
         Value::Num(m) => Value::Num(m.gather(&pos, dims)),

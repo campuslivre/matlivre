@@ -1374,7 +1374,7 @@ impl Interpreter {
                 }
                 match base.as_ref() {
                     Expr::Ident(name) if self.get_var(name).is_none() => {
-                        if name == "table" {
+                        if name == "table" || crate::table_ops::wants_arg_names(name) {
                             self.arg_names = args.iter().map(|a| if let Expr::Ident(n) = a { Some(n.clone()) } else { None }).collect();
                         }
                         let argv = self.eval_args(args)?;
