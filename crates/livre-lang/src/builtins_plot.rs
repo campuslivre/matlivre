@@ -10,7 +10,7 @@ type R<T> = Result<T, LangError>;
 
 pub const NAMES: &[&str] = &[
     "figure", "close", "clf", "subplot", "hold", "grid", "title", "xlabel", "ylabel", "legend", "axis", "xlim", "ylim", "daspect", "plot", "scatter", "bar",
-    "stairs", "area", "histogram", "stem", "gcf", "gca", "ishold", "box", "subtitle", "sgtitle",
+    "stairs", "area", "histogram", "stem", "gcf", "gca", "ishold", "box", "subtitle", "sgtitle", "zlabel",
 ];
 
 impl Interpreter {
@@ -27,17 +27,92 @@ impl Interpreter {
         &mut self.figures[i]
     }
 
-    fn add_series(&mut self, series: Vec<Series>, x_kind: XAxisKind) {
+    /// Index of the current figure (made if there is none).
+    pub(crate) fn current_figure_index(&mut self) -> usize {
+        self.current_figure();
+        self.current_figure.unwrap()
+    }
+
+    /// Adds plotted objects to the current axes (replacing its contents unless held) and
+    /// returns their handle numbers.
+    pub(crate) fn add_series(&mut self, mut series: Vec<Series>, x_kind: XAxisKind) -> Vec<u64> {
+        let ids: Vec<u64> = series.iter().map(|_| crate::gfx::alloc(self)).collect();
+        for (s, &id) in series.iter_mut().zip(&ids) {
+            s.id = id;
+        }
         let ax = self.current_figure().axes_mut();
+        let mut removed = Vec::new();
         if !ax.hold {
-            let grid = ax.grid;
-            *ax = Axes { grid, ..Axes::default() };
+            let (grid, id) = (ax.grid, ax.id);
+            removed = ax.series.iter().map(|s| s.id).collect();
+            *ax = Axes { grid, id, ..Axes::default() };
         }
         if ax.series.is_empty() {
             ax.x_kind = x_kind;
         }
         ax.series.extend(series);
+        for id in removed {
+            self.gfx_store.remove(&id);
+        }
+        ids
     }
+
+    /// Adds objects that do not reset the axes (text, constant lines) and returns their handles.
+    pub(crate) fn add_decoration(&mut self, mut series: Vec<Series>) -> Vec<u64> {
+        let ids: Vec<u64> = series.iter().map(|_| crate::gfx::alloc(self)).collect();
+        for (s, &id) in series.iter_mut().zip(&ids) {
+            s.id = id;
+        }
+        self.current_figure().axes_mut().series.extend(series);
+        ids
+    }
+
+    /// The handle of the current axes.
+    pub(crate) fn current_axes_handle(&mut self) -> Value {
+        let f = self.current_figure_index();
+        let a = self.figures[f].current_axes;
+        let id = crate::gfx::axes_id(self, f, a);
+        crate::gfx::handle(self, id)
+    }
+}
+
+/// A leading axes handle (`plot(ax, ...)`) makes those axes current; returns the other arguments.
+pub(crate) fn select_axes<'a>(it: &mut Interpreter, a: &'a [Value]) -> R<&'a [Value]> {
+    let Some(ids) = a.first().and_then(crate::gfx::ids_of) else { return Ok(a) };
+    match ids.first().and_then(|&id| crate::gfx::resolve(it, id)) {
+        Some(crate::gfx::Target::Axes(f, ax)) => {
+            it.current_figure = Some(f);
+            it.figures[f].current_axes = ax;
+            Ok(&a[1..])
+        }
+        Some(crate::gfx::Target::Figure(f)) => {
+            it.current_figure = Some(f);
+            Ok(&a[1..])
+        }
+        Some(_) => Ok(a),
+        None => rt("Invalid or deleted object."),
+    }
+}
+
+/// Applies name-value pairs to new objects through `set` (validating the names as MATLAB does).
+pub(crate) fn apply_props(it: &mut Interpreter, ids: &[u64], props: &[(String, Value)]) -> R<()> {
+    if props.is_empty() || ids.is_empty() {
+        return Ok(());
+    }
+    let mut a = vec![crate::gfx::handles(it, ids)];
+    for (n, v) in props {
+        a.push(Value::chars(n));
+        a.push(v.clone());
+    }
+    crate::gfx::call(it, "set", &a, 0).map(|_| ())
+}
+
+/// The handles of new objects as an output (none when nargout is 0).
+pub(crate) fn handles_out(it: &Interpreter, ids: &[u64], nargout: usize) -> Ret {
+    if nargout == 0 {
+        return none();
+    }
+    one(crate::gfx::handles(it, ids))
 }
 
 fn text_of(v: &Value) -> R<String> {
@@ -81,7 +156,7 @@ fn y_numeric(v: &Value) -> R<Matrix> {
     }
 }
 
-fn plot_series(args: &[Value], kind: SeriesKind) -> R<(Vec<Series>, XAxisKind)> {
+pub(crate) fn plot_series(args: &[Value], kind: SeriesKind) -> R<(Vec<Series>, XAxisKind, Vec<(String, Value)>)> {
     let mut out: Vec<Series> = Vec::new();
     let mut x_kind = XAxisKind::Numeric;
     let mut i = 0;
@@ -165,7 +240,7 @@ fn plot_series(args: &[Value], kind: SeriesKind) -> R<(Vec<Series>, XAxisKind)> 
             out.push(s);
         }
     }
-    for (name, v) in props {
+    for (name, v) in &props {
         for s in out.iter_mut() {
             match name.as_str() {
                 "linewidth" => s.line_width = v.scalar()? as f32,
@@ -198,17 +273,21 @@ fn plot_series(args: &[Value], kind: SeriesKind) -> R<(Vec<Series>, XAxisKind)> 
             }
         }
     }
-    Ok((out, x_kind))
+    Ok((out, x_kind, props))
 }
 
 pub fn call(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize) -> Ret {
-    let a = args;
+    if !NAMES.contains(&name) {
+        return Ok(None);
+    }
+    let a = if matches!(name, "figure" | "close" | "gcf" | "gca") { args } else { select_axes(it, args)? };
     match name {
         "figure" => {
             let id = match a.first() {
-                Some(v) if !v.is_text() => Some(v.scalar()? as u32),
+                Some(v) if !v.is_text() => crate::gfx::figure_number(it, v)?,
                 _ => None,
             };
+            let props_from = if id.is_some() { 1 } else { 0 };
             let idx = match id.and_then(|id| it.figures.iter().position(|f| f.id == id)) {
                 Some(i) => i,
                 None => {
@@ -219,21 +298,34 @@ pub fn call(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize) ->
                 }
             };
             it.current_figure = Some(idx);
-            let id = it.figures[idx].id;
+            let h = crate::gfx::handle(it, it.figures[idx].id as u64);
+            if a.len() > props_from {
+                let mut sa = vec![h.clone()];
+                sa.extend_from_slice(&a[props_from..]);
+                crate::gfx::call(it, "set", &sa, 0)?;
+            }
             if nargout >= 1 {
-                return one(Value::num(id as f64));
+                return one(h);
             }
             none()
         }
         "gcf" => {
             let id = it.current_figure().id;
-            one(Value::num(id as f64))
+            one(crate::gfx::handle(it, id as u64))
         }
-        "gca" | "box" => none(),
+        "gca" => one(it.current_axes_handle()),
+        "box" => none(),
         "close" => {
             let all = a.iter().any(|v| v.text().map(|s| s == "all").unwrap_or(false));
             if all {
                 it.close_all_figures();
+            } else if let Some(v) = a.first() {
+                if let Some(n) = crate::gfx::figure_number(it, v)? {
+                    if let Some(i) = it.figures.iter().position(|f| f.id == n) {
+                        it.figures.remove(i);
+                        it.current_figure = if it.figures.is_empty() { None } else { Some(it.figures.len() - 1) };
+                    }
+                }
             } else if let Some(i) = it.current_figure {
                 it.figures.remove(i);
                 it.current_figure = if it.figures.is_empty() { None } else { Some(it.figures.len() - 1) };
@@ -278,7 +370,9 @@ pub fn call(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize) ->
             let h = it.current_figure().axes_mut().hold;
             one(Value::bool(h))
         }
-        "title" | "xlabel" | "ylabel" | "subtitle" | "sgtitle" => {
+        "title" | "xlabel" | "ylabel" | "zlabel" | "subtitle" | "sgtitle" => {
+            // title(ax, ...) labels the given axes.
+            let a = select_axes(it, a)?;
             let text = match a.first() {
                 Some(v) => text_of(v)?,
                 None => String::new(),
@@ -289,13 +383,44 @@ pub fn call(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize) ->
                 return none();
             }
             let ax = fig.axes_mut();
-            match name {
-                "title" => ax.title = text,
-                "subtitle" => ax.title = format!("{}\n{text}", ax.title),
-                "xlabel" => ax.xlabel = text,
-                _ => ax.ylabel = text,
+            let part = match name {
+                "title" => {
+                    ax.title = text;
+                    crate::gfx::Part::Title
+                }
+                "subtitle" => {
+                    let main = ax.title.split('\n').next().unwrap_or("").to_string();
+                    ax.title = format!("{main}\n{text}");
+                    crate::gfx::Part::Subtitle
+                }
+                "xlabel" => {
+                    ax.xlabel = text;
+                    crate::gfx::Part::XLabel
+                }
+                "zlabel" => {
+                    ax.zlabel = text;
+                    crate::gfx::Part::ZLabel
+                }
+                _ => {
+                    ax.ylabel = text;
+                    crate::gfx::Part::YLabel
+                }
+            };
+            // title(txt, subtxt) and name-value pairs after the text.
+            let mut rest = &a[a.len().min(1)..];
+            if name == "title" && rest.first().is_some_and(|v| !v.is_text() || rest.len() % 2 == 1) {
+                let sub = text_of(&rest[0])?;
+                let ax = it.current_figure().axes_mut();
+                ax.title = format!("{}\n{sub}", ax.title);
+                rest = &rest[1..];
             }
-            none()
+            let label = crate::gfx::ids_of(&it.current_axes_handle()).unwrap()[0] + part as u64;
+            if !rest.is_empty() {
+                let mut sa = vec![crate::gfx::handle(it, label)];
+                sa.extend_from_slice(rest);
+                crate::gfx::call(it, "set", &sa, 0)?;
+            }
+            handles_out(it, &[label], nargout)
         }
         "legend" => {
             let mut names: Vec<String> = Vec::new();
@@ -318,14 +443,42 @@ pub fn call(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize) ->
             if !show {
                 ax.legend = None;
             } else if names.is_empty() {
-                ax.legend = Some(ax.series.iter().enumerate().map(|(i, s)| s.name.clone().unwrap_or_else(|| format!("data{}", i + 1))).collect());
+                ax.legend = Some(
+                    ax.series
+                        .iter()
+                        .filter(|s| !matches!(s.kind, SeriesKind::Text | SeriesKind::ConstantLine | SeriesKind::Region) && s.visible)
+                        .enumerate()
+                        .map(|(i, s)| s.name.clone().unwrap_or_else(|| format!("data{}", i + 1)))
+                        .collect(),
+                );
             } else {
                 ax.legend = Some(names);
             }
-            none()
+            if !show {
+                return none();
+            }
+            let legend = crate::gfx::ids_of(&it.current_axes_handle()).unwrap()[0] + crate::gfx::Part::Legend as u64;
+            handles_out(it, &[legend], nargout)
         }
         "axis" | "xlim" | "ylim" => {
-            let Some(v) = a.first() else { return none() };
+            let Some(v) = a.first() else {
+                let h = it.current_axes_handle();
+                let get = |it: &mut Interpreter, p: &str| crate::gfx::member(it, &h, p).and_then(|v| v.to_matrix());
+                return match name {
+                    "xlim" => one(get(it, "XLim").map(Value::Num)?),
+                    "ylim" => one(get(it, "YLim").map(Value::Num)?),
+                    _ if nargout > 0 => {
+                        let (x, y) = (get(it, "XLim")?, get(it, "YLim")?);
+                        one(Value::Num(Matrix::row(vec![x.data[0], x.data[1], y.data[0], y.data[1]])))
+                    }
+                    _ => none(),
+                };
+            };
+            if v.is_text() && v.text()? == "mode" {
+                let ax = it.current_figure().axes_mut();
+                let manual = if name == "ylim" { ax.ylim.is_some() } else { ax.xlim.is_some() };
+                return one(Value::chars(if manual { "manual" } else { "auto" }));
+            }
             if v.is_text() {
                 let ax = it.current_figure().axes_mut();
                 for word in v.text()?.split_whitespace() {
@@ -408,14 +561,15 @@ pub fn call(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize) ->
                 }
                 args2.retain(|v| v.text().map(|t| t != "filled").unwrap_or(true));
             }
-            let (mut series, x_kind) = plot_series(&args2, kind)?;
+            let (mut series, x_kind, props) = plot_series(&args2, kind)?;
             if let Some(sz) = size {
                 for s in series.iter_mut() {
                     s.marker_size = (sz.sqrt() as f32).max(2.0);
                 }
             }
-            it.add_series(series, x_kind);
-            none()
+            let ids = it.add_series(series, x_kind);
+            apply_props(it, &ids, &props)?;
+            handles_out(it, &ids, nargout)
         }
         "histogram" => {
             let data = arg(a, 0, name)?.to_matrix()?;
@@ -438,8 +592,8 @@ pub fn call(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize) ->
             let centers: Vec<f64> = (0..nbins).map(|k| lo + w * (k as f64 + 0.5)).collect();
             let mut s = Series::new(SeriesKind::Bar, centers, counts);
             s.bar_width = Some(w);
-            it.add_series(vec![s], XAxisKind::Numeric);
-            none()
+            let ids = it.add_series(vec![s], XAxisKind::Numeric);
+            handles_out(it, &ids, nargout)
         }
         _ => Ok(None),
     }

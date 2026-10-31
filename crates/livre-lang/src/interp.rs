@@ -13,7 +13,7 @@ use crate::ast::*;
 use crate::class::{ClassDef, Object};
 use crate::display::{display_value, summary, NumFormat};
 use crate::error::{rt, LangError};
-use crate::graphics::Figure;
+use crate::graphics::{ExportFormat, Figure};
 use crate::indexing::{self, to_index_arg};
 use crate::nd::{self, Dims, IndexArg};
 use crate::ops;
@@ -88,6 +88,12 @@ pub struct Interpreter {
     pub(crate) current_figure: Option<usize>,
     pub(crate) next_figure_id: u32,
     pub(crate) dirty_figures: Vec<u32>,
+    /// Next graphics handle number for axes and plotted objects (see `gfx`).
+    pub(crate) next_handle: u64,
+    /// Graphics properties set by name that the figure model does not hold, per handle.
+    pub(crate) gfx_store: HashMap<u64, Vec<(String, Value)>>,
+    /// Renders a figure for `saveas`/`print`: PNG bytes at a scale, or SVG text.
+    pub(crate) exporter: Option<Box<dyn FnMut(&Figure, ExportFormat, f32) -> Result<Vec<u8>, String>>>,
     pending: Vec<Output>,
     top_line: usize,
     flush: Option<Box<dyn FnMut(Vec<Output>)>>,
@@ -134,6 +140,9 @@ impl Interpreter {
             current_figure: None,
             next_figure_id: 1,
             dirty_figures: Vec::new(),
+            next_handle: crate::gfx::OBJ_BASE,
+            gfx_store: HashMap::new(),
+            exporter: None,
             pending: Vec::new(),
             top_line: 0,
             flush: None,
@@ -209,8 +218,14 @@ impl Interpreter {
         self.base.vars.clear();
     }
 
+    /// Installs the renderer `saveas`, `print` and `exportgraphics` use.
+    pub fn set_figure_exporter(&mut self, f: impl FnMut(&Figure, ExportFormat, f32) -> Result<Vec<u8>, String> + 'static) {
+        self.exporter = Some(Box::new(f));
+    }
+
     pub fn close_all_figures(&mut self) {
         self.figures.clear();
+        self.gfx_store.clear();
         self.current_figure = None;
         self.dirty_figures.clear();
     }
@@ -612,6 +627,11 @@ impl Interpreter {
 
     /// Emits the display of `name = v`, honoring `disp`/`display` overloads of objects.
     fn show(&mut self, name: &str, v: &Value) -> R<()> {
+        if crate::gfx::is_gfx(v) {
+            let text = crate::gfx::display(self, name, v)?;
+            self.emit(OutputKind::Value { name: name.to_string(), text });
+            return Ok(());
+        }
         if let Value::Object(o) = v {
             if let Some(f) = o.class.method("display").cloned() {
                 self.call_method(&f, &o.class.clone(), vec![v.clone()], 0)?;
@@ -980,6 +1000,12 @@ impl Interpreter {
                     s.set(f, new);
                     Ok(Value::Struct(s))
                 }
+                Some(h @ Value::Object(_)) if crate::gfx::is_gfx(&h) => {
+                    let sub = if rest.is_empty() { None } else { Some(crate::gfx::member(self, &h, f)?) };
+                    let new = self.apply_assign(sub, rest, rhs)?;
+                    crate::gfx::set_member(self, &h, f, new)?;
+                    Ok(h)
+                }
                 Some(Value::Object(o)) => {
                     if o.class.prop_index(f).is_none() {
                         return rt(format!("Unrecognized property '{f}' for class '{}'.", o.class.name));
@@ -1275,6 +1301,11 @@ impl Interpreter {
                     }
                 }
             }
+            if matches!(op, BinOp::Eq | BinOp::Ne) {
+                if let Some(v) = crate::gfx::compare(op == BinOp::Eq, &l, &r) {
+                    return Ok(v);
+                }
+            }
             if let (Value::Object(a), Value::Object(b)) = (&l, &r) {
                 if a.class.is_handle && matches!(op, BinOp::Eq | BinOp::Ne) {
                     return Ok(Value::bool((Rc::ptr_eq(&a.props, &b.props)) == (op == BinOp::Eq)));
@@ -1441,6 +1472,10 @@ impl Interpreter {
                 let vals = self.eval_raw_args(args, &bv.dims())?;
                 Ok(vec![Value::Table(Box::new(t.paren(&vals)?))])
             }
+            Value::Object(o) if crate::gfx::is_gfx_class(&o.class.name) => {
+                let idx = self.eval_index_args(args, &bv.dims())?;
+                Ok(vec![crate::gfx::index(self, &bv, &idx)?])
+            }
             Value::Object(o) => {
                 // An overloaded subsref receives S = struct('type', '()', 'subs', {args}).
                 if let Some(f) = o.class.method("subsref").cloned() {
@@ -1469,6 +1504,7 @@ impl Interpreter {
                 }
                 s.get(name).cloned().ok_or_else(|| LangError::new(format!("Unrecognized field name \"{name}\"."), 0))
             }
+            Value::Object(o) if crate::gfx::is_gfx_class(&o.class.name) => crate::gfx::member(self, v, name),
             Value::Object(o) => {
                 let Some(i) = o.class.prop_index(name) else {
                     return rt(format!("Unrecognized method, property, or field '{name}' for class '{}'.", o.class.name));

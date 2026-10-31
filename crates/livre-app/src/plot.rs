@@ -7,7 +7,8 @@ use std::sync::{Arc, OnceLock};
 
 use eframe::egui::{self, emath::Rot2, epaint::TextShape, pos2, vec2, Align, Color32, FontFamily, FontId, Galley, Pos2, Rect, Rounding, Sense, Shape, Stroke, Ui, Vec2};
 use livre_lang::display::fmt_g;
-use livre_lang::{Axes, Figure, LineStyle, Marker, Series, SeriesKind, XAxisKind};
+use livre_lang::graphics::{self, nice_step};
+use livre_lang::{Axes, Figure, LineStyle, Marker, Series, SeriesKind, Ticks, XAxisKind};
 use resvg::{tiny_skia, usvg};
 
 use crate::theme::{Skin, RADIUS};
@@ -359,14 +360,6 @@ fn draw_figure(c: &mut dyn Canvas, skin: &Skin, fig: &Figure, size: Vec2, hover:
     }
 }
 
-fn nice_step(range: f64, target: f64) -> f64 {
-    let raw = (range / target).max(1e-300);
-    let mag = 10f64.powf(raw.log10().floor());
-    let f = raw / mag;
-    let n = if f < 1.5 { 1.0 } else if f < 3.0 { 2.0 } else if f < 7.0 { 5.0 } else { 10.0 };
-    n * mag
-}
-
 /// Tick-aligned limits and tick values.
 fn nice_axis(lo: f64, hi: f64, target: f64) -> (f64, f64, Vec<f64>) {
     let step = nice_step(hi - lo, target);
@@ -421,58 +414,6 @@ fn readout(v: f64) -> String {
     }
 }
 
-fn bounds(ax: &Axes) -> ((f64, f64), (f64, f64)) {
-    let (mut x0, mut x1, mut y0, mut y1) = (f64::INFINITY, f64::NEG_INFINITY, f64::INFINITY, f64::NEG_INFINITY);
-    for s in &ax.series {
-        for (&x, &y) in s.x.iter().zip(&s.y) {
-            if x.is_finite() {
-                x0 = x0.min(x);
-                x1 = x1.max(x);
-            }
-            if y.is_finite() {
-                y0 = y0.min(y);
-                y1 = y1.max(y);
-            }
-        }
-        if matches!(s.kind, SeriesKind::Bar | SeriesKind::Area | SeriesKind::Stem) {
-            y0 = y0.min(0.0);
-            y1 = y1.max(0.0);
-        }
-        if s.kind == SeriesKind::Bar && !s.x.is_empty() {
-            let dx = bar_spacing(&s.x);
-            x0 -= dx * 0.6;
-            x1 += dx * 0.6;
-        }
-    }
-    if !x0.is_finite() {
-        (x0, x1) = (0.0, 1.0);
-    }
-    if !y0.is_finite() {
-        (y0, y1) = (0.0, 1.0);
-    }
-    if x0 == x1 {
-        x0 -= 1.0;
-        x1 += 1.0;
-    }
-    if y0 == y1 {
-        let d = if y0 == 0.0 { 1.0 } else { y0.abs() * 0.1 };
-        y0 -= d;
-        y1 += d;
-    }
-    (ax.xlim.unwrap_or((x0, x1)), ax.ylim.unwrap_or((y0, y1)))
-}
-
-fn bar_spacing(x: &[f64]) -> f64 {
-    let mut d = f64::INFINITY;
-    for w in x.windows(2) {
-        let dx = (w[1] - w[0]).abs();
-        if dx > 0.0 {
-            d = d.min(dx);
-        }
-    }
-    if d.is_finite() { d } else { 1.0 }
-}
-
 /// The y a line-like series passes through at `x` (linear, or held for stairs).
 fn value_at(s: &Series, x: f64) -> Option<f64> {
     let pts: Vec<(f64, f64)> = s.x.iter().copied().zip(s.y.iter().copied()).collect();
@@ -521,44 +462,138 @@ impl Frame {
     }
 }
 
+/// One axis: its limits (in data units), whether it is logarithmic, and its tick values.
+struct Scale {
+    lo: f64,
+    hi: f64,
+    log: bool,
+    ticks: Vec<f64>,
+}
+
+impl Scale {
+    /// The data limits, rounded out to ticks unless set, on a linear or log axis.
+    fn new(auto: (f64, f64), set: bool, log: bool, positive_min: f64, target: f64, time: bool) -> Self {
+        if log {
+            let lo = if auto.0 > 0.0 { auto.0 } else { positive_min.min(auto.1.max(1.0)) };
+            let hi = auto.1.max(lo * 10.0);
+            let (mut l0, mut l1) = (lo.log10(), hi.log10());
+            if !set {
+                (l0, l1) = (l0.floor(), l1.ceil());
+                if l0 == l1 {
+                    l1 += 1.0;
+                }
+            }
+            let step = ((l1.ceil() - l0.floor()) / 8.0).ceil().max(1.0);
+            let ticks = (l0.ceil() as i64..=l1.floor() as i64).filter(|k| (*k as f64 - l0.ceil()) % step == 0.0).map(|k| 10f64.powi(k as i32)).collect();
+            return Self { lo: 10f64.powf(l0), hi: 10f64.powf(l1), log, ticks };
+        }
+        let (lo, hi, ticks) = if time {
+            (auto.0, auto.1, time_ticks(auto.0, auto.1, target))
+        } else if set {
+            (auto.0, auto.1, ticks_within(auto.0, auto.1, nice_step(auto.1 - auto.0, target)))
+        } else {
+            nice_axis(auto.0, auto.1, target)
+        };
+        Self { lo, hi, log, ticks }
+    }
+
+    /// Position of `v` along the axis, 0 at `lo` and 1 at `hi`.
+    fn frac(&self, v: f64) -> Option<f64> {
+        if !v.is_finite() {
+            return None;
+        }
+        if self.log {
+            return (v > 0.0).then(|| (v.log10() - self.lo.log10()) / (self.hi.log10() - self.lo.log10()));
+        }
+        Some((v - self.lo) / (self.hi - self.lo))
+    }
+
+    fn step(&self) -> f64 {
+        if self.ticks.len() > 1 { self.ticks[1] - self.ticks[0] } else { 1.0 }
+    }
+}
+
+/// Smallest positive value plotted along x (`x_axis`) or y, for log axes.
+fn positive_min(ax: &Axes, x_axis: bool) -> f64 {
+    let mut m = f64::INFINITY;
+    for s in &ax.series {
+        let horizontal_bars = s.kind == SeriesKind::BarH;
+        let vals = if x_axis != horizontal_bars { &s.x } else { &s.y };
+        for &v in vals {
+            if v > 0.0 && v < m {
+                m = v;
+            }
+        }
+    }
+    if m.is_finite() { m } else { 1.0 }
+}
+
+fn superscript(k: i64) -> String {
+    k.to_string().chars().map(|c| match c {
+        '-' => '⁻',
+        d => ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹'][d.to_digit(10).unwrap_or(0) as usize],
+    }).collect()
+}
+
+/// The label of tick `i` (value `v`): set labels, a tick format, powers of ten on log axes,
+/// or the default number/time text.
+fn tick_text(ticks: &Ticks, scale: &Scale, i: usize, v: f64, default: impl Fn(f64) -> String) -> String {
+    if let Some(labels) = &ticks.labels {
+        return if labels.is_empty() { String::new() } else { labels[i % labels.len()].clone() };
+    }
+    if let Some(f) = &ticks.format {
+        return livre_lang::gfx::format_tick(Some(f), v);
+    }
+    if scale.log {
+        return format!("10{}", superscript(v.log10().round() as i64));
+    }
+    default(v)
+}
+
+/// Kinds that take part in legends.
+fn in_legend(s: &Series) -> bool {
+    !matches!(s.kind, SeriesKind::Text | SeriesKind::ConstantLine | SeriesKind::Region)
+}
+
 fn draw_axes(c: &mut dyn Canvas, t: &Tokens, ax: &Axes, cell: Rect, multi: bool, hover: Option<Pos2>) {
     let m = Frame::new(ax, multi);
     let mut plot = Rect::from_min_max(cell.min + vec2(m.left, m.top), cell.max - vec2(m.right, m.bottom));
     let (xt, yt) = (((plot.width() / 82.0) as f64).clamp(2.0, 8.0), ((plot.height() / 44.0) as f64).clamp(2.0, 6.0));
-    let ((dx0, dx1), (dy0, dy1)) = bounds(ax);
-    let (mut x0, mut x1, mut xticks) = if ax.x_kind != XAxisKind::Numeric {
-        (dx0, dx1, time_ticks(dx0, dx1, xt))
-    } else if ax.xlim.is_some() {
-        (dx0, dx1, ticks_within(dx0, dx1, nice_step(dx1 - dx0, xt)))
-    } else {
-        nice_axis(dx0, dx1, xt)
-    };
-    let (mut y0, mut y1, mut yticks) = if ax.ylim.is_some() { (dy0, dy1, ticks_within(dy0, dy1, nice_step(dy1 - dy0, yt))) } else { nice_axis(dy0, dy1, yt) };
-    let ystep = if yticks.len() > 1 { yticks[1] - yticks[0] } else { 1.0 };
-    let tick_w = yticks.iter().map(|&v| c.text_width(&tick_label(v, ystep), TICK)).fold(0.0, f32::max);
+    let ((dx0, dx1), (dy0, dy1)) = ax.bounds();
+    let mut sx = Scale::new((dx0, dx1), ax.xlim.is_some(), ax.xlog, positive_min(ax, true), xt, ax.x_kind != XAxisKind::Numeric);
+    let mut sy = Scale::new((dy0, dy1), ax.ylim.is_some(), ax.ylog, positive_min(ax, false), yt, false);
+    let show_axes = ax.visible_axes.unwrap_or(true);
+    let ylabel_of = |sy: &Scale, i: usize, v: f64| tick_text(&ax.yticks, sy, i, v, |v| tick_label(v, sy.step()));
+    if let Some(v) = &ax.yticks.values {
+        sy.ticks = v.clone();
+    }
+    let tick_w = if show_axes { sy.ticks.iter().enumerate().map(|(i, &v)| c.text_width(&ylabel_of(&sy, i, v), TICK)).fold(0.0, f32::max) } else { 0.0 };
     let need = tick_w + 8.0 + if ax.ylabel.is_empty() { 8.0 } else { m.ylabel_x + 8.0 };
     plot.min.x = plot.min.x.max(cell.left() + need);
+    if ax.xticks.angle.abs() > 1.0 {
+        plot.max.y -= (ax.xticks.angle.to_radians().sin().abs() * 30.0).min(40.0);
+    }
     if plot.width() < 20.0 || plot.height() < 20.0 {
         return;
     }
     // A manual DataAspectRatio: one x unit spans as many pixels as aspect[0]/aspect[1] y units.
     // As in MATLAB, an automatic limit widens to fill the box; with both limits fixed, or when
     // filling would mean narrowing an automatic limit, the box shrinks around its centre.
-    if let (Some([ax_x, ax_y, _]), XAxisKind::Numeric) = (ax.data_aspect, ax.x_kind) {
+    if let (Some([ax_x, ax_y, _]), XAxisKind::Numeric, false, false) = (ax.data_aspect, ax.x_kind, sx.log, sy.log) {
         let target = (plot.width() as f64 * ax_x) / (plot.height() as f64 * ax_y);
-        let (xs, ys) = (x1 - x0, y1 - y0);
+        let (xs, ys) = (sx.hi - sx.lo, sy.hi - sy.lo);
         if xs > 0.0 && ys > 0.0 {
             let current = xs / ys;
             if current < target && ax.xlim.is_none() {
                 let half = ys * target / 2.0;
-                let mid = (x0 + x1) / 2.0;
-                (x0, x1) = (mid - half, mid + half);
-                xticks = ticks_within(x0, x1, nice_step(x1 - x0, xt));
+                let mid = (sx.lo + sx.hi) / 2.0;
+                (sx.lo, sx.hi) = (mid - half, mid + half);
+                sx.ticks = ticks_within(sx.lo, sx.hi, nice_step(sx.hi - sx.lo, xt));
             } else if current > target && ax.ylim.is_none() {
                 let half = xs / target / 2.0;
-                let mid = (y0 + y1) / 2.0;
-                (y0, y1) = (mid - half, mid + half);
-                yticks = ticks_within(y0, y1, nice_step(y1 - y0, yt));
+                let mid = (sy.lo + sy.hi) / 2.0;
+                (sy.lo, sy.hi) = (mid - half, mid + half);
+                sy.ticks = ticks_within(sy.lo, sy.hi, nice_step(sy.hi - sy.lo, yt));
             } else {
                 // Narrower when the data is relatively taller than the box, else shorter.
                 let size = if current < target { vec2(plot.width() * (current / target) as f32, plot.height()) } else { vec2(plot.width(), plot.height() * (target / current) as f32) };
@@ -566,10 +601,20 @@ fn draw_axes(c: &mut dyn Canvas, t: &Tokens, ax: &Axes, cell: Rect, multi: bool,
             }
         }
     }
-    let xstep = if xticks.len() > 1 { xticks[1] - xticks[0] } else { 1.0 };
-    let ystep = if yticks.len() > 1 { yticks[1] - yticks[0] } else { 1.0 };
-    let tx = |x: f64| plot.left() + ((x - x0) / (x1 - x0)) as f32 * plot.width();
-    let ty = |y: f64| plot.bottom() - ((y - y0) / (y1 - y0)) as f32 * plot.height();
+    if let Some(v) = &ax.xticks.values {
+        sx.ticks = v.clone();
+    }
+    if let Some(v) = &ax.yticks.values {
+        sy.ticks = v.clone();
+    }
+    let (x0, x1, y0, y1) = (sx.lo, sx.hi, sy.lo, sy.hi);
+    let mx = |x: f64| sx.frac(x).map(|f| plot.left() + f as f32 * plot.width());
+    let my = |y: f64| sy.frac(y).map(|f| plot.bottom() - f as f32 * plot.height());
+    let ty = |y: f64| my(y).unwrap_or(plot.bottom());
+    let at = |x: f64, y: f64| match (mx(x), my(y)) {
+        (Some(a), Some(b)) => Some(pos2(a, b)),
+        _ => None,
+    };
 
     c.text(pos2(plot.center().x, cell.top() + m.title_y), Align::Center, &ax.title, TITLE, t.fg, 0.0);
     c.text(pos2(plot.center().x, cell.bottom() - m.xlabel_dy), Align::Center, &ax.xlabel, LABEL, t.text, 0.0);
@@ -577,40 +622,69 @@ fn draw_axes(c: &mut dyn Canvas, t: &Tokens, ax: &Axes, cell: Rect, multi: bool,
 
     let grid = Stroke::new(1.0_f32, t.grid);
     let axis = Stroke::new(1.0_f32, t.axis);
-    for &v in &xticks {
-        let x = tx(v);
-        if ax.grid {
-            c.line(&[pos2(x, plot.top()), pos2(x, plot.bottom())], grid, &[]);
+    if show_axes {
+        let xstep = sx.step();
+        for (i, &v) in sx.ticks.iter().enumerate() {
+            let Some(x) = mx(v).filter(|x| (plot.left() - 0.5..=plot.right() + 0.5).contains(x)) else { continue };
+            if ax.grid {
+                c.line(&[pos2(x, plot.top()), pos2(x, plot.bottom())], grid, &[]);
+            }
+            c.line(&[pos2(x, plot.bottom()), pos2(x, plot.bottom() - 4.0)], axis, &[]);
+            let label = tick_text(&ax.xticks, &sx, i, v, |v| x_label(ax.x_kind, v, xstep, x1 - x0));
+            if ax.xticks.angle.abs() > 1.0 {
+                c.text(pos2(x, plot.bottom() + 10.0), Align::Max, &label, TICK, t.text, -ax.xticks.angle.to_radians());
+            } else {
+                c.text(pos2(x, plot.bottom() + m.tick_dy), Align::Center, &label, TICK, t.text, 0.0);
+            }
         }
-        c.line(&[pos2(x, plot.bottom()), pos2(x, plot.bottom() - 4.0)], axis, &[]);
-        c.text(pos2(x, plot.bottom() + m.tick_dy), Align::Center, &x_label(ax.x_kind, v, xstep, x1 - x0), TICK, t.text, 0.0);
-    }
-    for &v in &yticks {
-        let y = ty(v);
-        if ax.grid {
-            c.line(&[pos2(plot.left(), y), pos2(plot.right(), y)], grid, &[]);
+        for (i, &v) in sy.ticks.iter().enumerate() {
+            let Some(y) = my(v).filter(|y| (plot.top() - 0.5..=plot.bottom() + 0.5).contains(y)) else { continue };
+            if ax.grid {
+                c.line(&[pos2(plot.left(), y), pos2(plot.right(), y)], grid, &[]);
+            }
+            c.line(&[pos2(plot.left(), y), pos2(plot.left() + 4.0, y)], axis, &[]);
+            c.text(pos2(plot.left() - 8.0, y + TICK.mid()), Align::Max, &ylabel_of(&sy, i, v), TICK, t.text, -ax.yticks.angle.to_radians());
         }
-        c.line(&[pos2(plot.left(), y), pos2(plot.left() + 4.0, y)], axis, &[]);
-        c.text(pos2(plot.left() - 8.0, y + TICK.mid()), Align::Max, &tick_label(v, ystep), TICK, t.text, 0.0);
+        c.rect(plot, 0.0, Color32::TRANSPARENT, axis);
     }
-    c.rect(plot, 0.0, Color32::TRANSPARENT, axis);
 
     c.clip(Some(plot.expand(1.0)));
     let base = ty(0.0f64.clamp(y0, y1));
-    for (k, s) in ax.series.iter().enumerate() {
+    let base_x = mx(0.0f64.clamp(x0, x1)).unwrap_or(plot.left());
+    // Regions first, so data draws over them.
+    for (k, s) in ax.series.iter().enumerate().filter(|(_, s)| s.visible && s.kind == SeriesKind::Region) {
+        let fill = t.color(s, k).gamma_multiply(s.face_alpha.clamp(0.0, 1.0));
+        let r = if s.horizontal {
+            let (a, b) = (ty(s.y[0]), ty(*s.y.get(1).unwrap_or(&s.y[0])));
+            Rect::from_min_max(pos2(plot.left(), a.min(b)), pos2(plot.right(), a.max(b)))
+        } else {
+            let (a, b) = (mx(s.x[0]).unwrap_or(plot.left()), mx(*s.x.get(1).unwrap_or(&s.x[0])).unwrap_or(plot.left()));
+            Rect::from_min_max(pos2(a.min(b), plot.top()), pos2(a.max(b), plot.bottom()))
+        };
+        c.rect(r, 0.0, fill, Stroke::NONE);
+    }
+    for (k, s) in ax.series.iter().enumerate().filter(|(_, s)| s.visible) {
         let color = t.color(s, k);
         let stroke = Stroke::new(s.line_width.max(2.0), color);
-        let pts: Vec<Option<Pos2>> = s.x.iter().zip(&s.y).map(|(&x, &y)| (x.is_finite() && y.is_finite()).then(|| pos2(tx(x), ty(y)))).collect();
+        let pts: Vec<Option<Pos2>> = s.x.iter().zip(&s.y).map(|(&x, &y)| at(x, y)).collect();
         match s.kind {
+            SeriesKind::Region => {}
             SeriesKind::Stem => {
                 for pt in pts.iter().flatten() {
                     c.line(&[pos2(pt.x, base), *pt], stroke, &[]);
                 }
             }
             SeriesKind::Bar => {
-                let w = s.bar_width.unwrap_or(bar_spacing(&s.x) * 0.8) as f32 * plot.width() / (x1 - x0) as f32;
+                let w = s.bar_width.unwrap_or(graphics::bar_spacing(&s.x) * 0.8) as f32 * plot.width() / (x1 - x0) as f32;
                 for pt in pts.iter().flatten() {
                     c.rect(Rect::from_min_max(pos2(pt.x - w / 2.0, pt.y.min(base)), pos2(pt.x + w / 2.0, pt.y.max(base))), 2.0, color, Stroke::NONE);
+                }
+            }
+            SeriesKind::BarH => {
+                let h = s.bar_width.unwrap_or(graphics::bar_spacing(&s.x) * 0.8) as f32 * plot.height() / (y1 - y0) as f32;
+                for (&p, &len) in s.x.iter().zip(&s.y) {
+                    let (Some(yc), Some(xe)) = (my(p), mx(len)) else { continue };
+                    c.rect(Rect::from_min_max(pos2(xe.min(base_x), yc - h / 2.0), pos2(xe.max(base_x), yc + h / 2.0)), 2.0, color, Stroke::NONE);
                 }
             }
             SeriesKind::Area => {
@@ -641,9 +715,54 @@ fn draw_axes(c: &mut dyn Canvas, t: &Tokens, ax: &Axes, cell: Rect, multi: bool,
                 }
                 draw_polyline(c, &stepped, stroke, s.line_style);
             }
+            SeriesKind::ErrorBar => {
+                draw_polyline(c, &pts, stroke, s.line_style);
+                if let Some((lo, hi)) = &s.err {
+                    let thin = Stroke::new(1.5_f32, color);
+                    for (i, (&x, &y)) in s.x.iter().zip(&s.y).enumerate() {
+                        let (Some(xp), Some(a), Some(b)) = (mx(x), my(y - lo[i]), my(y + hi[i])) else { continue };
+                        c.line(&[pos2(xp, a), pos2(xp, b)], thin, &[]);
+                        c.line(&[pos2(xp - 4.0, a), pos2(xp + 4.0, a)], thin, &[]);
+                        c.line(&[pos2(xp - 4.0, b), pos2(xp + 4.0, b)], thin, &[]);
+                    }
+                }
+            }
+            SeriesKind::Patch => {
+                let poly: Vec<Pos2> = pts.iter().flatten().copied().collect();
+                if poly.len() >= 3 {
+                    let fill = color.gamma_multiply(s.face_alpha.clamp(0.0, 1.0));
+                    let edge = s.edge_color.filter(|_| s.line_style != LineStyle::None).map(|e| Stroke::new(1.0_f32, Color32::from_rgb(e[0], e[1], e[2]))).unwrap_or(Stroke::NONE);
+                    c.polygon(&poly, fill, edge);
+                }
+            }
+            SeriesKind::Text => {
+                if let Some(p) = pts.first().copied().flatten() {
+                    let color = s.color.map(|c| Color32::from_rgb(c[0], c[1], c[2])).unwrap_or(t.fg);
+                    let font = Font { size: s.font_size.map(|f| f * 1.2).unwrap_or(LABEL.size), bold: false };
+                    for (i, line) in s.label.lines().enumerate() {
+                        c.text(p + vec2(0.0, font.mid() + i as f32 * font.size * 1.25), Align::Min, line, font, color, 0.0);
+                    }
+                }
+            }
+            SeriesKind::ConstantLine => {
+                let color = s.color.map(|c| Color32::from_rgb(c[0], c[1], c[2])).unwrap_or(t.axis);
+                let stroke = Stroke::new(s.line_width.max(1.5), color);
+                let (a, b, label_at, align, angle) = if s.horizontal {
+                    let Some(y) = my(s.y[0]) else { continue };
+                    (pos2(plot.left(), y), pos2(plot.right(), y), pos2(plot.right() - 4.0, y - 5.0), Align::Max, 0.0)
+                } else {
+                    let Some(x) = mx(s.x[0]) else { continue };
+                    (pos2(x, plot.top()), pos2(x, plot.bottom()), pos2(x - 5.0, plot.top() + 4.0), Align::Max, -std::f32::consts::FRAC_PI_2)
+                };
+                draw_polyline(c, &[Some(a), Some(b)], stroke, s.line_style);
+                if !s.label.is_empty() {
+                    let label_color = if s.color.is_some() { color } else { t.text };
+                    c.text(label_at, align, &s.label, TICK, label_color, angle);
+                }
+            }
             SeriesKind::Line | SeriesKind::Scatter => draw_polyline(c, &pts, stroke, s.line_style),
         }
-        if let Some(mk) = s.marker {
+        if let (Some(mk), false) = (s.marker, matches!(s.kind, SeriesKind::Text | SeriesKind::ConstantLine | SeriesKind::Region | SeriesKind::Patch)) {
             for pt in pts.iter().flatten() {
                 draw_marker(c, mk, *pt, s.marker_size / 2.0 + 1.0, color, s.kind == SeriesKind::Scatter);
             }
@@ -655,6 +774,9 @@ fn draw_axes(c: &mut dyn Canvas, t: &Tokens, ax: &Axes, cell: Rect, multi: bool,
         draw_legend(c, t, ax, names, plot);
     }
 
+    if sx.log || sy.log {
+        return;
+    }
     let Some(h) = hover.filter(|h| plot.contains(*h)) else { return };
     c.clip(Some(plot));
     c.line(&[pos2(h.x, plot.top()), pos2(h.x, plot.bottom())], Stroke::new(1.0_f32, t.cross), &[3.0, 3.0]);
@@ -732,7 +854,7 @@ fn draw_marker(c: &mut dyn Canvas, m: Marker, p: Pos2, r: f32, color: Color32, f
 }
 
 fn draw_legend(c: &mut dyn Canvas, t: &Tokens, ax: &Axes, names: &[String], plot: Rect) {
-    let rows: Vec<(&Series, Color32, &String)> = ax.series.iter().enumerate().zip(names).map(|((k, s), n)| (s, t.color(s, k), n)).collect();
+    let rows: Vec<(&Series, Color32, &String)> = ax.series.iter().enumerate().filter(|(_, s)| in_legend(s) && s.visible).zip(names).map(|((k, s), n)| (s, t.color(s, k), n)).collect();
     if rows.is_empty() {
         return;
     }
@@ -826,6 +948,48 @@ mod tests {
             assert!(!out.shapes.is_empty());
         }
         assert_eq!(rect.size(), figure_size(400.0));
+    }
+
+    /// saveas/print go through the exporter the engine installs; the PNG and SVG are written.
+    #[test]
+    fn interpreter_saves_figures() {
+        let ctx = ctx();
+        let dir = std::env::temp_dir().join(format!("matlivre-saveas-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut it = livre_lang::Interpreter::new();
+        let c2 = ctx.clone();
+        it.set_figure_exporter(move |fig, format, scale| match format {
+            livre_lang::ExportFormat::Svg => Ok(to_svg(&c2, &Skin::light(), fig, vec2(560.0, 420.0)).into_bytes()),
+            livre_lang::ExportFormat::Png => to_png(&c2, &Skin::light(), fig, vec2(560.0, 420.0), scale),
+        });
+        let p = |n: &str| dir.join(n).display().to_string().replace('\'', "''");
+        let src = format!(
+            concat!(
+                "x = 1:10; plot(x, x.^2, 'DisplayName', 'square'); hold on\n",
+                "errorbar(x, x.^1.5, 0.1*x.^1.5); fill([2 4 4 2], [10 10 40 40], 'g', 'FaceAlpha', 0.3);\n",
+                "xline(5, '--', 'five'); yline(60); xregion(7, 8); text(1.5, 80, 'peak');\n",
+                "xticks([0 5 10]); xticklabels({{'zero','five','ten'}}); ytickformat('usd'); xtickangle(30);\n",
+                "title('Formatted'); legend show\n",
+                "saveas(gcf, '{png}'); print(gcf, '{svg}', '-dsvg'); exportgraphics(gca, '{jpg}', 'Resolution', 72);\n",
+                "figure; semilogy(1:4, [1 10 100 1000], 'o-'); grid on; saveas(gcf, '{log}'); barh([3 1 2]);\n",
+            ),
+            png = p("fmt.png"),
+            svg = p("fmt.svg"),
+            jpg = p("fmt.jpg"),
+            log = p("log.png"),
+        );
+        it.run_source(&src).unwrap();
+        let png = std::fs::read(dir.join("fmt.png")).unwrap();
+        assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
+        let svg = std::fs::read_to_string(dir.join("fmt.svg")).unwrap();
+        assert!(svg.contains(">five</text>") && svg.contains(">peak</text>") && svg.contains("$20.00"), "{svg}");
+        assert!(std::fs::read(dir.join("fmt.jpg")).unwrap().starts_with(&[0xFF, 0xD8]));
+        if std::env::var_os("LIVRE_PLOT_PREVIEW").is_some() {
+            let target = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target");
+            std::fs::copy(dir.join("fmt.png"), target.join("plot-fmt.png")).unwrap();
+            std::fs::copy(dir.join("log.png"), target.join("plot-log.png")).unwrap();
+        }
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// `LIVRE_PLOT_PREVIEW=1 cargo test -p livre-app preview` writes sample renders to `target/`.

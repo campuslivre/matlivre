@@ -1,0 +1,1149 @@
+matlab.ui.Root	CurrentFigure	<matlab.ui.Figure [1 1]>
+matlab.ui.Root	Units	'pixels'
+matlab.ui.Root	ScreenDepth	32
+matlab.ui.Root	PointerLocation	[-844 496]
+matlab.ui.Root	CallbackObject	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.ui.Root	FixedWidthFontName	'Courier New'
+matlab.ui.Root	ShowHiddenHandles	'off'
+matlab.ui.Root	ScreenPixelsPerInch	96
+matlab.ui.Root	MonitorPositions	<double [2 4]>
+matlab.ui.Root	ScreenSize	[1 1 1920 1080]
+matlab.ui.Root	Children	<matlab.ui.Figure [1 1]>
+matlab.ui.Root	Parent	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.ui.Root	HandleVisibility	'on'
+matlab.ui.Root	Type	'root'
+matlab.ui.Root	Tag	''
+matlab.ui.Root	UserData	[]
+matlab.ui.Figure	Position	[680 458 560 420]
+matlab.ui.Figure	OuterPosition	[676 454 568 454]
+matlab.ui.Figure	InnerPosition	[680 458 560 420]
+matlab.ui.Figure	Units	'pixels'
+matlab.ui.Figure	Renderer	'opengl'
+matlab.ui.Figure	RendererMode	'auto'
+matlab.ui.Figure	Visible	'off'
+matlab.ui.Figure	Color	[0.94 0.94 0.94]
+matlab.ui.Figure	CloseRequestFcn	'closereq'
+matlab.ui.Figure	CurrentAxes	<matlab.graphics.axis.Axes [1 1]>
+matlab.ui.Figure	CurrentCharacter	''
+matlab.ui.Figure	CurrentObject	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.ui.Figure	CurrentPoint	[0 0]
+matlab.ui.Figure	SelectionType	'normal'
+matlab.ui.Figure	SizeChangedFcn	''
+matlab.ui.Figure	FileName	''
+matlab.ui.Figure	IntegerHandle	'on'
+matlab.ui.Figure	NextPlot	'add'
+matlab.ui.Figure	Alphamap	<double [1 64]>
+matlab.ui.Figure	Colormap	<double [256 3]>
+matlab.ui.Figure	GraphicsSmoothing	'on'
+matlab.ui.Figure	WindowButtonDownFcn	''
+matlab.ui.Figure	WindowButtonUpFcn	''
+matlab.ui.Figure	WindowButtonMotionFcn	''
+matlab.ui.Figure	WindowScrollWheelFcn	''
+matlab.ui.Figure	WindowKeyPressFcn	''
+matlab.ui.Figure	WindowKeyReleaseFcn	''
+matlab.ui.Figure	MenuBar	'figure'
+matlab.ui.Figure	ToolBar	'auto'
+matlab.ui.Figure	Pointer	'arrow'
+matlab.ui.Figure	PointerShapeCData	<double [16 16]>
+matlab.ui.Figure	PointerShapeHotSpot	[1 1]
+matlab.ui.Figure	Name	''
+matlab.ui.Figure	NumberTitle	'on'
+matlab.ui.Figure	Icon	''
+matlab.ui.Figure	Number	1
+matlab.ui.Figure	Children	<matlab.graphics.primitive.world.Group [3 1]>
+matlab.ui.Figure	Parent	<matlab.ui.Root [1 1]>
+matlab.ui.Figure	HandleVisibility	'on'
+matlab.ui.Figure	ButtonDownFcn	''
+matlab.ui.Figure	ContextMenu	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.ui.Figure	BusyAction	'queue'
+matlab.ui.Figure	BeingDeleted	'off'
+matlab.ui.Figure	Interruptible	'on'
+matlab.ui.Figure	CreateFcn	''
+matlab.ui.Figure	DeleteFcn	''
+matlab.ui.Figure	Type	'figure'
+matlab.ui.Figure	Tag	''
+matlab.ui.Figure	UserData	[]
+matlab.ui.Figure	Clipping	'on'
+matlab.ui.Figure	Scrollable	'off'
+matlab.ui.Figure	WindowStyle	'normal'
+matlab.ui.Figure	WindowState	'normal'
+matlab.ui.Figure	DockControls	'on'
+matlab.ui.Figure	Resize	'on'
+matlab.ui.Figure	PaperPosition	[1.333 3.312 5.833 4.375]
+matlab.ui.Figure	PaperPositionMode	'auto'
+matlab.ui.Figure	PaperSize	[8.5 11]
+matlab.ui.Figure	PaperType	'usletter'
+matlab.ui.Figure	PaperUnits	'inches'
+matlab.ui.Figure	InvertHardcopy	'on'
+matlab.ui.Figure	PaperOrientation	'portrait'
+matlab.ui.Figure	KeyPressFcn	''
+matlab.ui.Figure	KeyReleaseFcn	''
+matlab.graphics.axis.Axes	CameraPosition	[1.5 3 10.99]
+matlab.graphics.axis.Axes	CameraPositionMode	'auto'
+matlab.graphics.axis.Axes	CameraTarget	[1.5 3 0.368]
+matlab.graphics.axis.Axes	CameraTargetMode	'auto'
+matlab.graphics.axis.Axes	CameraUpVector	[0 1 0]
+matlab.graphics.axis.Axes	CameraUpVectorMode	'auto'
+matlab.graphics.axis.Axes	CameraViewAngle	6.609
+matlab.graphics.axis.Axes	CameraViewAngleMode	'auto'
+matlab.graphics.axis.Axes	View	[0 90]
+matlab.graphics.axis.Axes	Projection	'orthographic'
+matlab.graphics.axis.Axes	LabelFontSizeMultiplier	1.1
+matlab.graphics.axis.Axes	AmbientLightColor	[1 1 1]
+matlab.graphics.axis.Axes	DataAspectRatio	[7.341 4.894 1]
+matlab.graphics.axis.Axes	DataAspectRatioMode	'auto'
+matlab.graphics.axis.Axes	PlotBoxAspectRatio	[1 0.8909 0.8909]
+matlab.graphics.axis.Axes	PlotBoxAspectRatioMode	'auto'
+matlab.graphics.axis.Axes	FontName	'Helvetica'
+matlab.graphics.axis.Axes	FontAngle	'normal'
+matlab.graphics.axis.Axes	FontWeight	'normal'
+matlab.graphics.axis.Axes	FontSmoothing	'on'
+matlab.graphics.axis.Axes	TickLabelInterpreter	'tex'
+matlab.graphics.axis.Axes	XLim	[-3 6]
+matlab.graphics.axis.Axes	XLimMode	'auto'
+matlab.graphics.axis.Axes	YLim	[0 6]
+matlab.graphics.axis.Axes	YLimMode	'auto'
+matlab.graphics.axis.Axes	ZLim	[-0.245 0.981]
+matlab.graphics.axis.Axes	ZLimMode	'auto'
+matlab.graphics.axis.Axes	XLimitMethod	'tight'
+matlab.graphics.axis.Axes	YLimitMethod	'tight'
+matlab.graphics.axis.Axes	ZLimitMethod	'tight'
+matlab.graphics.axis.Axes	XDir	'normal'
+matlab.graphics.axis.Axes	YDir	'normal'
+matlab.graphics.axis.Axes	ZDir	'normal'
+matlab.graphics.axis.Axes	CLim	[-4 9]
+matlab.graphics.axis.Axes	CLimMode	'auto'
+matlab.graphics.axis.Axes	ALim	[0 2]
+matlab.graphics.axis.Axes	ALimMode	'auto'
+matlab.graphics.axis.Axes	Layer	'bottom'
+matlab.graphics.axis.Axes	TickLength	[0.01 0.025]
+matlab.graphics.axis.Axes	GridLineWidth	0.5
+matlab.graphics.axis.Axes	GridLineWidthMode	'auto'
+matlab.graphics.axis.Axes	MinorGridLineWidth	0.5
+matlab.graphics.axis.Axes	MinorGridLineWidthMode	'auto'
+matlab.graphics.axis.Axes	GridLineStyle	'-'
+matlab.graphics.axis.Axes	MinorGridLineStyle	':'
+matlab.graphics.axis.Axes	XAxisLocation	'bottom'
+matlab.graphics.axis.Axes	XColor	[0.15 0.15 0.15]
+matlab.graphics.axis.Axes	XColorMode	'auto'
+matlab.graphics.axis.Axes	XTick	<double [1 10]>
+matlab.graphics.axis.Axes	XTickMode	'auto'
+matlab.graphics.axis.Axes	XTickLabelRotation	0
+matlab.graphics.axis.Axes	XTickLabelRotationMode	'auto'
+matlab.graphics.axis.Axes	XLabel	<matlab.graphics.primitive.Text [1 1]>
+matlab.graphics.axis.Axes	XScale	'linear'
+matlab.graphics.axis.Axes	XTickLabel	<cell [10 1]>
+matlab.graphics.axis.Axes	XTickLabelMode	'auto'
+matlab.graphics.axis.Axes	XMinorTick	'off'
+matlab.graphics.axis.Axes	YAxisLocation	'left'
+matlab.graphics.axis.Axes	YColor	[0.15 0.15 0.15]
+matlab.graphics.axis.Axes	YColorMode	'auto'
+matlab.graphics.axis.Axes	YTick	<double [1 7]>
+matlab.graphics.axis.Axes	YTickMode	'auto'
+matlab.graphics.axis.Axes	YTickLabelRotation	0
+matlab.graphics.axis.Axes	YTickLabelRotationMode	'auto'
+matlab.graphics.axis.Axes	YLabel	<matlab.graphics.primitive.Text [1 1]>
+matlab.graphics.axis.Axes	YScale	'linear'
+matlab.graphics.axis.Axes	YTickLabel	<cell [7 1]>
+matlab.graphics.axis.Axes	YTickLabelMode	'auto'
+matlab.graphics.axis.Axes	YMinorTick	'off'
+matlab.graphics.axis.Axes	ZColor	[0.15 0.15 0.15]
+matlab.graphics.axis.Axes	ZColorMode	'auto'
+matlab.graphics.axis.Axes	ZTick	[-0.2 0 0.2 0.4 0.6 0.8]
+matlab.graphics.axis.Axes	ZTickMode	'auto'
+matlab.graphics.axis.Axes	ZTickLabelRotation	0
+matlab.graphics.axis.Axes	ZTickLabelRotationMode	'auto'
+matlab.graphics.axis.Axes	ZLabel	<matlab.graphics.primitive.Text [1 1]>
+matlab.graphics.axis.Axes	ZScale	'linear'
+matlab.graphics.axis.Axes	ZTickLabel	''
+matlab.graphics.axis.Axes	ZTickLabelMode	'auto'
+matlab.graphics.axis.Axes	ZMinorTick	'off'
+matlab.graphics.axis.Axes	BoxStyle	'back'
+matlab.graphics.axis.Axes	LineWidth	0.5
+matlab.graphics.axis.Axes	Color	[1 1 1]
+matlab.graphics.axis.Axes	ClippingStyle	'3dbox'
+matlab.graphics.axis.Axes	CurrentPoint	[-4.531 -0.8134 10.99;-4.531 -0.8134 0.368]
+matlab.graphics.axis.Axes	ColorScale	'linear'
+matlab.graphics.axis.Axes	AlphaScale	'linear'
+matlab.graphics.axis.Axes	Title	<matlab.graphics.primitive.Text [1 1]>
+matlab.graphics.axis.Axes	TitleHorizontalAlignment	'center'
+matlab.graphics.axis.Axes	Subtitle	<matlab.graphics.primitive.Text [1 1]>
+matlab.graphics.axis.Axes	GridColor	[0.15 0.15 0.15]
+matlab.graphics.axis.Axes	GridColorMode	'auto'
+matlab.graphics.axis.Axes	MinorGridColor	[0.1 0.1 0.1]
+matlab.graphics.axis.Axes	MinorGridColorMode	'auto'
+matlab.graphics.axis.Axes	GridAlpha	0.15
+matlab.graphics.axis.Axes	GridAlphaMode	'auto'
+matlab.graphics.axis.Axes	MinorGridAlpha	0.25
+matlab.graphics.axis.Axes	MinorGridAlphaMode	'auto'
+matlab.graphics.axis.Axes	XAxis	<matlab.graphics.axis.decorator.NumericRuler [1 1]>
+matlab.graphics.axis.Axes	ZAxis	<matlab.graphics.axis.decorator.NumericRuler [1 1]>
+matlab.graphics.axis.Axes	InteractionOptions	<matlab.graphics.interaction.interactionoptions.InteractionOptions [1 1]>
+matlab.graphics.axis.Axes	Box	'off'
+matlab.graphics.axis.Axes	TickDir	'in'
+matlab.graphics.axis.Axes	TickDirMode	'auto'
+matlab.graphics.axis.Axes	XGrid	'off'
+matlab.graphics.axis.Axes	XMinorGrid	'off'
+matlab.graphics.axis.Axes	YGrid	'off'
+matlab.graphics.axis.Axes	YMinorGrid	'off'
+matlab.graphics.axis.Axes	ZGrid	'off'
+matlab.graphics.axis.Axes	ZMinorGrid	'off'
+matlab.graphics.axis.Axes	YAxis	<matlab.graphics.axis.decorator.NumericRuler [1 1]>
+matlab.graphics.axis.Axes	Units	'normalized'
+matlab.graphics.axis.Axes	Position	[0.1155 0.11 0.6883 0.815]
+matlab.graphics.axis.Axes	InnerPosition	[0.1155 0.11 0.6883 0.815]
+matlab.graphics.axis.Axes	OuterPosition	[0 0 0.8881 1]
+matlab.graphics.axis.Axes	PositionConstraint	'outerposition'
+matlab.graphics.axis.Axes	TightInset	[0.02381 0.05317 0.007143 0.02024]
+matlab.graphics.axis.Axes	Colormap	<double [256 3]>
+matlab.graphics.axis.Axes	Alphamap	<double [1 64]>
+matlab.graphics.axis.Axes	ColorOrder	<double [7 3]>
+matlab.graphics.axis.Axes	ColorOrderIndex	4
+matlab.graphics.axis.Axes	LineStyleOrder	'-'
+matlab.graphics.axis.Axes	LineStyleOrderIndex	1
+matlab.graphics.axis.Axes	LineStyleCyclingMethod	'aftercolor'
+matlab.graphics.axis.Axes	NextSeriesIndex	11
+matlab.graphics.axis.Axes	FontUnits	'points'
+matlab.graphics.axis.Axes	FontSize	10
+matlab.graphics.axis.Axes	FontSizeMode	'auto'
+matlab.graphics.axis.Axes	TitleFontWeight	'bold'
+matlab.graphics.axis.Axes	SubtitleFontWeight	'normal'
+matlab.graphics.axis.Axes	TitleFontSizeMultiplier	1.1
+matlab.graphics.axis.Axes	SortMethod	'depth'
+matlab.graphics.axis.Axes	Clipping	'on'
+matlab.graphics.axis.Axes	NextPlot	'add'
+matlab.graphics.axis.Axes	Toolbar	<matlab.ui.controls.AxesToolbar [1 1]>
+matlab.graphics.axis.Axes	Interactions	<matlab.graphics.interaction.interface.DefaultAxesInteractionSet [1 1]>
+matlab.graphics.axis.Axes	Children	<matlab.graphics.primitive.Data [18 1]>
+matlab.graphics.axis.Axes	Parent	<matlab.ui.Figure [1 1]>
+matlab.graphics.axis.Axes	Visible	'on'
+matlab.graphics.axis.Axes	HandleVisibility	'on'
+matlab.graphics.axis.Axes	Layout	<matlab.ui.layout.LayoutOptions [0 0]>
+matlab.graphics.axis.Axes	ButtonDownFcn	''
+matlab.graphics.axis.Axes	ContextMenu	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.axis.Axes	BusyAction	'queue'
+matlab.graphics.axis.Axes	BeingDeleted	'off'
+matlab.graphics.axis.Axes	Interruptible	'on'
+matlab.graphics.axis.Axes	CreateFcn	''
+matlab.graphics.axis.Axes	DeleteFcn	''
+matlab.graphics.axis.Axes	Type	'axes'
+matlab.graphics.axis.Axes	Tag	''
+matlab.graphics.axis.Axes	UserData	[]
+matlab.graphics.axis.Axes	Selected	'off'
+matlab.graphics.axis.Axes	SelectionHighlight	'on'
+matlab.graphics.axis.Axes	HitTest	'on'
+matlab.graphics.axis.Axes	PickableParts	'visible'
+matlab.graphics.axis.Axes	Legend	<matlab.graphics.illustration.Legend [1 1]>
+matlab.graphics.chart.primitive.Line	XData	[1 2 3]
+matlab.graphics.chart.primitive.Line	XDataMode	'manual'
+matlab.graphics.chart.primitive.Line	XVariable	''
+matlab.graphics.chart.primitive.Line	YData	[4 5 6]
+matlab.graphics.chart.primitive.Line	YDataMode	'manual'
+matlab.graphics.chart.primitive.Line	YVariable	''
+matlab.graphics.chart.primitive.Line	ZData	zeros(1,0)
+matlab.graphics.chart.primitive.Line	ZDataMode	'auto'
+matlab.graphics.chart.primitive.Line	ZVariable	''
+matlab.graphics.chart.primitive.Line	XDataSource	''
+matlab.graphics.chart.primitive.Line	YDataSource	''
+matlab.graphics.chart.primitive.Line	ZDataSource	''
+matlab.graphics.chart.primitive.Line	Color	[0 0.447 0.741]
+matlab.graphics.chart.primitive.Line	ColorMode	'auto'
+matlab.graphics.chart.primitive.Line	LineStyle	'-'
+matlab.graphics.chart.primitive.Line	LineStyleMode	'auto'
+matlab.graphics.chart.primitive.Line	LineWidth	0.5
+matlab.graphics.chart.primitive.Line	Marker	'none'
+matlab.graphics.chart.primitive.Line	MarkerMode	'auto'
+matlab.graphics.chart.primitive.Line	MarkerSize	6
+matlab.graphics.chart.primitive.Line	MarkerEdgeColor	'auto'
+matlab.graphics.chart.primitive.Line	MarkerFaceColor	'none'
+matlab.graphics.chart.primitive.Line	Clipping	'on'
+matlab.graphics.chart.primitive.Line	MarkerIndices	[1 2 3]
+matlab.graphics.chart.primitive.Line	AlignVertexCenters	'off'
+matlab.graphics.chart.primitive.Line	LineJoin	'round'
+matlab.graphics.chart.primitive.Line	Children	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.chart.primitive.Line	Parent	<matlab.graphics.axis.Axes [1 1]>
+matlab.graphics.chart.primitive.Line	Visible	'on'
+matlab.graphics.chart.primitive.Line	HandleVisibility	'on'
+matlab.graphics.chart.primitive.Line	ButtonDownFcn	''
+matlab.graphics.chart.primitive.Line	ContextMenu	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.chart.primitive.Line	BusyAction	'queue'
+matlab.graphics.chart.primitive.Line	BeingDeleted	'off'
+matlab.graphics.chart.primitive.Line	Interruptible	'on'
+matlab.graphics.chart.primitive.Line	CreateFcn	''
+matlab.graphics.chart.primitive.Line	DeleteFcn	''
+matlab.graphics.chart.primitive.Line	Type	'line'
+matlab.graphics.chart.primitive.Line	Tag	''
+matlab.graphics.chart.primitive.Line	UserData	[]
+matlab.graphics.chart.primitive.Line	Selected	'off'
+matlab.graphics.chart.primitive.Line	SelectionHighlight	'on'
+matlab.graphics.chart.primitive.Line	HitTest	'on'
+matlab.graphics.chart.primitive.Line	PickableParts	'visible'
+matlab.graphics.chart.primitive.Line	DisplayName	'data1'
+matlab.graphics.chart.primitive.Line	Annotation	<matlab.graphics.eventdata.Annotation [1 1]>
+matlab.graphics.chart.primitive.Line	SeriesIndex	1
+matlab.graphics.chart.primitive.Line	DataTipTemplate	<matlab.graphics.datatip.DataTipTemplate [1 1]>
+matlab.graphics.chart.primitive.Line	SourceTable	<table [0 0]>
+matlab.graphics.chart.primitive.Line	AffectAutoLimits	'on'
+matlab.graphics.primitive.Text	Color	[0 0 0]
+matlab.graphics.primitive.Text	ColorMode	'auto'
+matlab.graphics.primitive.Text	Position	[0.5 0.5 0]
+matlab.graphics.primitive.Text	String	'hi'
+matlab.graphics.primitive.Text	Interpreter	'tex'
+matlab.graphics.primitive.Text	Extent	[0.5 0.3513 0.2571 0.2974]
+matlab.graphics.primitive.Text	Rotation	0
+matlab.graphics.primitive.Text	FontName	'Helvetica'
+matlab.graphics.primitive.Text	FontUnits	'points'
+matlab.graphics.primitive.Text	FontSize	10
+matlab.graphics.primitive.Text	FontAngle	'normal'
+matlab.graphics.primitive.Text	FontWeight	'normal'
+matlab.graphics.primitive.Text	HorizontalAlignment	'left'
+matlab.graphics.primitive.Text	VerticalAlignment	'middle'
+matlab.graphics.primitive.Text	EdgeColor	'none'
+matlab.graphics.primitive.Text	LineStyle	'-'
+matlab.graphics.primitive.Text	LineWidth	0.5
+matlab.graphics.primitive.Text	BackgroundColor	'none'
+matlab.graphics.primitive.Text	Margin	3
+matlab.graphics.primitive.Text	Editing	'off'
+matlab.graphics.primitive.Text	Clipping	'off'
+matlab.graphics.primitive.Text	FontSmoothing	'on'
+matlab.graphics.primitive.Text	Interactions	[]
+matlab.graphics.primitive.Text	Units	'data'
+matlab.graphics.primitive.Text	Children	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.primitive.Text	Parent	<matlab.graphics.axis.Axes [1 1]>
+matlab.graphics.primitive.Text	Visible	'on'
+matlab.graphics.primitive.Text	HandleVisibility	'on'
+matlab.graphics.primitive.Text	ButtonDownFcn	''
+matlab.graphics.primitive.Text	ContextMenu	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.primitive.Text	BusyAction	'queue'
+matlab.graphics.primitive.Text	BeingDeleted	'off'
+matlab.graphics.primitive.Text	Interruptible	'on'
+matlab.graphics.primitive.Text	CreateFcn	''
+matlab.graphics.primitive.Text	DeleteFcn	''
+matlab.graphics.primitive.Text	Type	'text'
+matlab.graphics.primitive.Text	Tag	''
+matlab.graphics.primitive.Text	UserData	[]
+matlab.graphics.primitive.Text	Selected	'off'
+matlab.graphics.primitive.Text	SelectionHighlight	'on'
+matlab.graphics.primitive.Text	HitTest	'on'
+matlab.graphics.primitive.Text	PickableParts	'visible'
+matlab.graphics.primitive.Text	AffectAutoLimits	'off'
+matlab.graphics.primitive.Text	SeriesIndex	'none'
+matlab.graphics.primitive.Patch	CDataMode	'auto'
+matlab.graphics.primitive.Patch	CDataMapping	'scaled'
+matlab.graphics.primitive.Patch	FaceVertexCData	[0 0 0]
+matlab.graphics.primitive.Patch	FaceVertexCDataMode	'auto'
+matlab.graphics.primitive.Patch	EdgeColor	[0 0 0]
+matlab.graphics.primitive.Patch	FaceColor	[1 0 0]
+matlab.graphics.primitive.Patch	Faces	[1 2 3]
+matlab.graphics.primitive.Patch	LineStyle	'-'
+matlab.graphics.primitive.Patch	LineWidth	0.5
+matlab.graphics.primitive.Patch	LineJoin	'miter'
+matlab.graphics.primitive.Patch	VertexNormals	[]
+matlab.graphics.primitive.Patch	VertexNormalsMode	'auto'
+matlab.graphics.primitive.Patch	FaceNormals	[]
+matlab.graphics.primitive.Patch	FaceNormalsMode	'auto'
+matlab.graphics.primitive.Patch	AmbientStrength	0.3
+matlab.graphics.primitive.Patch	DiffuseStrength	0.6
+matlab.graphics.primitive.Patch	SpecularStrength	0.9
+matlab.graphics.primitive.Patch	SpecularExponent	10
+matlab.graphics.primitive.Patch	SpecularColorReflectance	1
+matlab.graphics.primitive.Patch	Marker	'none'
+matlab.graphics.primitive.Patch	MarkerEdgeColor	'auto'
+matlab.graphics.primitive.Patch	MarkerFaceColor	'none'
+matlab.graphics.primitive.Patch	MarkerSize	6
+matlab.graphics.primitive.Patch	Vertices	[0 0;1 0;1 1]
+matlab.graphics.primitive.Patch	Clipping	'on'
+matlab.graphics.primitive.Patch	AlignVertexCenters	'off'
+matlab.graphics.primitive.Patch	AlphaDataMapping	'scaled'
+matlab.graphics.primitive.Patch	CData	<double [1 1 3]>
+matlab.graphics.primitive.Patch	FaceVertexAlphaData	[]
+matlab.graphics.primitive.Patch	EdgeAlpha	1
+matlab.graphics.primitive.Patch	FaceAlpha	1
+matlab.graphics.primitive.Patch	XData	[0;1;1]
+matlab.graphics.primitive.Patch	YData	[0;0;1]
+matlab.graphics.primitive.Patch	ZData	[]
+matlab.graphics.primitive.Patch	FaceLighting	'flat'
+matlab.graphics.primitive.Patch	EdgeLighting	'none'
+matlab.graphics.primitive.Patch	BackFaceLighting	'reverselit'
+matlab.graphics.primitive.Patch	Children	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.primitive.Patch	Parent	<matlab.graphics.axis.Axes [1 1]>
+matlab.graphics.primitive.Patch	Visible	'on'
+matlab.graphics.primitive.Patch	HandleVisibility	'on'
+matlab.graphics.primitive.Patch	ButtonDownFcn	''
+matlab.graphics.primitive.Patch	ContextMenu	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.primitive.Patch	BusyAction	'queue'
+matlab.graphics.primitive.Patch	BeingDeleted	'off'
+matlab.graphics.primitive.Patch	Interruptible	'on'
+matlab.graphics.primitive.Patch	CreateFcn	''
+matlab.graphics.primitive.Patch	DeleteFcn	''
+matlab.graphics.primitive.Patch	Type	'patch'
+matlab.graphics.primitive.Patch	Tag	''
+matlab.graphics.primitive.Patch	UserData	[]
+matlab.graphics.primitive.Patch	Selected	'off'
+matlab.graphics.primitive.Patch	SelectionHighlight	'on'
+matlab.graphics.primitive.Patch	HitTest	'on'
+matlab.graphics.primitive.Patch	PickableParts	'visible'
+matlab.graphics.primitive.Patch	DisplayName	'data2'
+matlab.graphics.primitive.Patch	Annotation	<matlab.graphics.eventdata.Annotation [1 1]>
+matlab.graphics.primitive.Patch	SeriesIndex	'none'
+matlab.graphics.primitive.Surface	CData	<double [3 3]>
+matlab.graphics.primitive.Surface	CDataMode	'manual'
+matlab.graphics.primitive.Surface	CDataMapping	'scaled'
+matlab.graphics.primitive.Surface	AlphaData	1
+matlab.graphics.primitive.Surface	EdgeColor	[0 0 0]
+matlab.graphics.primitive.Surface	MeshStyle	'both'
+matlab.graphics.primitive.Surface	EdgeAlpha	1
+matlab.graphics.primitive.Surface	FaceColor	'flat'
+matlab.graphics.primitive.Surface	FaceAlpha	1
+matlab.graphics.primitive.Surface	LineStyle	'-'
+matlab.graphics.primitive.Surface	LineWidth	0.5
+matlab.graphics.primitive.Surface	AmbientStrength	0.3
+matlab.graphics.primitive.Surface	DiffuseStrength	0.6
+matlab.graphics.primitive.Surface	SpecularStrength	0.9
+matlab.graphics.primitive.Surface	SpecularExponent	10
+matlab.graphics.primitive.Surface	SpecularColorReflectance	1
+matlab.graphics.primitive.Surface	Marker	'none'
+matlab.graphics.primitive.Surface	MarkerSize	6
+matlab.graphics.primitive.Surface	MarkerEdgeColor	'auto'
+matlab.graphics.primitive.Surface	MarkerFaceColor	'none'
+matlab.graphics.primitive.Surface	Clipping	'on'
+matlab.graphics.primitive.Surface	AlignVertexCenters	'off'
+matlab.graphics.primitive.Surface	AlphaDataMapping	'scaled'
+matlab.graphics.primitive.Surface	EdgeLighting	'none'
+matlab.graphics.primitive.Surface	FaceLighting	'flat'
+matlab.graphics.primitive.Surface	BackFaceLighting	'reverselit'
+matlab.graphics.primitive.Surface	VertexNormalsMode	'auto'
+matlab.graphics.primitive.Surface	VertexNormals	<double [3 3 3]>
+matlab.graphics.primitive.Surface	FaceNormalsMode	'auto'
+matlab.graphics.primitive.Surface	FaceNormals	<double [2 2 3]>
+matlab.graphics.primitive.Surface	XData	[1 2 3]
+matlab.graphics.primitive.Surface	XDataMode	'manual'
+matlab.graphics.primitive.Surface	YData	[1;2;3]
+matlab.graphics.primitive.Surface	YDataMode	'manual'
+matlab.graphics.primitive.Surface	ZData	<double [3 3]>
+matlab.graphics.primitive.Surface	Children	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.primitive.Surface	Parent	<matlab.graphics.axis.Axes [1 1]>
+matlab.graphics.primitive.Surface	Visible	'on'
+matlab.graphics.primitive.Surface	HandleVisibility	'on'
+matlab.graphics.primitive.Surface	ButtonDownFcn	''
+matlab.graphics.primitive.Surface	ContextMenu	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.primitive.Surface	BusyAction	'queue'
+matlab.graphics.primitive.Surface	BeingDeleted	'off'
+matlab.graphics.primitive.Surface	Interruptible	'on'
+matlab.graphics.primitive.Surface	CreateFcn	''
+matlab.graphics.primitive.Surface	DeleteFcn	''
+matlab.graphics.primitive.Surface	Type	'surface'
+matlab.graphics.primitive.Surface	Tag	''
+matlab.graphics.primitive.Surface	UserData	[]
+matlab.graphics.primitive.Surface	Selected	'off'
+matlab.graphics.primitive.Surface	SelectionHighlight	'on'
+matlab.graphics.primitive.Surface	HitTest	'on'
+matlab.graphics.primitive.Surface	PickableParts	'visible'
+matlab.graphics.primitive.Surface	DisplayName	'data3'
+matlab.graphics.primitive.Surface	Annotation	<matlab.graphics.eventdata.Annotation [1 1]>
+matlab.graphics.primitive.Image	Clipping	'on'
+matlab.graphics.primitive.Image	Interpolation	'nearest'
+matlab.graphics.primitive.Image	AlphaData	1
+matlab.graphics.primitive.Image	AlphaDataMapping	'none'
+matlab.graphics.primitive.Image	CData	<double [3 3]>
+matlab.graphics.primitive.Image	CDataMapping	'direct'
+matlab.graphics.primitive.Image	XData	[1 3]
+matlab.graphics.primitive.Image	YData	[1 3]
+matlab.graphics.primitive.Image	MaxRenderedResolution	'none'
+matlab.graphics.primitive.Image	Children	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.primitive.Image	Parent	<matlab.graphics.axis.Axes [1 1]>
+matlab.graphics.primitive.Image	Visible	'on'
+matlab.graphics.primitive.Image	HandleVisibility	'on'
+matlab.graphics.primitive.Image	ButtonDownFcn	''
+matlab.graphics.primitive.Image	ContextMenu	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.primitive.Image	BusyAction	'queue'
+matlab.graphics.primitive.Image	BeingDeleted	'off'
+matlab.graphics.primitive.Image	Interruptible	'on'
+matlab.graphics.primitive.Image	CreateFcn	''
+matlab.graphics.primitive.Image	DeleteFcn	''
+matlab.graphics.primitive.Image	Type	'image'
+matlab.graphics.primitive.Image	Tag	''
+matlab.graphics.primitive.Image	UserData	[]
+matlab.graphics.primitive.Image	Selected	'off'
+matlab.graphics.primitive.Image	SelectionHighlight	'on'
+matlab.graphics.primitive.Image	HitTest	'on'
+matlab.graphics.primitive.Image	PickableParts	'visible'
+matlab.graphics.chart.primitive.Bar	BarLayout	'grouped'
+matlab.graphics.chart.primitive.Bar	BarWidth	0.8
+matlab.graphics.chart.primitive.Bar	BaseLine	<matlab.graphics.axis.decorator.Baseline [1 1]>
+matlab.graphics.chart.primitive.Bar	EdgeColor	[0 0 0]
+matlab.graphics.chart.primitive.Bar	EdgeAlpha	1
+matlab.graphics.chart.primitive.Bar	FaceColor	[0.85 0.325 0.098]
+matlab.graphics.chart.primitive.Bar	FaceColorMode	'auto'
+matlab.graphics.chart.primitive.Bar	CData	<double [3 3]>
+matlab.graphics.chart.primitive.Bar	CDataMode	'auto'
+matlab.graphics.chart.primitive.Bar	FaceAlpha	1
+matlab.graphics.chart.primitive.Bar	Horizontal	'off'
+matlab.graphics.chart.primitive.Bar	LineStyle	'-'
+matlab.graphics.chart.primitive.Bar	LineWidth	0.5
+matlab.graphics.chart.primitive.Bar	XEndPoints	[1 2 3]
+matlab.graphics.chart.primitive.Bar	YEndPoints	[1 2 3]
+matlab.graphics.chart.primitive.Bar	Clipping	'on'
+matlab.graphics.chart.primitive.Bar	Children	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.chart.primitive.Bar	Parent	<matlab.graphics.axis.Axes [1 1]>
+matlab.graphics.chart.primitive.Bar	Visible	'on'
+matlab.graphics.chart.primitive.Bar	HandleVisibility	'on'
+matlab.graphics.chart.primitive.Bar	ButtonDownFcn	''
+matlab.graphics.chart.primitive.Bar	ContextMenu	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.chart.primitive.Bar	BusyAction	'queue'
+matlab.graphics.chart.primitive.Bar	BeingDeleted	'off'
+matlab.graphics.chart.primitive.Bar	Interruptible	'on'
+matlab.graphics.chart.primitive.Bar	CreateFcn	''
+matlab.graphics.chart.primitive.Bar	DeleteFcn	''
+matlab.graphics.chart.primitive.Bar	Type	'bar'
+matlab.graphics.chart.primitive.Bar	Tag	''
+matlab.graphics.chart.primitive.Bar	UserData	[]
+matlab.graphics.chart.primitive.Bar	Selected	'off'
+matlab.graphics.chart.primitive.Bar	SelectionHighlight	'on'
+matlab.graphics.chart.primitive.Bar	HitTest	'on'
+matlab.graphics.chart.primitive.Bar	PickableParts	'visible'
+matlab.graphics.chart.primitive.Bar	DisplayName	'data4'
+matlab.graphics.chart.primitive.Bar	Annotation	<matlab.graphics.eventdata.Annotation [1 1]>
+matlab.graphics.chart.primitive.Bar	SeriesIndex	2
+matlab.graphics.chart.primitive.Bar	XData	[1 2 3]
+matlab.graphics.chart.primitive.Bar	XDataMode	'auto'
+matlab.graphics.chart.primitive.Bar	XDataSource	''
+matlab.graphics.chart.primitive.Bar	YData	[1 2 3]
+matlab.graphics.chart.primitive.Bar	YDataSource	''
+matlab.graphics.chart.primitive.Bar	DataTipTemplate	<matlab.graphics.datatip.DataTipTemplate [1 1]>
+matlab.graphics.chart.primitive.Bar	BaseValue	0
+matlab.graphics.chart.primitive.Bar	ShowBaseLine	'on'
+matlab.graphics.chart.primitive.Scatter	Marker	'o'
+matlab.graphics.chart.primitive.Scatter	MarkerFaceColor	'none'
+matlab.graphics.chart.primitive.Scatter	MarkerFaceAlpha	1
+matlab.graphics.chart.primitive.Scatter	XData	[1 2]
+matlab.graphics.chart.primitive.Scatter	XDataMode	'manual'
+matlab.graphics.chart.primitive.Scatter	XVariable	''
+matlab.graphics.chart.primitive.Scatter	YData	[3 4]
+matlab.graphics.chart.primitive.Scatter	YDataMode	'manual'
+matlab.graphics.chart.primitive.Scatter	YVariable	''
+matlab.graphics.chart.primitive.Scatter	ZData	zeros(1,0)
+matlab.graphics.chart.primitive.Scatter	ZDataMode	'auto'
+matlab.graphics.chart.primitive.Scatter	ZVariable	''
+matlab.graphics.chart.primitive.Scatter	XDataSource	''
+matlab.graphics.chart.primitive.Scatter	YDataSource	''
+matlab.graphics.chart.primitive.Scatter	ZDataSource	''
+matlab.graphics.chart.primitive.Scatter	SizeData	36
+matlab.graphics.chart.primitive.Scatter	SizeDataMode	'auto'
+matlab.graphics.chart.primitive.Scatter	SizeVariable	''
+matlab.graphics.chart.primitive.Scatter	SizeDataSource	''
+matlab.graphics.chart.primitive.Scatter	CData	[0.929 0.694 0.125]
+matlab.graphics.chart.primitive.Scatter	CDataMode	'auto'
+matlab.graphics.chart.primitive.Scatter	ColorVariable	''
+matlab.graphics.chart.primitive.Scatter	CDataSource	''
+matlab.graphics.chart.primitive.Scatter	AlphaData	zeros(1,0)
+matlab.graphics.chart.primitive.Scatter	AlphaDataMode	'auto'
+matlab.graphics.chart.primitive.Scatter	AlphaVariable	''
+matlab.graphics.chart.primitive.Scatter	AlphaDataMapping	'scaled'
+matlab.graphics.chart.primitive.Scatter	LineWidth	0.5
+matlab.graphics.chart.primitive.Scatter	MarkerEdgeColor	'flat'
+matlab.graphics.chart.primitive.Scatter	MarkerEdgeAlpha	1
+matlab.graphics.chart.primitive.Scatter	Clipping	'on'
+matlab.graphics.chart.primitive.Scatter	XJitter	'none'
+matlab.graphics.chart.primitive.Scatter	YJitter	'none'
+matlab.graphics.chart.primitive.Scatter	ZJitter	'none'
+matlab.graphics.chart.primitive.Scatter	XJitterWidth	0.9
+matlab.graphics.chart.primitive.Scatter	YJitterWidth	0.9
+matlab.graphics.chart.primitive.Scatter	ZJitterWidth	0.9
+matlab.graphics.chart.primitive.Scatter	Children	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.chart.primitive.Scatter	Parent	<matlab.graphics.axis.Axes [1 1]>
+matlab.graphics.chart.primitive.Scatter	Visible	'on'
+matlab.graphics.chart.primitive.Scatter	HandleVisibility	'on'
+matlab.graphics.chart.primitive.Scatter	SourceTable	<table [0 0]>
+matlab.graphics.chart.primitive.Scatter	ButtonDownFcn	''
+matlab.graphics.chart.primitive.Scatter	ContextMenu	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.chart.primitive.Scatter	BusyAction	'queue'
+matlab.graphics.chart.primitive.Scatter	BeingDeleted	'off'
+matlab.graphics.chart.primitive.Scatter	Interruptible	'on'
+matlab.graphics.chart.primitive.Scatter	CreateFcn	''
+matlab.graphics.chart.primitive.Scatter	DeleteFcn	''
+matlab.graphics.chart.primitive.Scatter	Type	'scatter'
+matlab.graphics.chart.primitive.Scatter	Tag	''
+matlab.graphics.chart.primitive.Scatter	UserData	[]
+matlab.graphics.chart.primitive.Scatter	Selected	'off'
+matlab.graphics.chart.primitive.Scatter	SelectionHighlight	'on'
+matlab.graphics.chart.primitive.Scatter	HitTest	'on'
+matlab.graphics.chart.primitive.Scatter	PickableParts	'visible'
+matlab.graphics.chart.primitive.Scatter	DisplayName	'data5'
+matlab.graphics.chart.primitive.Scatter	Annotation	<matlab.graphics.eventdata.Annotation [1 1]>
+matlab.graphics.chart.primitive.Scatter	SeriesIndex	3
+matlab.graphics.chart.primitive.Scatter	DataTipTemplate	<matlab.graphics.datatip.DataTipTemplate [1 1]>
+matlab.graphics.chart.decoration.ConstantLine	Value	1
+matlab.graphics.chart.decoration.ConstantLine	InterceptAxis	'x'
+matlab.graphics.chart.decoration.ConstantLine	Label	''
+matlab.graphics.chart.decoration.ConstantLine	FontAngle	'normal'
+matlab.graphics.chart.decoration.ConstantLine	FontSize	10
+matlab.graphics.chart.decoration.ConstantLine	FontName	'Helvetica'
+matlab.graphics.chart.decoration.ConstantLine	FontWeight	'normal'
+matlab.graphics.chart.decoration.ConstantLine	Interpreter	'tex'
+matlab.graphics.chart.decoration.ConstantLine	LabelOrientation	'aligned'
+matlab.graphics.chart.decoration.ConstantLine	LabelHorizontalAlignment	'right'
+matlab.graphics.chart.decoration.ConstantLine	LabelVerticalAlignment	'top'
+matlab.graphics.chart.decoration.ConstantLine	Alpha	0.7
+matlab.graphics.chart.decoration.ConstantLine	LineWidth	0.5
+matlab.graphics.chart.decoration.ConstantLine	Color	[0.15 0.15 0.15]
+matlab.graphics.chart.decoration.ConstantLine	LineStyle	'-'
+matlab.graphics.chart.decoration.ConstantLine	ColorMode	'auto'
+matlab.graphics.chart.decoration.ConstantLine	LineStyleMode	'auto'
+matlab.graphics.chart.decoration.ConstantLine	Children	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.chart.decoration.ConstantLine	Parent	<matlab.graphics.axis.Axes [1 1]>
+matlab.graphics.chart.decoration.ConstantLine	Visible	'on'
+matlab.graphics.chart.decoration.ConstantLine	HandleVisibility	'on'
+matlab.graphics.chart.decoration.ConstantLine	DisplayName	'data6'
+matlab.graphics.chart.decoration.ConstantLine	Annotation	<matlab.graphics.eventdata.Annotation [1 1]>
+matlab.graphics.chart.decoration.ConstantLine	Type	'constantline'
+matlab.graphics.chart.decoration.ConstantLine	Tag	''
+matlab.graphics.chart.decoration.ConstantLine	UserData	[]
+matlab.graphics.chart.decoration.ConstantLine	ButtonDownFcn	''
+matlab.graphics.chart.decoration.ConstantLine	ContextMenu	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.chart.decoration.ConstantLine	BusyAction	'queue'
+matlab.graphics.chart.decoration.ConstantLine	BeingDeleted	'off'
+matlab.graphics.chart.decoration.ConstantLine	Interruptible	'on'
+matlab.graphics.chart.decoration.ConstantLine	CreateFcn	''
+matlab.graphics.chart.decoration.ConstantLine	DeleteFcn	''
+matlab.graphics.chart.decoration.ConstantLine	Selected	'off'
+matlab.graphics.chart.decoration.ConstantLine	SelectionHighlight	'on'
+matlab.graphics.chart.decoration.ConstantLine	HitTest	'on'
+matlab.graphics.chart.decoration.ConstantLine	PickableParts	'visible'
+matlab.graphics.chart.decoration.ConstantLine	SeriesIndex	'none'
+matlab.graphics.chart.decoration.ConstantRegion	Value	[1 2]
+matlab.graphics.chart.decoration.ConstantRegion	InterceptAxis	'x'
+matlab.graphics.chart.decoration.ConstantRegion	LineWidth	0.5
+matlab.graphics.chart.decoration.ConstantRegion	EdgeColor	'none'
+matlab.graphics.chart.decoration.ConstantRegion	EdgeAlpha	1
+matlab.graphics.chart.decoration.ConstantRegion	LineStyle	'-'
+matlab.graphics.chart.decoration.ConstantRegion	FaceColor	[0.4902 0.4902 0.4902]
+matlab.graphics.chart.decoration.ConstantRegion	FaceAlpha	0.3
+matlab.graphics.chart.decoration.ConstantRegion	FaceColorMode	'auto'
+matlab.graphics.chart.decoration.ConstantRegion	Children	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.chart.decoration.ConstantRegion	Parent	<matlab.graphics.axis.Axes [1 1]>
+matlab.graphics.chart.decoration.ConstantRegion	Visible	'on'
+matlab.graphics.chart.decoration.ConstantRegion	HandleVisibility	'on'
+matlab.graphics.chart.decoration.ConstantRegion	DisplayName	'data7'
+matlab.graphics.chart.decoration.ConstantRegion	Annotation	<matlab.graphics.eventdata.Annotation [1 1]>
+matlab.graphics.chart.decoration.ConstantRegion	Type	'constantregion'
+matlab.graphics.chart.decoration.ConstantRegion	Tag	''
+matlab.graphics.chart.decoration.ConstantRegion	UserData	[]
+matlab.graphics.chart.decoration.ConstantRegion	ButtonDownFcn	''
+matlab.graphics.chart.decoration.ConstantRegion	ContextMenu	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.chart.decoration.ConstantRegion	BusyAction	'queue'
+matlab.graphics.chart.decoration.ConstantRegion	BeingDeleted	'off'
+matlab.graphics.chart.decoration.ConstantRegion	Interruptible	'on'
+matlab.graphics.chart.decoration.ConstantRegion	CreateFcn	''
+matlab.graphics.chart.decoration.ConstantRegion	DeleteFcn	''
+matlab.graphics.chart.decoration.ConstantRegion	Selected	'off'
+matlab.graphics.chart.decoration.ConstantRegion	SelectionHighlight	'on'
+matlab.graphics.chart.decoration.ConstantRegion	HitTest	'on'
+matlab.graphics.chart.decoration.ConstantRegion	PickableParts	'visible'
+matlab.graphics.chart.decoration.ConstantRegion	SeriesIndex	'none'
+matlab.graphics.chart.primitive.ErrorBar	AlignVertexCenters	'on'
+matlab.graphics.chart.primitive.ErrorBar	CapSize	6
+matlab.graphics.chart.primitive.ErrorBar	Clipping	'on'
+matlab.graphics.chart.primitive.ErrorBar	Color	[0.494 0.184 0.556]
+matlab.graphics.chart.primitive.ErrorBar	ColorMode	'auto'
+matlab.graphics.chart.primitive.ErrorBar	LineWidth	0.5
+matlab.graphics.chart.primitive.ErrorBar	LineStyle	'-'
+matlab.graphics.chart.primitive.ErrorBar	LineStyleMode	'auto'
+matlab.graphics.chart.primitive.ErrorBar	Marker	'none'
+matlab.graphics.chart.primitive.ErrorBar	MarkerMode	'auto'
+matlab.graphics.chart.primitive.ErrorBar	MarkerEdgeColor	'auto'
+matlab.graphics.chart.primitive.ErrorBar	MarkerFaceColor	'none'
+matlab.graphics.chart.primitive.ErrorBar	MarkerSize	6
+matlab.graphics.chart.primitive.ErrorBar	XNegativeDelta	zeros(1,0)
+matlab.graphics.chart.primitive.ErrorBar	XNegativeDeltaSource	''
+matlab.graphics.chart.primitive.ErrorBar	XPositiveDelta	zeros(1,0)
+matlab.graphics.chart.primitive.ErrorBar	XPositiveDeltaSource	''
+matlab.graphics.chart.primitive.ErrorBar	YNegativeDelta	[0.1 0.2]
+matlab.graphics.chart.primitive.ErrorBar	YNegativeDeltaSource	''
+matlab.graphics.chart.primitive.ErrorBar	YPositiveDelta	[0.1 0.2]
+matlab.graphics.chart.primitive.ErrorBar	YPositiveDeltaSource	''
+matlab.graphics.chart.primitive.ErrorBar	Children	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.chart.primitive.ErrorBar	Parent	<matlab.graphics.axis.Axes [1 1]>
+matlab.graphics.chart.primitive.ErrorBar	Visible	'on'
+matlab.graphics.chart.primitive.ErrorBar	HandleVisibility	'on'
+matlab.graphics.chart.primitive.ErrorBar	ButtonDownFcn	''
+matlab.graphics.chart.primitive.ErrorBar	ContextMenu	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.chart.primitive.ErrorBar	BusyAction	'queue'
+matlab.graphics.chart.primitive.ErrorBar	BeingDeleted	'off'
+matlab.graphics.chart.primitive.ErrorBar	Interruptible	'on'
+matlab.graphics.chart.primitive.ErrorBar	CreateFcn	''
+matlab.graphics.chart.primitive.ErrorBar	DeleteFcn	''
+matlab.graphics.chart.primitive.ErrorBar	Type	'errorbar'
+matlab.graphics.chart.primitive.ErrorBar	Tag	''
+matlab.graphics.chart.primitive.ErrorBar	UserData	[]
+matlab.graphics.chart.primitive.ErrorBar	Selected	'off'
+matlab.graphics.chart.primitive.ErrorBar	SelectionHighlight	'on'
+matlab.graphics.chart.primitive.ErrorBar	HitTest	'on'
+matlab.graphics.chart.primitive.ErrorBar	PickableParts	'visible'
+matlab.graphics.chart.primitive.ErrorBar	DisplayName	'data8'
+matlab.graphics.chart.primitive.ErrorBar	Annotation	<matlab.graphics.eventdata.Annotation [1 1]>
+matlab.graphics.chart.primitive.ErrorBar	SeriesIndex	4
+matlab.graphics.chart.primitive.ErrorBar	XData	[1 2]
+matlab.graphics.chart.primitive.ErrorBar	XDataMode	'manual'
+matlab.graphics.chart.primitive.ErrorBar	XDataSource	''
+matlab.graphics.chart.primitive.ErrorBar	YData	[3 4]
+matlab.graphics.chart.primitive.ErrorBar	YDataSource	''
+matlab.graphics.chart.primitive.ErrorBar	DataTipTemplate	<matlab.graphics.datatip.DataTipTemplate [1 1]>
+matlab.graphics.chart.primitive.Stair	XData	[1 2 3]
+matlab.graphics.chart.primitive.Stair	XDataMode	'auto'
+matlab.graphics.chart.primitive.Stair	XVariable	''
+matlab.graphics.chart.primitive.Stair	YData	[1 2 3]
+matlab.graphics.chart.primitive.Stair	YDataMode	'manual'
+matlab.graphics.chart.primitive.Stair	YVariable	''
+matlab.graphics.chart.primitive.Stair	XDataSource	''
+matlab.graphics.chart.primitive.Stair	YDataSource	''
+matlab.graphics.chart.primitive.Stair	Color	[0.466 0.674 0.188]
+matlab.graphics.chart.primitive.Stair	ColorMode	'auto'
+matlab.graphics.chart.primitive.Stair	LineStyle	'-'
+matlab.graphics.chart.primitive.Stair	LineStyleMode	'auto'
+matlab.graphics.chart.primitive.Stair	LineWidth	0.5
+matlab.graphics.chart.primitive.Stair	Marker	'none'
+matlab.graphics.chart.primitive.Stair	MarkerMode	'auto'
+matlab.graphics.chart.primitive.Stair	MarkerSize	6
+matlab.graphics.chart.primitive.Stair	MarkerEdgeColor	'auto'
+matlab.graphics.chart.primitive.Stair	MarkerFaceColor	'none'
+matlab.graphics.chart.primitive.Stair	Clipping	'on'
+matlab.graphics.chart.primitive.Stair	Children	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.chart.primitive.Stair	Parent	<matlab.graphics.axis.Axes [1 1]>
+matlab.graphics.chart.primitive.Stair	Visible	'on'
+matlab.graphics.chart.primitive.Stair	HandleVisibility	'on'
+matlab.graphics.chart.primitive.Stair	SourceTable	<table [0 0]>
+matlab.graphics.chart.primitive.Stair	ButtonDownFcn	''
+matlab.graphics.chart.primitive.Stair	ContextMenu	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.chart.primitive.Stair	BusyAction	'queue'
+matlab.graphics.chart.primitive.Stair	BeingDeleted	'off'
+matlab.graphics.chart.primitive.Stair	Interruptible	'on'
+matlab.graphics.chart.primitive.Stair	CreateFcn	''
+matlab.graphics.chart.primitive.Stair	DeleteFcn	''
+matlab.graphics.chart.primitive.Stair	Type	'stair'
+matlab.graphics.chart.primitive.Stair	Tag	''
+matlab.graphics.chart.primitive.Stair	UserData	[]
+matlab.graphics.chart.primitive.Stair	Selected	'off'
+matlab.graphics.chart.primitive.Stair	SelectionHighlight	'on'
+matlab.graphics.chart.primitive.Stair	HitTest	'on'
+matlab.graphics.chart.primitive.Stair	PickableParts	'visible'
+matlab.graphics.chart.primitive.Stair	DisplayName	'data9'
+matlab.graphics.chart.primitive.Stair	Annotation	<matlab.graphics.eventdata.Annotation [1 1]>
+matlab.graphics.chart.primitive.Stair	SeriesIndex	5
+matlab.graphics.chart.primitive.Stair	DataTipTemplate	<matlab.graphics.datatip.DataTipTemplate [1 1]>
+matlab.graphics.chart.primitive.Area	AlignVertexCenters	'off'
+matlab.graphics.chart.primitive.Area	LineWidth	0.5
+matlab.graphics.chart.primitive.Area	LineStyle	'-'
+matlab.graphics.chart.primitive.Area	EdgeColor	[0 0 0]
+matlab.graphics.chart.primitive.Area	EdgeAlpha	1
+matlab.graphics.chart.primitive.Area	FaceColor	[0.301 0.745 0.933]
+matlab.graphics.chart.primitive.Area	FaceColorMode	'auto'
+matlab.graphics.chart.primitive.Area	FaceAlpha	1
+matlab.graphics.chart.primitive.Area	Clipping	'on'
+matlab.graphics.chart.primitive.Area	BaseLine	<matlab.graphics.axis.decorator.Baseline [1 1]>
+matlab.graphics.chart.primitive.Area	Children	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.chart.primitive.Area	Parent	<matlab.graphics.axis.Axes [1 1]>
+matlab.graphics.chart.primitive.Area	Visible	'on'
+matlab.graphics.chart.primitive.Area	HandleVisibility	'on'
+matlab.graphics.chart.primitive.Area	ButtonDownFcn	''
+matlab.graphics.chart.primitive.Area	ContextMenu	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.chart.primitive.Area	BusyAction	'queue'
+matlab.graphics.chart.primitive.Area	BeingDeleted	'off'
+matlab.graphics.chart.primitive.Area	Interruptible	'on'
+matlab.graphics.chart.primitive.Area	CreateFcn	''
+matlab.graphics.chart.primitive.Area	DeleteFcn	''
+matlab.graphics.chart.primitive.Area	Type	'area'
+matlab.graphics.chart.primitive.Area	Tag	''
+matlab.graphics.chart.primitive.Area	UserData	[]
+matlab.graphics.chart.primitive.Area	Selected	'off'
+matlab.graphics.chart.primitive.Area	SelectionHighlight	'on'
+matlab.graphics.chart.primitive.Area	HitTest	'on'
+matlab.graphics.chart.primitive.Area	PickableParts	'visible'
+matlab.graphics.chart.primitive.Area	DisplayName	'data10'
+matlab.graphics.chart.primitive.Area	Annotation	<matlab.graphics.eventdata.Annotation [1 1]>
+matlab.graphics.chart.primitive.Area	SeriesIndex	6
+matlab.graphics.chart.primitive.Area	XData	[1 2 3]
+matlab.graphics.chart.primitive.Area	XDataMode	'auto'
+matlab.graphics.chart.primitive.Area	XDataSource	''
+matlab.graphics.chart.primitive.Area	YData	[1 2 3]
+matlab.graphics.chart.primitive.Area	YDataSource	''
+matlab.graphics.chart.primitive.Area	DataTipTemplate	<matlab.graphics.datatip.DataTipTemplate [1 1]>
+matlab.graphics.chart.primitive.Area	BaseValue	0
+matlab.graphics.chart.primitive.Area	ShowBaseLine	'on'
+matlab.graphics.chart.primitive.Stem	XData	[1 2 3]
+matlab.graphics.chart.primitive.Stem	XDataMode	'auto'
+matlab.graphics.chart.primitive.Stem	XVariable	''
+matlab.graphics.chart.primitive.Stem	YData	[1 2 3]
+matlab.graphics.chart.primitive.Stem	YDataMode	'manual'
+matlab.graphics.chart.primitive.Stem	YVariable	''
+matlab.graphics.chart.primitive.Stem	ZData	zeros(1,0)
+matlab.graphics.chart.primitive.Stem	ZDataMode	'auto'
+matlab.graphics.chart.primitive.Stem	ZVariable	''
+matlab.graphics.chart.primitive.Stem	XDataSource	''
+matlab.graphics.chart.primitive.Stem	YDataSource	''
+matlab.graphics.chart.primitive.Stem	ZDataSource	''
+matlab.graphics.chart.primitive.Stem	BaseLine	<matlab.graphics.axis.decorator.Baseline [1 1]>
+matlab.graphics.chart.primitive.Stem	Color	[0.635 0.078 0.184]
+matlab.graphics.chart.primitive.Stem	ColorMode	'auto'
+matlab.graphics.chart.primitive.Stem	LineStyle	'-'
+matlab.graphics.chart.primitive.Stem	LineStyleMode	'auto'
+matlab.graphics.chart.primitive.Stem	LineWidth	0.5
+matlab.graphics.chart.primitive.Stem	Marker	'o'
+matlab.graphics.chart.primitive.Stem	MarkerMode	'auto'
+matlab.graphics.chart.primitive.Stem	MarkerSize	6
+matlab.graphics.chart.primitive.Stem	MarkerEdgeColor	'auto'
+matlab.graphics.chart.primitive.Stem	MarkerFaceColor	'none'
+matlab.graphics.chart.primitive.Stem	Clipping	'on'
+matlab.graphics.chart.primitive.Stem	Children	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.chart.primitive.Stem	Parent	<matlab.graphics.axis.Axes [1 1]>
+matlab.graphics.chart.primitive.Stem	Visible	'on'
+matlab.graphics.chart.primitive.Stem	HandleVisibility	'on'
+matlab.graphics.chart.primitive.Stem	SourceTable	<table [0 0]>
+matlab.graphics.chart.primitive.Stem	ButtonDownFcn	''
+matlab.graphics.chart.primitive.Stem	ContextMenu	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.chart.primitive.Stem	BusyAction	'queue'
+matlab.graphics.chart.primitive.Stem	BeingDeleted	'off'
+matlab.graphics.chart.primitive.Stem	Interruptible	'on'
+matlab.graphics.chart.primitive.Stem	CreateFcn	''
+matlab.graphics.chart.primitive.Stem	DeleteFcn	''
+matlab.graphics.chart.primitive.Stem	Type	'stem'
+matlab.graphics.chart.primitive.Stem	Tag	''
+matlab.graphics.chart.primitive.Stem	UserData	[]
+matlab.graphics.chart.primitive.Stem	Selected	'off'
+matlab.graphics.chart.primitive.Stem	SelectionHighlight	'on'
+matlab.graphics.chart.primitive.Stem	HitTest	'on'
+matlab.graphics.chart.primitive.Stem	PickableParts	'visible'
+matlab.graphics.chart.primitive.Stem	DisplayName	'data11'
+matlab.graphics.chart.primitive.Stem	Annotation	<matlab.graphics.eventdata.Annotation [1 1]>
+matlab.graphics.chart.primitive.Stem	SeriesIndex	7
+matlab.graphics.chart.primitive.Stem	DataTipTemplate	<matlab.graphics.datatip.DataTipTemplate [1 1]>
+matlab.graphics.chart.primitive.Stem	BaseValue	0
+matlab.graphics.chart.primitive.Stem	ShowBaseLine	'on'
+matlab.graphics.chart.primitive.Histogram	Data	<double [10 1]>
+matlab.graphics.chart.primitive.Histogram	BinCounts	[3 6 1]
+matlab.graphics.chart.primitive.Histogram	NumBins	3
+matlab.graphics.chart.primitive.Histogram	BinEdges	[-3 0 3 6]
+matlab.graphics.chart.primitive.Histogram	BinWidth	3
+matlab.graphics.chart.primitive.Histogram	BinMethod	'auto'
+matlab.graphics.chart.primitive.Histogram	BinLimits	[-3 6]
+matlab.graphics.chart.primitive.Histogram	Normalization	'count'
+matlab.graphics.chart.primitive.Histogram	FaceColor	'auto'
+matlab.graphics.chart.primitive.Histogram	EdgeColor	[0 0 0]
+matlab.graphics.chart.primitive.Histogram	LineWidth	0.5
+matlab.graphics.chart.primitive.Histogram	LineStyle	'-'
+matlab.graphics.chart.primitive.Histogram	BinCountsMode	'auto'
+matlab.graphics.chart.primitive.Histogram	BinLimitsMode	'auto'
+matlab.graphics.chart.primitive.Histogram	Orientation	'vertical'
+matlab.graphics.chart.primitive.Histogram	DisplayStyle	'bar'
+matlab.graphics.chart.primitive.Histogram	FaceAlpha	0.6
+matlab.graphics.chart.primitive.Histogram	EdgeAlpha	1
+matlab.graphics.chart.primitive.Histogram	Values	[3 6 1]
+matlab.graphics.chart.primitive.Histogram	Children	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.chart.primitive.Histogram	Parent	<matlab.graphics.axis.Axes [1 1]>
+matlab.graphics.chart.primitive.Histogram	Visible	'on'
+matlab.graphics.chart.primitive.Histogram	HandleVisibility	'on'
+matlab.graphics.chart.primitive.Histogram	DisplayName	'data12'
+matlab.graphics.chart.primitive.Histogram	Annotation	<matlab.graphics.eventdata.Annotation [1 1]>
+matlab.graphics.chart.primitive.Histogram	DataTipTemplate	<matlab.graphics.datatip.DataTipTemplate [1 1]>
+matlab.graphics.chart.primitive.Histogram	Selected	'off'
+matlab.graphics.chart.primitive.Histogram	SelectionHighlight	'on'
+matlab.graphics.chart.primitive.Histogram	HitTest	'on'
+matlab.graphics.chart.primitive.Histogram	PickableParts	'visible'
+matlab.graphics.chart.primitive.Histogram	ButtonDownFcn	''
+matlab.graphics.chart.primitive.Histogram	ContextMenu	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.chart.primitive.Histogram	BusyAction	'queue'
+matlab.graphics.chart.primitive.Histogram	BeingDeleted	'off'
+matlab.graphics.chart.primitive.Histogram	Interruptible	'on'
+matlab.graphics.chart.primitive.Histogram	CreateFcn	''
+matlab.graphics.chart.primitive.Histogram	DeleteFcn	''
+matlab.graphics.chart.primitive.Histogram	Type	'histogram'
+matlab.graphics.chart.primitive.Histogram	Tag	''
+matlab.graphics.chart.primitive.Histogram	UserData	[]
+matlab.graphics.chart.primitive.Histogram	SeriesIndex	8
+matlab.graphics.illustration.Legend	Title	<matlab.graphics.illustration.legend.Text [1 1]>
+matlab.graphics.illustration.Legend	AutoUpdate	'on'
+matlab.graphics.illustration.Legend	Box	'on'
+matlab.graphics.illustration.Legend	Color	[1 1 1]
+matlab.graphics.illustration.Legend	EdgeColor	[0.15 0.15 0.15]
+matlab.graphics.illustration.Legend	FontName	'Helvetica'
+matlab.graphics.illustration.Legend	FontSize	9
+matlab.graphics.illustration.Legend	FontAngle	'normal'
+matlab.graphics.illustration.Legend	FontWeight	'normal'
+matlab.graphics.illustration.Legend	Interpreter	'tex'
+matlab.graphics.illustration.Legend	ItemHitFcn	<function_handle [1 1]>
+matlab.graphics.illustration.Legend	LineWidth	0.5
+matlab.graphics.illustration.Legend	Location	'northeast'
+matlab.graphics.illustration.Legend	NumColumns	1
+matlab.graphics.illustration.Legend	NumColumnsMode	'auto'
+matlab.graphics.illustration.Legend	Orientation	'vertical'
+matlab.graphics.illustration.Legend	Direction	'normal'
+matlab.graphics.illustration.Legend	Position	[0.6274 0.3032 0.1571 0.5976]
+matlab.graphics.illustration.Legend	String	<cell [1 15]>
+matlab.graphics.illustration.Legend	TextColor	[0 0 0]
+matlab.graphics.illustration.Legend	Units	'normalized'
+matlab.graphics.illustration.Legend	Children	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.illustration.Legend	Parent	<matlab.ui.Figure [1 1]>
+matlab.graphics.illustration.Legend	Visible	'on'
+matlab.graphics.illustration.Legend	HandleVisibility	'on'
+matlab.graphics.illustration.Legend	ButtonDownFcn	<function_handle [1 1]>
+matlab.graphics.illustration.Legend	ContextMenu	<matlab.ui.container.ContextMenu [1 1]>
+matlab.graphics.illustration.Legend	BusyAction	'queue'
+matlab.graphics.illustration.Legend	BeingDeleted	'off'
+matlab.graphics.illustration.Legend	Interruptible	'off'
+matlab.graphics.illustration.Legend	CreateFcn	''
+matlab.graphics.illustration.Legend	DeleteFcn	''
+matlab.graphics.illustration.Legend	Type	'legend'
+matlab.graphics.illustration.Legend	Tag	'legend'
+matlab.graphics.illustration.Legend	UserData	[]
+matlab.graphics.illustration.Legend	Selected	'off'
+matlab.graphics.illustration.Legend	SelectionHighlight	'on'
+matlab.graphics.illustration.Legend	HitTest	'on'
+matlab.graphics.illustration.Legend	PickableParts	'visible'
+matlab.graphics.illustration.Legend	Layout	<matlab.ui.layout.LayoutOptions [0 0]>
+matlab.graphics.primitive.Rectangle	Curvature	[0 0]
+matlab.graphics.primitive.Rectangle	FaceColor	'none'
+matlab.graphics.primitive.Rectangle	EdgeColor	[0 0 0]
+matlab.graphics.primitive.Rectangle	EdgeColorMode	'auto'
+matlab.graphics.primitive.Rectangle	LineStyle	'-'
+matlab.graphics.primitive.Rectangle	LineWidth	0.5
+matlab.graphics.primitive.Rectangle	Clipping	'on'
+matlab.graphics.primitive.Rectangle	AlignVertexCenters	'off'
+matlab.graphics.primitive.Rectangle	Position	[0 0 1 1]
+matlab.graphics.primitive.Rectangle	Children	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.primitive.Rectangle	Parent	<matlab.graphics.axis.Axes [1 1]>
+matlab.graphics.primitive.Rectangle	Visible	'on'
+matlab.graphics.primitive.Rectangle	HandleVisibility	'on'
+matlab.graphics.primitive.Rectangle	ButtonDownFcn	''
+matlab.graphics.primitive.Rectangle	ContextMenu	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.primitive.Rectangle	BusyAction	'queue'
+matlab.graphics.primitive.Rectangle	BeingDeleted	'off'
+matlab.graphics.primitive.Rectangle	Interruptible	'on'
+matlab.graphics.primitive.Rectangle	CreateFcn	''
+matlab.graphics.primitive.Rectangle	DeleteFcn	''
+matlab.graphics.primitive.Rectangle	Type	'rectangle'
+matlab.graphics.primitive.Rectangle	Tag	''
+matlab.graphics.primitive.Rectangle	UserData	[]
+matlab.graphics.primitive.Rectangle	Selected	'off'
+matlab.graphics.primitive.Rectangle	SelectionHighlight	'on'
+matlab.graphics.primitive.Rectangle	HitTest	'on'
+matlab.graphics.primitive.Rectangle	PickableParts	'visible'
+matlab.graphics.primitive.Rectangle	SeriesIndex	'none'
+matlab.graphics.chart.primitive.Quiver	AlignVertexCenters	'off'
+matlab.graphics.chart.primitive.Quiver	AutoScale	'on'
+matlab.graphics.chart.primitive.Quiver	AutoScaleFactor	0.9
+matlab.graphics.chart.primitive.Quiver	Color	[0.85 0.325 0.098]
+matlab.graphics.chart.primitive.Quiver	ColorMode	'auto'
+matlab.graphics.chart.primitive.Quiver	LineStyle	'-'
+matlab.graphics.chart.primitive.Quiver	LineStyleMode	'auto'
+matlab.graphics.chart.primitive.Quiver	LineWidth	0.5
+matlab.graphics.chart.primitive.Quiver	Marker	'none'
+matlab.graphics.chart.primitive.Quiver	MarkerMode	'auto'
+matlab.graphics.chart.primitive.Quiver	MarkerEdgeColor	'auto'
+matlab.graphics.chart.primitive.Quiver	MarkerFaceColor	'none'
+matlab.graphics.chart.primitive.Quiver	MarkerSize	6
+matlab.graphics.chart.primitive.Quiver	MaxHeadSize	0.2
+matlab.graphics.chart.primitive.Quiver	ShowArrowHead	'on'
+matlab.graphics.chart.primitive.Quiver	Alignment	'tail'
+matlab.graphics.chart.primitive.Quiver	XData	1
+matlab.graphics.chart.primitive.Quiver	XDataMode	'manual'
+matlab.graphics.chart.primitive.Quiver	XDataSource	''
+matlab.graphics.chart.primitive.Quiver	YData	1
+matlab.graphics.chart.primitive.Quiver	YDataMode	'manual'
+matlab.graphics.chart.primitive.Quiver	YDataSource	''
+matlab.graphics.chart.primitive.Quiver	ZData	[]
+matlab.graphics.chart.primitive.Quiver	ZDataSource	''
+matlab.graphics.chart.primitive.Quiver	UData	1
+matlab.graphics.chart.primitive.Quiver	UDataSource	''
+matlab.graphics.chart.primitive.Quiver	VData	1
+matlab.graphics.chart.primitive.Quiver	VDataSource	''
+matlab.graphics.chart.primitive.Quiver	WData	[]
+matlab.graphics.chart.primitive.Quiver	WDataSource	''
+matlab.graphics.chart.primitive.Quiver	Clipping	'on'
+matlab.graphics.chart.primitive.Quiver	Children	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.chart.primitive.Quiver	Parent	<matlab.graphics.axis.Axes [1 1]>
+matlab.graphics.chart.primitive.Quiver	Visible	'on'
+matlab.graphics.chart.primitive.Quiver	HandleVisibility	'on'
+matlab.graphics.chart.primitive.Quiver	ButtonDownFcn	''
+matlab.graphics.chart.primitive.Quiver	ContextMenu	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.chart.primitive.Quiver	BusyAction	'queue'
+matlab.graphics.chart.primitive.Quiver	BeingDeleted	'off'
+matlab.graphics.chart.primitive.Quiver	Interruptible	'on'
+matlab.graphics.chart.primitive.Quiver	CreateFcn	''
+matlab.graphics.chart.primitive.Quiver	DeleteFcn	''
+matlab.graphics.chart.primitive.Quiver	Type	'quiver'
+matlab.graphics.chart.primitive.Quiver	Tag	''
+matlab.graphics.chart.primitive.Quiver	UserData	[]
+matlab.graphics.chart.primitive.Quiver	Selected	'off'
+matlab.graphics.chart.primitive.Quiver	SelectionHighlight	'on'
+matlab.graphics.chart.primitive.Quiver	HitTest	'on'
+matlab.graphics.chart.primitive.Quiver	PickableParts	'visible'
+matlab.graphics.chart.primitive.Quiver	DisplayName	'data13'
+matlab.graphics.chart.primitive.Quiver	Annotation	<matlab.graphics.eventdata.Annotation [1 1]>
+matlab.graphics.chart.primitive.Quiver	SeriesIndex	9
+matlab.graphics.chart.primitive.Quiver	DataTipTemplate	<matlab.graphics.datatip.DataTipTemplate [1 1]>
+matlab.graphics.illustration.ColorBar	Label	<matlab.graphics.primitive.Text [1 1]>
+matlab.graphics.illustration.ColorBar	Box	'on'
+matlab.graphics.illustration.ColorBar	Color	[0.15 0.15 0.15]
+matlab.graphics.illustration.ColorBar	Direction	'normal'
+matlab.graphics.illustration.ColorBar	FontAngle	'normal'
+matlab.graphics.illustration.ColorBar	FontName	'Helvetica'
+matlab.graphics.illustration.ColorBar	FontSize	9
+matlab.graphics.illustration.ColorBar	FontWeight	'normal'
+matlab.graphics.illustration.ColorBar	Limits	[-4 9]
+matlab.graphics.illustration.ColorBar	LimitsMode	'auto'
+matlab.graphics.illustration.ColorBar	LineWidth	0.5
+matlab.graphics.illustration.ColorBar	Location	'eastoutside'
+matlab.graphics.illustration.ColorBar	Position	[0.8298 0.1095 0.0381 0.8167]
+matlab.graphics.illustration.ColorBar	AxisLocation	'out'
+matlab.graphics.illustration.ColorBar	AxisLocationMode	'auto'
+matlab.graphics.illustration.ColorBar	TickDirection	'in'
+matlab.graphics.illustration.ColorBar	TickLabelInterpreter	'tex'
+matlab.graphics.illustration.ColorBar	TickLabels	<cell [7 1]>
+matlab.graphics.illustration.ColorBar	TickLabelsMode	'auto'
+matlab.graphics.illustration.ColorBar	TickLength	0.01
+matlab.graphics.illustration.ColorBar	Ticks	<double [1 7]>
+matlab.graphics.illustration.ColorBar	TicksMode	'auto'
+matlab.graphics.illustration.ColorBar	Units	'normalized'
+matlab.graphics.illustration.ColorBar	Children	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.illustration.ColorBar	Parent	<matlab.ui.Figure [1 1]>
+matlab.graphics.illustration.ColorBar	Visible	'on'
+matlab.graphics.illustration.ColorBar	HandleVisibility	'on'
+matlab.graphics.illustration.ColorBar	ButtonDownFcn	''
+matlab.graphics.illustration.ColorBar	ContextMenu	<matlab.ui.container.ContextMenu [1 1]>
+matlab.graphics.illustration.ColorBar	BusyAction	'queue'
+matlab.graphics.illustration.ColorBar	BeingDeleted	'off'
+matlab.graphics.illustration.ColorBar	Interruptible	'off'
+matlab.graphics.illustration.ColorBar	CreateFcn	''
+matlab.graphics.illustration.ColorBar	DeleteFcn	''
+matlab.graphics.illustration.ColorBar	Type	'colorbar'
+matlab.graphics.illustration.ColorBar	Tag	'Colorbar'
+matlab.graphics.illustration.ColorBar	UserData	[]
+matlab.graphics.illustration.ColorBar	Selected	'off'
+matlab.graphics.illustration.ColorBar	SelectionHighlight	'on'
+matlab.graphics.illustration.ColorBar	HitTest	'on'
+matlab.graphics.illustration.ColorBar	PickableParts	'visible'
+matlab.graphics.illustration.ColorBar	Layout	<matlab.ui.layout.LayoutOptions [0 0]>
+matlab.graphics.axis.decorator.NumericRuler	Exponent	0
+matlab.graphics.axis.decorator.NumericRuler	ExponentMode	'auto'
+matlab.graphics.axis.decorator.NumericRuler	TickLabelFormat	'%g'
+matlab.graphics.axis.decorator.NumericRuler	Scale	'linear'
+matlab.graphics.axis.decorator.NumericRuler	Direction	'normal'
+matlab.graphics.axis.decorator.NumericRuler	Limits	[-3 6]
+matlab.graphics.axis.decorator.NumericRuler	LimitsMode	'auto'
+matlab.graphics.axis.decorator.NumericRuler	TickValues	<double [1 10]>
+matlab.graphics.axis.decorator.NumericRuler	TickValuesMode	'auto'
+matlab.graphics.axis.decorator.NumericRuler	TickLabelRotation	0
+matlab.graphics.axis.decorator.NumericRuler	TickLabelRotationMode	'auto'
+matlab.graphics.axis.decorator.NumericRuler	Color	[0.15 0.15 0.15]
+matlab.graphics.axis.decorator.NumericRuler	TickLabelColor	[0.15 0.15 0.15]
+matlab.graphics.axis.decorator.NumericRuler	MinorTick	'off'
+matlab.graphics.axis.decorator.NumericRuler	MinorTickValues	<double [1 36]>
+matlab.graphics.axis.decorator.NumericRuler	MinorTickValuesMode	'auto'
+matlab.graphics.axis.decorator.NumericRuler	TickDirection	'in'
+matlab.graphics.axis.decorator.NumericRuler	TickDirectionMode	'auto'
+matlab.graphics.axis.decorator.NumericRuler	TickLength	[0.01 0.025]
+matlab.graphics.axis.decorator.NumericRuler	LineWidth	0.5
+matlab.graphics.axis.decorator.NumericRuler	TickLabels	<cell [10 1]>
+matlab.graphics.axis.decorator.NumericRuler	TickLabelsMode	'auto'
+matlab.graphics.axis.decorator.NumericRuler	FontSmoothing	'on'
+matlab.graphics.axis.decorator.NumericRuler	FontName	'Helvetica'
+matlab.graphics.axis.decorator.NumericRuler	FontSize	10
+matlab.graphics.axis.decorator.NumericRuler	FontAngle	'normal'
+matlab.graphics.axis.decorator.NumericRuler	FontWeight	'normal'
+matlab.graphics.axis.decorator.NumericRuler	Label	<matlab.graphics.primitive.Text [1 1]>
+matlab.graphics.axis.decorator.NumericRuler	LabelHorizontalAlignment	'center'
+matlab.graphics.axis.decorator.NumericRuler	LimitsChangedFcn	''
+matlab.graphics.axis.decorator.NumericRuler	TickLabelInterpreter	'tex'
+matlab.graphics.axis.decorator.NumericRuler	Children	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.axis.decorator.NumericRuler	Parent	<matlab.graphics.axis.Axes [1 1]>
+matlab.graphics.axis.decorator.NumericRuler	Visible	'on'
+matlab.graphics.axis.decorator.NumericRuler	HandleVisibility	'off'
+matlab.graphics.primitive.Line	Color	[0.929 0.694 0.125]
+matlab.graphics.primitive.Line	ColorMode	'auto'
+matlab.graphics.primitive.Line	XData	[1 2]
+matlab.graphics.primitive.Line	YData	[1 2]
+matlab.graphics.primitive.Line	LineStyle	'-'
+matlab.graphics.primitive.Line	LineStyleMode	'auto'
+matlab.graphics.primitive.Line	LineWidth	0.5
+matlab.graphics.primitive.Line	Marker	'none'
+matlab.graphics.primitive.Line	MarkerMode	'auto'
+matlab.graphics.primitive.Line	MarkerSize	6
+matlab.graphics.primitive.Line	MarkerEdgeColor	'auto'
+matlab.graphics.primitive.Line	MarkerFaceColor	'none'
+matlab.graphics.primitive.Line	Clipping	'on'
+matlab.graphics.primitive.Line	MarkerIndices	[1 2]
+matlab.graphics.primitive.Line	AlignVertexCenters	'off'
+matlab.graphics.primitive.Line	LineJoin	'round'
+matlab.graphics.primitive.Line	ZData	zeros(1,0)
+matlab.graphics.primitive.Line	Children	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.primitive.Line	Parent	<matlab.graphics.axis.Axes [1 1]>
+matlab.graphics.primitive.Line	Visible	'on'
+matlab.graphics.primitive.Line	HandleVisibility	'on'
+matlab.graphics.primitive.Line	ButtonDownFcn	''
+matlab.graphics.primitive.Line	ContextMenu	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.primitive.Line	BusyAction	'queue'
+matlab.graphics.primitive.Line	BeingDeleted	'off'
+matlab.graphics.primitive.Line	Interruptible	'on'
+matlab.graphics.primitive.Line	CreateFcn	''
+matlab.graphics.primitive.Line	DeleteFcn	''
+matlab.graphics.primitive.Line	Type	'line'
+matlab.graphics.primitive.Line	Tag	''
+matlab.graphics.primitive.Line	UserData	[]
+matlab.graphics.primitive.Line	Selected	'off'
+matlab.graphics.primitive.Line	SelectionHighlight	'on'
+matlab.graphics.primitive.Line	HitTest	'on'
+matlab.graphics.primitive.Line	PickableParts	'visible'
+matlab.graphics.primitive.Line	DisplayName	'data14'
+matlab.graphics.primitive.Line	Annotation	<matlab.graphics.eventdata.Annotation [1 1]>
+matlab.graphics.primitive.Line	AffectAutoLimits	'on'
+matlab.graphics.primitive.Line	SeriesIndex	10
+matlab.graphics.chart.primitive.Contour	ContourMatrix	<double [2 55]>
+matlab.graphics.chart.primitive.Contour	ZLocation	0
+matlab.graphics.chart.primitive.Contour	LabelColor	[0.13 0.13 0.13]
+matlab.graphics.chart.primitive.Contour	LabelSpacing	144
+matlab.graphics.chart.primitive.Contour	LabelFormat	<function_handle [1 1]>
+matlab.graphics.chart.primitive.Contour	LevelList	[-4 -2 0 2 4 6]
+matlab.graphics.chart.primitive.Contour	LevelListMode	'auto'
+matlab.graphics.chart.primitive.Contour	LevelStep	2
+matlab.graphics.chart.primitive.Contour	LevelStepMode	'auto'
+matlab.graphics.chart.primitive.Contour	FaceColor	'none'
+matlab.graphics.chart.primitive.Contour	FaceAlpha	1
+matlab.graphics.chart.primitive.Contour	EdgeColor	'flat'
+matlab.graphics.chart.primitive.Contour	EdgeAlpha	1
+matlab.graphics.chart.primitive.Contour	LineStyle	'-'
+matlab.graphics.chart.primitive.Contour	LineWidth	0.5
+matlab.graphics.chart.primitive.Contour	ShowText	'off'
+matlab.graphics.chart.primitive.Contour	TextList	[-4 -2 0 2 4 6]
+matlab.graphics.chart.primitive.Contour	TextListMode	'auto'
+matlab.graphics.chart.primitive.Contour	TextStep	2
+matlab.graphics.chart.primitive.Contour	TextStepMode	'auto'
+matlab.graphics.chart.primitive.Contour	XData	[1 2 3 4 5]
+matlab.graphics.chart.primitive.Contour	XDataMode	'auto'
+matlab.graphics.chart.primitive.Contour	XDataSource	''
+matlab.graphics.chart.primitive.Contour	YData	[1 2 3 4 5]
+matlab.graphics.chart.primitive.Contour	YDataMode	'auto'
+matlab.graphics.chart.primitive.Contour	YDataSource	''
+matlab.graphics.chart.primitive.Contour	ZData	<double [5 5]>
+matlab.graphics.chart.primitive.Contour	ZDataSource	''
+matlab.graphics.chart.primitive.Contour	Clipping	'on'
+matlab.graphics.chart.primitive.Contour	Children	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.chart.primitive.Contour	Parent	<matlab.graphics.axis.Axes [1 1]>
+matlab.graphics.chart.primitive.Contour	Visible	'on'
+matlab.graphics.chart.primitive.Contour	HandleVisibility	'on'
+matlab.graphics.chart.primitive.Contour	ButtonDownFcn	''
+matlab.graphics.chart.primitive.Contour	ContextMenu	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.chart.primitive.Contour	BusyAction	'queue'
+matlab.graphics.chart.primitive.Contour	BeingDeleted	'off'
+matlab.graphics.chart.primitive.Contour	Interruptible	'on'
+matlab.graphics.chart.primitive.Contour	CreateFcn	''
+matlab.graphics.chart.primitive.Contour	DeleteFcn	''
+matlab.graphics.chart.primitive.Contour	Type	'contour'
+matlab.graphics.chart.primitive.Contour	Tag	''
+matlab.graphics.chart.primitive.Contour	UserData	[]
+matlab.graphics.chart.primitive.Contour	Selected	'off'
+matlab.graphics.chart.primitive.Contour	SelectionHighlight	'on'
+matlab.graphics.chart.primitive.Contour	HitTest	'on'
+matlab.graphics.chart.primitive.Contour	PickableParts	'visible'
+matlab.graphics.chart.primitive.Contour	DisplayName	'data15'
+matlab.graphics.chart.primitive.Contour	Annotation	<matlab.graphics.eventdata.Annotation [1 1]>
+matlab.graphics.chart.primitive.Contour	DataTipTemplate	<matlab.graphics.datatip.DataTipTemplate [1 1]>

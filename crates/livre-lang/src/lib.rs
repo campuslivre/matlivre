@@ -16,6 +16,7 @@ pub mod builtins_archive;
 pub mod builtins_structio;
 pub mod builtins_ops;
 pub mod builtins_plot;
+pub mod builtins_plotfmt;
 pub mod builtins_geom;
 pub mod builtins_interpn;
 pub mod builtins_lang;
@@ -30,6 +31,7 @@ pub mod cplx;
 pub mod display;
 pub mod error;
 pub mod format;
+pub mod gfx;
 pub mod graphics;
 pub mod indexing;
 pub mod interp;
@@ -47,7 +49,7 @@ pub mod value;
 
 pub use display::NumFormat;
 pub use error::LangError;
-pub use graphics::{Axes, Figure, LineStyle, Marker, Series, SeriesKind, XAxisKind};
+pub use graphics::{Axes, ExportFormat, Figure, LineStyle, Marker, Series, SeriesKind, Ticks, XAxisKind};
 pub use interp::{Interpreter, Output, OutputKind, VarInfo};
 pub use value::Value;
 

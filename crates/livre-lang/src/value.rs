@@ -570,6 +570,12 @@ impl Value {
             Value::Time(t) => t.dims.clone(),
             Value::Table(t) => vec![t.nrows, t.vars.len()],
             Value::Sym(s) => s.dims.clone(),
+            Value::Object(o) if crate::gfx::is_gfx_class(&o.class.name) => match crate::gfx::ids_of(self).map(|i| i.len()) {
+                Some(1) => vec![1, 1],
+                Some(0) => vec![0, 0],
+                Some(n) => vec![n, 1],
+                None => vec![1, 1],
+            },
             Value::Func(_) | Value::Object(_) => vec![1, 1],
         }
     }

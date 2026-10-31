@@ -294,6 +294,7 @@ pub fn summary(v: &Value, f: NumFormat) -> String {
         Value::Cell(c) => format!("{} cell", nd::size_text(&c.dims)),
         Value::Struct(s) => format!("{} struct", nd::size_text(&s.dims)),
         Value::Func(fv) => func_text(fv),
+        Value::Object(o) if crate::gfx::is_gfx_class(&o.class.name) => format!("{} {}", nd::size_text(&v.dims()), o.class.name.rsplit('.').next().unwrap_or("")),
         Value::Object(o) => format!("1×1 {}", o.class.name),
         Value::Time(t) => t.summary(),
         Value::Table(t) => format!("{}×{} table", t.nrows, t.vars.len()),
@@ -392,7 +393,7 @@ fn str_body(s: &StrArray) -> String {
     grid(s.dims[0], s.dims[1..].iter().product(), &items, "    ")
 }
 
-fn struct_fields_body(s: &StructArray, f: NumFormat) -> String {
+pub(crate) fn struct_fields_body(s: &StructArray, f: NumFormat) -> String {
     let w = s.fields.iter().map(|n| n.len()).max().unwrap_or(0);
     let mut out = String::new();
     for (k, n) in s.fields.iter().enumerate() {
