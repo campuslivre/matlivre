@@ -1,5 +1,11 @@
 # MatLivre
 
+<!-- release-manager:download -->
+[![Download MatLivre 0.1.0](https://img.shields.io/badge/Download-v0.1.0-005FB8?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/campuslivre/matlivre/releases/download/v0.1.0/matlivre-win-Setup.exe)
+
+[matlivre-win-Setup.exe](https://github.com/campuslivre/matlivre/releases/download/v0.1.0/matlivre-win-Setup.exe) · Windows installer, version 0.1.0
+<!-- /release-manager:download -->
+
 A clean-room, proof-of-concept live script environment for a MATLAB-compatible language,
 written in Rust, with a Windows 11 look modeled on
 [ModernWinForms](../../CS/ModernWinForms).
