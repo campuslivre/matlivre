@@ -162,7 +162,17 @@ fn pr(e: &Expr, style: Style) -> (String, u8) {
             P_ATOM,
         ),
         Expr::Add(terms) => {
-            let ordered = ordered_terms(terms);
+            let mut ordered = ordered_terms(terms);
+            // As MATLAB prints them, a sum leads with a positive term when it has one (3 - x^2).
+            if ordered.first().is_some_and(|t| t.split_coeff().0.is_neg()) {
+                if let Some(k) = ordered.iter().position(|t| !t.split_coeff().0.is_neg()) {
+                    let t = ordered.remove(k);
+                    ordered.insert(0, t);
+                }
+            }
+            // Imaginary parts go last (2 + 3i).
+            let (real, imag): (Vec<Expr>, Vec<Expr>) = ordered.into_iter().partition(|t| !is_imag_term(t));
+            ordered = real.into_iter().chain(imag).collect();
             let mut out = String::new();
             for (k, t) in ordered.iter().enumerate() {
                 let (c, _) = t.split_coeff();
@@ -171,7 +181,8 @@ fn pr(e: &Expr, style: Style) -> (String, u8) {
                 let s = wrap(pr(&body, style), P_ADD + 1);
                 if k == 0 {
                     if negative {
-                        out.push('-');
+                        // MATLAB separates the sign of a leading negative term in a sum: - x - 1.
+                        out.push_str(if style == Style::Matlab && ordered.len() > 1 { "- " } else { "-" });
                     }
                     out.push_str(&s);
                 } else {
@@ -182,6 +193,13 @@ fn pr(e: &Expr, style: Style) -> (String, u8) {
             (out, P_ADD)
         }
         Expr::Mul(_) | Expr::Pow(..) => {
+            if let (Expr::Mul(fs), Style::Matlab) = (e, style) {
+                if let [Expr::Num(c), Expr::Const(Const::I)] | [Expr::Const(Const::I), Expr::Num(c)] = fs.as_slice() {
+                    let sign = if c.is_neg() { "-" } else { "" };
+                    let mag = if c.is_neg() { c.neg() } else { c.clone() };
+                    return (format!("{sign}{}i", num_text(&mag, style)), P_MUL);
+                }
+            }
             if let Expr::Pow(b, x) = e {
                 if !x.as_num().map(|n| n.is_neg()).unwrap_or(false) {
                     if let Some(Num::Rat(1, 2)) = x.as_num() {
@@ -365,5 +383,14 @@ mod tests {
         assert_eq!(Expr::mul(vec![Expr::rat(3, 2), x()]).to_string(), "(3*x)/2");
         assert_eq!(Expr::div(Expr::one(), x()).to_string(), "1/x");
         assert_eq!(Expr::func("sqrt", vec![x()]).to_string(), "x^(1/2)");
+    }
+}
+
+/// A numeric multiple of i (printed as `3i`).
+fn is_imag_term(t: &Expr) -> bool {
+    match t {
+        Expr::Const(Const::I) => true,
+        Expr::Mul(fs) => fs.len() == 2 && fs.iter().any(|f| matches!(f, Expr::Const(Const::I))) && fs.iter().any(|f| matches!(f, Expr::Num(_))),
+        _ => false,
     }
 }

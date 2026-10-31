@@ -36,7 +36,7 @@ const NAMES: &[&str] = &[
 pub fn exists(name: &str) -> bool {
     static ALL: std::sync::OnceLock<std::collections::HashSet<&'static str>> = std::sync::OnceLock::new();
     ALL.get_or_init(|| {
-        [NAMES, crate::builtins_elfun::NAMES, crate::builtins_datafun::NAMES, crate::builtins_lang::NAMES, crate::builtins_strings::NAMES, crate::builtins_types::NAMES, crate::builtins_dates::NAMES, crate::builtins_files::NAMES, crate::builtins_textio::NAMES, crate::builtins_data::NAMES, crate::builtins_media::NAMES, crate::builtins_archive::NAMES, crate::builtins_structio::NAMES, crate::gfx::NAMES, crate::builtins_plotfmt::NAMES, crate::builtins_graph3d::NAMES, crate::builtins_funfun::NAMES, crate::builtins_matfun::NAMES, crate::builtins_elmat::NAMES, crate::builtins_ops::NAMES, crate::builtins_specfun::NAMES, crate::polyshape::NAMES, crate::builtins_polyfun::NAMES, crate::builtins_geom::NAMES, crate::polyfun_classes::NAMES, crate::builtins_text::NAMES, crate::builtins_plot::NAMES, crate::time::NAMES, crate::table::NAMES, crate::sym::NAMES]
+        [NAMES, crate::builtins_elfun::NAMES, crate::builtins_datafun::NAMES, crate::builtins_lang::NAMES, crate::builtins_strings::NAMES, crate::builtins_types::NAMES, crate::builtins_dates::NAMES, crate::builtins_files::NAMES, crate::builtins_textio::NAMES, crate::builtins_data::NAMES, crate::builtins_media::NAMES, crate::builtins_archive::NAMES, crate::builtins_structio::NAMES, crate::gfx::NAMES, crate::builtins_plotfmt::NAMES, crate::builtins_graph3d::NAMES, crate::builtins_funfun::NAMES, crate::builtins_matfun::NAMES, crate::builtins_elmat::NAMES, crate::builtins_ops::NAMES, crate::builtins_specfun::NAMES, crate::polyshape::NAMES, crate::builtins_polyfun::NAMES, crate::builtins_geom::NAMES, crate::polyfun_classes::NAMES, crate::builtins_text::NAMES, crate::builtins_plot::NAMES, crate::time::NAMES, crate::table::NAMES, crate::sym::NAMES, crate::sym::extra::NAMES]
             .iter()
             .flat_map(|n| n.iter().copied())
             .collect()
@@ -535,7 +535,7 @@ fn element(v: &Value, k: usize, unwrap_cells: bool) -> R<Value> {
 
 pub fn call(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize) -> Ret {
     // Type families first.
-    if args.iter().any(|a| matches!(a, Value::Sym(_))) || crate::sym::NAMES.contains(&name) {
+    if args.iter().any(|a| matches!(a, Value::Sym(_))) || crate::sym::NAMES.contains(&name) || crate::sym::extra::NAMES.contains(&name) {
         if let Some(r) = crate::sym::call(it, name, args.clone(), nargout)? {
             return Ok(Some(r));
         }

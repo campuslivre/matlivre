@@ -3,6 +3,7 @@
 pub mod algebra;
 pub mod calculus;
 pub mod expr;
+pub mod extra;
 pub mod mp;
 pub mod print;
 
@@ -155,7 +156,9 @@ impl SymArray {
         let cells: Vec<String> = self.data.iter().map(|e| e.to_string()).collect();
         // Column vectors print one element per line (MATLAB's sym display).
         if c == 1 {
-            return cells.join("\n");
+            // Right-aligned, as MATLAB lines up the elements.
+            let w = cells.iter().map(|s| s.chars().count()).max().unwrap_or(0);
+            return cells.iter().map(|s| format!("{s:>w$}")).collect::<Vec<_>>().join("\n");
         }
         let widths: Vec<usize> = (0..c).map(|j| (0..r).map(|i| cells[j * r + i].chars().count()).max().unwrap_or(0)).collect();
         (0..r)
@@ -237,7 +240,7 @@ pub fn call_symfun(f: &SymArray, args: Vec<Value>) -> R<Value> {
 }
 
 /// Parses text such as `'x^2 + 1'` into a symbolic expression.
-fn parse_sym_text(text: &str) -> R<Expr> {
+pub(crate) fn parse_sym_text(text: &str) -> R<Expr> {
     let t = text.trim();
     if t.is_empty() {
         return Ok(Expr::zero());
@@ -256,7 +259,7 @@ fn parse_sym_text(text: &str) -> R<Expr> {
 }
 
 /// Converts a parsed expression (numbers, names, operators, calls) to a symbolic one.
-fn ast_to_sym(e: &crate::ast::Expr) -> R<Expr> {
+pub(crate) fn ast_to_sym(e: &crate::ast::Expr) -> R<Expr> {
     use crate::ast::Expr as A;
     Ok(match e {
         A::Num(n) => Expr::from_f64(*n),
@@ -273,6 +276,11 @@ fn ast_to_sym(e: &crate::ast::Expr) -> R<Expr> {
                 BinOp::Div | BinOp::MatDiv => Expr::div(x, y),
                 BinOp::Pow | BinOp::MatPow => Expr::pow(x, y),
                 BinOp::Eq => Expr::rel(Rel::Eq, x, y),
+                BinOp::Ne => Expr::rel(Rel::Ne, x, y),
+                BinOp::Lt => Expr::rel(Rel::Lt, x, y),
+                BinOp::Le => Expr::rel(Rel::Le, x, y),
+                BinOp::Gt => Expr::rel(Rel::Gt, x, y),
+                BinOp::Ge => Expr::rel(Rel::Ge, x, y),
                 _ => return rt("Unsupported operator in symbolic text."),
             }
         }
@@ -519,6 +527,11 @@ fn is_sym_name(s: &str) -> bool {
 }
 
 pub fn call(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize) -> R<Option<Vec<Value>>> {
+    if extra::NAMES.contains(&name) {
+        if let Some(r) = extra::call(it, name, &args, nargout)? {
+            return Ok(Some(r));
+        }
+    }
     let any_sym = args.iter().any(|a| matches!(a, Value::Sym(_)));
     if ELEMENTWISE.contains(&name) {
         if !any_sym {
