@@ -51,6 +51,8 @@ pub enum Target {
     Axes(usize, usize),
     Series(usize, usize, usize),
     Part(usize, usize, Part),
+    /// A tiled layout or annotation of figure `.0`: `figures[.0].objects[.1]`.
+    FigObj(usize, usize),
 }
 
 /// The next free handle number for an axes or plotted object.
@@ -79,6 +81,9 @@ pub fn resolve(it: &Interpreter, id: u64) -> Option<Target> {
     let base = id - (id - OBJ_BASE) % SLOTS;
     let off = (id - base) as usize;
     for (fi, f) in it.figures.iter().enumerate() {
+        if let Some(k) = f.objects.iter().position(|o| o.id == id) {
+            return Some(Target::FigObj(fi, k));
+        }
         for (ai, ax) in f.axes.iter().enumerate() {
             if ax.id == base && ax.id != 0 {
                 return match off {
@@ -110,6 +115,8 @@ fn series_class(s: &Series) -> &'static str {
         SeriesKind::ConstantLine => "matlab.graphics.chart.decoration.ConstantLine",
         SeriesKind::Region => "matlab.graphics.chart.decoration.ConstantRegion",
         SeriesKind::Surface => "matlab.graphics.chart.primitive.Surface",
+        SeriesKind::Rectangle => "matlab.graphics.primitive.Rectangle",
+        SeriesKind::Light => "matlab.graphics.primitive.Light",
         SeriesKind::Image => "matlab.graphics.primitive.Image",
         SeriesKind::Contour => "matlab.graphics.chart.primitive.Contour",
         SeriesKind::Quiver => "matlab.graphics.chart.primitive.Quiver",
@@ -125,6 +132,7 @@ fn class_of(it: &Interpreter, t: Target) -> &'static str {
         Target::Part(_, _, Part::XAxis | Part::YAxis | Part::ZAxis) => "matlab.graphics.axis.decorator.NumericRuler",
         Target::Part(_, _, Part::Legend) => "matlab.graphics.illustration.Legend",
         Target::Part(..) => "matlab.graphics.primitive.Text",
+        Target::FigObj(f, k) => it.figures[f].objects[k].kind.class(),
     }
 }
 
@@ -164,6 +172,8 @@ pub fn handles(it: &Interpreter, ids: &[u64]) -> Value {
     let class = match classes.first() {
         None => "matlab.graphics.GraphicsPlaceholder",
         Some(c) if classes.iter().all(|x| x == c) => c,
+        // Patches with text (pie) share the primitive base class.
+        _ if classes.iter().all(|c| c.starts_with("matlab.graphics.primitive.")) => "matlab.graphics.primitive.Data",
         _ => "matlab.graphics.Graphics",
     };
     let data: Vec<f64> = ids.iter().map(|&i| i as f64).collect();
@@ -536,6 +546,10 @@ fn computed(it: &mut Interpreter, id: u64, t: Target, name: &str) -> R<Option<Va
                 "DataAspectRatioMode" => Value::chars(if ax.data_aspect.is_some() { "manual" } else { "auto" }),
                 "Visible" => on_off_value(ax.visible_axes.unwrap_or(true)),
                 "Type" => Value::chars("axes"),
+                "View" => {
+                    let (az, el) = ax.view.unwrap_or((0.0, 90.0));
+                    row(&[az, el])
+                }
                 "Position" | "InnerPosition" if stored(it, id, name).is_none() => row(&[0.13, 0.11, 0.775, 0.815]),
                 "OuterPosition" if stored(it, id, name).is_none() => row(&[0.0, 0.0, 1.0, 1.0]),
                 "Title" | "XLabel" | "YLabel" | "ZLabel" | "Subtitle" | "XAxis" | "YAxis" | "ZAxis" | "Legend" => {
@@ -590,7 +604,11 @@ fn computed(it: &mut Interpreter, id: u64, t: Target, name: &str) -> R<Option<Va
                 "XData" => row(&s.x),
                 "YData" => row(&s.y),
                 "ZData" => row(&s.z),
-                "Color" | "FaceColor" if !matches!(s.kind, SeriesKind::Text | SeriesKind::Surface | SeriesKind::Image | SeriesKind::Contour) => match stored(it, id, name) {
+                "Position" if s.kind == SeriesKind::Rectangle => row(&s.u),
+                "Curvature" if s.kind == SeriesKind::Rectangle => row(&s.v),
+                "Position" if s.kind == SeriesKind::Light => row(&[s.x[0], s.y[0], s.z.first().copied().unwrap_or(0.0)]),
+                "Style" if s.kind == SeriesKind::Light => Value::chars(&s.label),
+                "Color" | "FaceColor" if !matches!(s.kind, SeriesKind::Text | SeriesKind::Surface | SeriesKind::Image | SeriesKind::Contour | SeriesKind::Rectangle | SeriesKind::Light) => match stored(it, id, name) {
                     Some(v) => v,
                     None => rgb_value(match s.color {
                         Some(c) => render_to_rgb(c),
@@ -638,6 +656,8 @@ fn computed(it: &mut Interpreter, id: u64, t: Target, name: &str) -> R<Option<Va
                     SeriesKind::Image => "image",
                     SeriesKind::Contour => "contour",
                     SeriesKind::Quiver => "quiver",
+                    SeriesKind::Rectangle => "rectangle",
+                    SeriesKind::Light => "light",
                 }),
                 "Parent" => {
                     let id = axes_id(it, f, a);
@@ -695,6 +715,34 @@ fn computed(it: &mut Interpreter, id: u64, t: Target, name: &str) -> R<Option<Va
                     let id = axes_id(it, f, a);
                     handle(it, id)
                 }
+                _ => return Ok(None),
+            }
+        }
+        Target::FigObj(f, k) => {
+            let o = &it.figures[f].objects[k];
+            let line = o.kind.is_line();
+            match name {
+                "X" if line => row(&o.x),
+                "Y" if line => row(&o.y),
+                "Position" if line => row(&[o.x[0], o.y[0], o.x[1] - o.x[0], o.y[1] - o.y[0]]),
+                "Position" if o.kind != graphics::FigObjKind::Layout => row(&o.pos),
+                "String" if matches!(o.kind, graphics::FigObjKind::TextBox | graphics::FigObjKind::TextArrow) => {
+                    Value::Cell(CellArray::row(vec![Value::chars(&o.text)]))
+                }
+                "LineWidth" => Value::num(o.line_width as f64),
+                "FontSize" => Value::num(o.font_size as f64),
+                "Visible" => on_off_value(o.visible),
+                "GridSize" if o.kind == graphics::FigObjKind::Layout => {
+                    let g = it.figures[f].grid;
+                    row(&[g.0 as f64, g.1 as f64])
+                }
+                "TileArrangement" if o.kind == graphics::FigObjKind::Layout => Value::chars(if it.figures[f].flow { "flow" } else { "fixed" }),
+                "Children" if o.kind == graphics::FigObjKind::Layout => {
+                    let n = it.figures[f].axes.len();
+                    let ids: Vec<u64> = (0..n).rev().map(|a| axes_id(it, f, a)).collect();
+                    handles(it, &ids)
+                }
+                "Parent" => handle(it, it.figures[f].id as u64),
                 _ => return Ok(None),
             }
         }
@@ -763,6 +811,13 @@ fn set_prop(it: &mut Interpreter, id: u64, name: &str, v: Value) -> R<()> {
                 }
                 "DataAspectRatioMode" if auto => ax.data_aspect = None,
                 "Visible" => ax.visible_axes = Some(on_off(&v)?),
+                "View" => {
+                    let m = v.to_matrix()?;
+                    if m.numel() != 2 {
+                        return rt("Value must be a 1x2 vector.");
+                    }
+                    ax.view = if m.data == [0.0, 90.0] { None } else { Some((m.data[0], m.data[1])) };
+                }
                 // Assigning a label's own handle (ax.XLabel.String = ... writes back XLabel).
                 "Title" | "XLabel" | "YLabel" | "ZLabel" | "Subtitle" | "XAxis" | "YAxis" | "ZAxis" | "Legend" if is_gfx(&v) => {}
                 "Children" | "Parent" | "Type" => {}
@@ -774,6 +829,36 @@ fn set_prop(it: &mut Interpreter, id: u64, name: &str, v: Value) -> R<()> {
             let s = &mut it.figures[f].axes[a].series[si];
             keep = false;
             match name {
+                "Position" | "Curvature" if s.kind == SeriesKind::Rectangle => {
+                    let m = v.to_matrix()?;
+                    if name == "Position" {
+                        if m.numel() != 4 {
+                            return rt("Value must be a 4-element vector.");
+                        }
+                        s.u = m.data;
+                    } else {
+                        s.v = if m.numel() == 1 { vec![m.data[0], m.data[0]] } else { m.data };
+                    }
+                    let (x, y) = graphics::rect_polygon(&s.u, &s.v);
+                    s.x = x;
+                    s.y = y;
+                }
+                "FaceColor" if s.kind == SeriesKind::Rectangle => {
+                    let c = color_arg(&v)?;
+                    s.face_none = c.is_none();
+                    s.color = c.map(|c| c.0);
+                    keep = true;
+                }
+                "Position" if s.kind == SeriesKind::Light => {
+                    let m = v.to_matrix()?;
+                    if m.numel() != 3 {
+                        return rt("Value must be a 1x3 vector.");
+                    }
+                    s.x = vec![m.data[0]];
+                    s.y = vec![m.data[1]];
+                    s.z = vec![m.data[2]];
+                }
+                "Style" if s.kind == SeriesKind::Light => s.label = v.text()?,
                 "XData" => s.x = v.to_matrix()?.data,
                 "YData" => s.y = v.to_matrix()?.data,
                 "FaceColor" | "EdgeColor" if s.kind == SeriesKind::Surface => {
@@ -890,6 +975,66 @@ fn set_prop(it: &mut Interpreter, id: u64, name: &str, v: Value) -> R<()> {
             } else if p == Part::Legend && name == "Visible" && !on_off(&v)? {
                 it.figures[f].axes[a].legend = None;
                 keep = false;
+            }
+        }
+        Target::FigObj(f, k) => {
+            mark(it, f);
+            keep = false;
+            let grid_arg = if name == "GridSize" { Some(v.to_matrix()?) } else { None };
+            let o = &mut it.figures[f].objects[k];
+            let line = o.kind.is_line();
+            match name {
+                "X" | "Y" if line => {
+                    let m = v.to_matrix()?;
+                    if m.numel() != 2 {
+                        return rt("Value must be a 2-element vector.");
+                    }
+                    let p = [m.data[0], m.data[1]];
+                    if name == "X" { o.x = p } else { o.y = p }
+                }
+                "Position" => {
+                    let m = v.to_matrix()?;
+                    if m.numel() != 4 {
+                        return rt("Value must be a 4-element vector.");
+                    }
+                    if line {
+                        o.x = [m.data[0], m.data[0] + m.data[2]];
+                        o.y = [m.data[1], m.data[1] + m.data[3]];
+                    } else {
+                        o.pos = [m.data[0], m.data[1], m.data[2], m.data[3]];
+                    }
+                }
+                "String" => o.text = texts(&v)?.join("\n"),
+                "Color" => {
+                    o.color = color_arg(&v)?.map(|c| c.0).unwrap_or([0, 0, 0]);
+                    keep = true;
+                }
+                "FaceColor" | "BackgroundColor" => {
+                    o.face = color_arg(&v)?.map(|c| c.0);
+                    keep = true;
+                }
+                "EdgeColor" => {
+                    o.edge = color_arg(&v)?.map(|c| c.0);
+                    keep = true;
+                }
+                "LineWidth" => o.line_width = v.scalar()? as f32,
+                "FontSize" => o.font_size = v.scalar()? as f32,
+                "Visible" => o.visible = on_off(&v)?,
+                "GridSize" => {
+                    let m = grid_arg.unwrap();
+                    if m.numel() != 2 {
+                        return rt("Value must be a 1x2 vector.");
+                    }
+                    let (r, c) = (m.data[0].max(1.0) as usize, m.data[1].max(1.0) as usize);
+                    let fig = &mut it.figures[f];
+                    fig.flow = false;
+                    if fig.grid != (r, c) {
+                        fig.grid = (r, c);
+                        fig.axes.resize(r * c, Axes::default());
+                    }
+                }
+                "Children" | "Parent" | "Type" => {}
+                _ => keep = true,
             }
         }
     }
@@ -1202,6 +1347,10 @@ fn delete_handles(it: &mut Interpreter, ids: &[u64]) -> R<()> {
             }
             Some(Target::Part(f, a, Part::Legend)) => {
                 it.figures[f].axes[a].legend = None;
+                mark(it, f);
+            }
+            Some(Target::FigObj(f, k)) => {
+                it.figures[f].objects.remove(k);
                 mark(it, f);
             }
             _ => {}

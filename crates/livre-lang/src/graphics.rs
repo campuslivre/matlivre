@@ -55,6 +55,11 @@ pub enum SeriesKind {
     Contour,
     /// Arrows from (x, y, z) along (u, v, w).
     Quiver,
+    /// `rectangle`: drawn as a patch through (x, y); `u` holds [x y w h] and `v` the curvature.
+    Rectangle,
+    /// A light (not drawn): position (x[0], y[0], z[0]); `label` is the style ('infinite' or
+    /// 'local'). It shades the surfaces and patches of its axes.
+    Light,
 }
 
 /// How x values are labeled: plain numbers, wall-clock milliseconds (datetime) or
@@ -199,6 +204,83 @@ pub struct Axes {
     pub colormap: Option<Vec<[f64; 3]>>,
     /// y increases downwards (images).
     pub y_reverse: bool,
+    /// `colororder` colors for series without their own; `None` = the skin's palette.
+    pub color_order: Option<Vec<[f64; 3]>>,
+    /// `lighting none`: lights in the axes have no effect.
+    pub lighting_none: bool,
+}
+
+/// Figure-level objects: a tiled layout or annotations (in normalized figure units, origin at
+/// the bottom left).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FigObjKind {
+    Layout,
+    Line,
+    Arrow,
+    DoubleArrow,
+    TextArrow,
+    TextBox,
+    Rectangle,
+    Ellipse,
+}
+
+impl FigObjKind {
+    pub fn class(self) -> &'static str {
+        match self {
+            FigObjKind::Layout => "matlab.graphics.layout.TiledChartLayout",
+            FigObjKind::Line => "matlab.graphics.shape.Line",
+            FigObjKind::Arrow => "matlab.graphics.shape.Arrow",
+            FigObjKind::DoubleArrow => "matlab.graphics.shape.DoubleEndArrow",
+            FigObjKind::TextArrow => "matlab.graphics.shape.TextArrow",
+            FigObjKind::TextBox => "matlab.graphics.shape.TextBox",
+            FigObjKind::Rectangle => "matlab.graphics.shape.Rectangle",
+            FigObjKind::Ellipse => "matlab.graphics.shape.Ellipse",
+        }
+    }
+
+    /// Annotations given by two points (X, Y) rather than a Position box.
+    pub fn is_line(self) -> bool {
+        matches!(self, FigObjKind::Line | FigObjKind::Arrow | FigObjKind::DoubleArrow | FigObjKind::TextArrow)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct FigObject {
+    pub id: u64,
+    pub kind: FigObjKind,
+    /// End points of line-like annotations.
+    pub x: [f64; 2],
+    pub y: [f64; 2],
+    /// [left bottom width height] of box-like annotations.
+    pub pos: [f64; 4],
+    /// The text of text boxes and text arrows, or a layout's title.
+    pub text: String,
+    pub color: [u8; 3],
+    pub face: Option<[u8; 3]>,
+    pub edge: Option<[u8; 3]>,
+    pub line_width: f32,
+    pub font_size: f32,
+    pub visible: bool,
+}
+
+impl FigObject {
+    pub fn new(id: u64, kind: FigObjKind) -> Self {
+        let line = kind.is_line() || kind == FigObjKind::Rectangle || kind == FigObjKind::Ellipse;
+        FigObject {
+            id,
+            kind,
+            x: [0.3, 0.4],
+            y: [0.3, 0.4],
+            pos: [0.3, 0.3, 0.1, 0.1],
+            text: String::new(),
+            color: [0, 0, 0],
+            face: None,
+            edge: if line || kind == FigObjKind::TextBox { Some([0, 0, 0]) } else { None },
+            line_width: 0.5,
+            font_size: 10.0,
+            visible: true,
+        }
+    }
 }
 
 /// One unit of the default tick count: MATLAB-like automatic limits, rounded out to ticks.
@@ -226,7 +308,7 @@ impl Axes {
         for s in self.series.iter().filter(|s| s.visible) {
             match s.kind {
                 // Constant lines and regions do not affect the limits.
-                SeriesKind::ConstantLine | SeriesKind::Region | SeriesKind::Text => continue,
+                SeriesKind::ConstantLine | SeriesKind::Region | SeriesKind::Text | SeriesKind::Light => continue,
                 SeriesKind::BarH => {
                     ys.extend(&s.x);
                     xs.extend(&s.y);
@@ -330,7 +412,7 @@ impl Axes {
         }
         let mut lo = f64::INFINITY;
         let mut hi = f64::NEG_INFINITY;
-        for s in self.series.iter().filter(|s| s.visible) {
+        for s in self.series.iter().filter(|s| s.visible && s.kind != SeriesKind::Light) {
             let tips: Vec<f64> = s.z.iter().zip(&s.w).map(|(z, w)| z + w).collect();
             for &z in s.z.iter().chain(&tips) {
                 if z.is_finite() {
@@ -499,11 +581,19 @@ pub struct Figure {
     pub current_axes: usize,
     /// The figure colormap (`None` = parula).
     pub colormap: Option<Vec<[f64; 3]>>,
+    /// `tiledlayout('flow')`: the grid grows to fit the tiles.
+    pub flow: bool,
+    /// Tiled layout and annotations.
+    pub objects: Vec<FigObject>,
+    /// The tile `nexttile` fills next (0-based).
+    pub next_tile: usize,
+    /// `colororder` of the figure: used by axes without their own.
+    pub color_order: Option<Vec<[f64; 3]>>,
 }
 
 impl Figure {
     pub fn new(id: u32) -> Self {
-        Self { id, name: String::new(), grid: (1, 1), axes: vec![Axes::default()], current_axes: 0, colormap: None }
+        Self { id, name: String::new(), grid: (1, 1), axes: vec![Axes::default()], current_axes: 0, colormap: None, flow: false, objects: Vec::new(), next_tile: 0, color_order: None }
     }
 
     pub fn axes_mut(&mut self) -> &mut Axes {
@@ -579,4 +669,28 @@ pub fn named_color(s: &str) -> Option<[u8; 3]> {
 pub enum ExportFormat {
     Png,
     Svg,
+}
+
+/// The outline of `rectangle` with Position [x y w h] and Curvature [cx cy] (fractions of the
+/// width and height rounded off at the corners), counter-clockwise from the bottom left.
+pub fn rect_polygon(pos: &[f64], curv: &[f64]) -> (Vec<f64>, Vec<f64>) {
+    let (x, y, w, h) = (pos[0], pos[1], pos[2], pos[3]);
+    let cx = curv.first().copied().unwrap_or(0.0).clamp(0.0, 1.0);
+    let cy = curv.get(1).copied().unwrap_or(cx).clamp(0.0, 1.0);
+    if cx == 0.0 || cy == 0.0 {
+        return (vec![x, x + w, x + w, x, x], vec![y, y, y + h, y + h, y]);
+    }
+    let (rx, ry) = (cx * w / 2.0, cy * h / 2.0);
+    let corners = [(x + w - rx, y + ry, -90.0), (x + w - rx, y + h - ry, 0.0), (x + rx, y + h - ry, 90.0), (x + rx, y + ry, 180.0)];
+    let (mut xs, mut ys) = (Vec::new(), Vec::new());
+    for (ox, oy, start) in corners {
+        for k in 0..=12 {
+            let t = (start + 90.0 * k as f64 / 12.0_f64).to_radians();
+            xs.push(ox + rx * t.cos());
+            ys.push(oy + ry * t.sin());
+        }
+    }
+    xs.push(xs[0]);
+    ys.push(ys[0]);
+    (xs, ys)
 }

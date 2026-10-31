@@ -9,6 +9,10 @@ license.workspace = true
 name = "matlivre"
 path = "src/main.rs"
 
+# Read by Release Manager: the name the installed program and its GitHub releases go by.
+[package.metadata.release-manager]
+title = "MatLivre"
+
 [dependencies]
 livre-lang = { path = "../livre-lang" }
 livre-doc = { path = "../livre-doc" }

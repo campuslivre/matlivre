@@ -14,7 +14,7 @@ pub const NAMES: &[&str] = &[
 ];
 
 impl Interpreter {
-    fn current_figure(&mut self) -> &mut Figure {
+    pub(crate) fn current_figure(&mut self) -> &mut Figure {
         if self.current_figure.is_none() {
             let id = self.next_figure_id;
             self.next_figure_id += 1;
@@ -371,6 +371,9 @@ pub fn call(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize) ->
             one(Value::bool(h))
         }
         "title" | "xlabel" | "ylabel" | "zlabel" | "subtitle" | "sgtitle" => {
+            if let Some(r) = crate::builtins_plotmore::layout_label(it, name, a) {
+                return r;
+            }
             // title(ax, ...) labels the given axes.
             let a = select_axes(it, a)?;
             let text = match a.first() {

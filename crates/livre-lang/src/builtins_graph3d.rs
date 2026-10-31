@@ -50,7 +50,7 @@ fn axes_mut(it: &mut Interpreter) -> &mut graphics::Axes {
 }
 
 /// Adds 3-D objects, switching fresh axes to the default 3-D view.
-fn add_3d(it: &mut Interpreter, series: Vec<Series>, props: &[(String, Value)], nargout: usize) -> Ret {
+pub(crate) fn add_3d(it: &mut Interpreter, series: Vec<Series>, props: &[(String, Value)], nargout: usize) -> Ret {
     let was_held = held(it);
     let ids = it.add_series(series, XAxisKind::Numeric);
     if !was_held {

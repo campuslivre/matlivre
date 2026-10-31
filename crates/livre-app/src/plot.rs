@@ -37,6 +37,7 @@ impl Font {
     }
 }
 
+#[derive(Clone)]
 struct Tokens {
     fg: Color32,
     text: Color32,
@@ -46,7 +47,7 @@ struct Tokens {
     axis: Color32,
     cross: Color32,
     badge: Color32,
-    series: [Color32; 8],
+    series: Vec<Color32>,
 }
 
 impl Tokens {
@@ -62,7 +63,7 @@ impl Tokens {
             axis: skin.chart_axis,
             cross: Color32::from_gray(if skin.dark { 0x78 } else { 0x8C }),
             badge: Color32::from_gray(0x46),
-            series,
+            series: series.to_vec(),
         }
     }
 
@@ -691,6 +692,7 @@ fn draw_axes_3d(c: &mut dyn Canvas, t: &Tokens, ax: &Axes, cs: &ColorScale, cell
                         let depth = pts3.iter().map(|&p| v.depth(p)).sum::<f64>() / 4.0;
                         let value = s.c.get(q[0]).copied().unwrap_or(f64::NAN);
                         let fill = if s.face_none { Color32::TRANSPARENT } else if s.face_mapped { cs.color(value).unwrap_or(Color32::TRANSPARENT) } else { color };
+                        let fill = shaded(fill, shade(ax, &v, &pts3)).gamma_multiply(s.face_alpha.clamp(0.0, 1.0));
                         let edge = if s.edge_mapped { cs.color(value).map(|e| Stroke::new(0.8_f32, e)).unwrap_or(Stroke::NONE) } else { s.edge_color.map(|e| Stroke::new(0.4_f32, Color32::from_rgb(e[0], e[1], e[2]))).unwrap_or(Stroke::NONE) };
                         // Faces filled with the edge color hide the seams between quads.
                         let fill_edge = if edge == Stroke::NONE && fill != Color32::TRANSPARENT { Stroke::new(0.6_f32, fill) } else { edge };
@@ -715,6 +717,19 @@ fn draw_axes_3d(c: &mut dyn Canvas, t: &Tokens, ax: &Axes, cs: &ColorScale, cell
                     }
                 }
             }
+            SeriesKind::Patch | SeriesKind::Rectangle => {
+                let base = patch_fill(s, color, cs);
+                let edge = s.edge_color.filter(|_| s.line_style != LineStyle::None).map(|e| Stroke::new(0.6_f32, Color32::from_rgb(e[0], e[1], e[2]))).unwrap_or(Stroke::NONE);
+                let all: Vec<[f64; 3]> = (0..s.x.len()).map(|i| [s.x[i], s.y.get(i).copied().unwrap_or(f64::NAN), zat(i)]).collect();
+                for face in all.split(|p| p.iter().any(|v| v.is_nan())) {
+                    let poly: Option<Vec<Pos2>> = face.iter().map(|&p| v.screen(p)).collect();
+                    let Some(poly) = poly.filter(|p| p.len() >= 3) else { continue };
+                    let depth = face.iter().map(|&p| v.depth(p)).sum::<f64>() / face.len() as f64;
+                    let fill = shaded(base, shade(ax, &v, face)).gamma_multiply(s.face_alpha.clamp(0.0, 1.0));
+                    prims.push((depth, Prim::Poly(poly, fill, edge)));
+                }
+            }
+            SeriesKind::Light => {}
             SeriesKind::Stem => {
                 for i in 0..s.x.len() {
                     let top = [s.x[i], s.y[i], zat(i)];
@@ -769,15 +784,85 @@ fn draw_axes_3d(c: &mut dyn Canvas, t: &Tokens, ax: &Axes, cs: &ColorScale, cell
 }
 
 fn draw_figure(c: &mut dyn Canvas, skin: &Skin, fig: &Figure, size: Vec2, hover: Option<Pos2>) {
-    let t = Tokens::new(skin);
+    let mut t = Tokens::new(skin);
+    if let Some(order) = fig.color_order.as_ref().filter(|o| !o.is_empty()) {
+        t.series = order.iter().map(|&c| rgb32(c)).collect();
+    }
     c.rect(Rect::from_min_size(Pos2::ZERO, size).shrink(0.5), RADIUS, t.bg, Stroke::new(1.0_f32, t.border));
     let (gr, gc) = (fig.grid.0.max(1), fig.grid.1.max(1));
-    let cell = vec2(size.x / gc as f32, size.y / gr as f32);
+    // A tiled layout's title sits above the tiles.
+    let heading = fig.objects.iter().find(|o| o.kind == graphics::FigObjKind::Layout && !o.text.is_empty()).map(|o| o.text.as_str());
+    let top = if heading.is_some() { 28.0 } else { 0.0 };
+    if let Some(h) = heading {
+        c.text(pos2(size.x / 2.0, 6.0 + TITLE.mid()), Align::Center, h, TITLE, t.fg, 0.0);
+    }
+    let cell = vec2(size.x / gc as f32, (size.y - top) / gr as f32);
     for (i, ax) in fig.axes.iter().enumerate() {
         let (r, col) = (i / gc, i % gc);
-        let rect = Rect::from_min_size(pos2(col as f32 * cell.x, r as f32 * cell.y), cell);
+        let rect = Rect::from_min_size(pos2(col as f32 * cell.x, top + r as f32 * cell.y), cell);
         draw_axes(c, &t, ax, fig.colormap.as_deref(), rect, gr * gc > 1, hover);
     }
+    for o in fig.objects.iter().filter(|o| o.visible) {
+        draw_annotation(c, &t, o, size);
+    }
+}
+
+/// An annotation in normalized figure units (origin bottom left).
+fn draw_annotation(c: &mut dyn Canvas, t: &Tokens, o: &graphics::FigObject, size: Vec2) {
+    use graphics::FigObjKind as K;
+    let at = |x: f64, y: f64| pos2(x as f32 * size.x, (1.0 - y as f32) * size.y);
+    let rgb = |c: [u8; 3]| Color32::from_rgb(c[0], c[1], c[2]);
+    let width = (o.line_width * 1.5).max(1.0);
+    let font = Font { size: o.font_size * 1.2, bold: false };
+    let head = |c: &mut dyn Canvas, from: Pos2, to: Pos2, color: Color32| {
+        let d = to - from;
+        if d.length() < 1e-3 {
+            return;
+        }
+        let u = d.normalized();
+        let side = vec2(-u.y, u.x);
+        let len = 10.0;
+        c.polygon(&[to, to - u * len + side * len * 0.4, to - u * len - side * len * 0.4], color, Stroke::NONE);
+    };
+    match o.kind {
+        K::Layout => {}
+        K::Line | K::Arrow | K::DoubleArrow | K::TextArrow => {
+            let (a, b) = (at(o.x[0], o.y[0]), at(o.x[1], o.y[1]));
+            let color = rgb(o.color);
+            c.line(&[a, b], Stroke::new(width, color), &[]);
+            if o.kind != K::Line {
+                head(c, a, b, color);
+            }
+            if o.kind == K::DoubleArrow {
+                head(c, b, a, color);
+            }
+            if o.kind == K::TextArrow && !o.text.is_empty() {
+                let align = if b.x >= a.x { Align::Max } else { Align::Min };
+                c.text(a + vec2(if b.x >= a.x { -3.0 } else { 3.0 }, font.mid() - font.size * 0.5), align, &o.text, font, color, 0.0);
+            }
+        }
+        K::TextBox | K::Rectangle | K::Ellipse => {
+            let [x, y, w, h] = o.pos;
+            let r = Rect::from_two_pos(at(x, y), at(x + w, y + h));
+            let fill = o.face.map(rgb).unwrap_or(Color32::TRANSPARENT);
+            let edge = o.edge.map(|e| Stroke::new(width, rgb(e))).unwrap_or(Stroke::NONE);
+            if o.kind == K::Ellipse {
+                let pts: Vec<Pos2> = (0..64).map(|k| {
+                    let a = k as f32 / 64.0 * std::f32::consts::TAU;
+                    r.center() + vec2(a.cos() * r.width() / 2.0, a.sin() * r.height() / 2.0)
+                }).collect();
+                c.polygon(&pts, fill, edge);
+            } else {
+                c.rect(r, 0.0, fill, edge);
+            }
+            if o.kind == K::TextBox {
+                for (i, line) in o.text.lines().enumerate() {
+                    c.text(r.min + vec2(5.0, 5.0 + font.mid() + i as f32 * font.size * 1.25), Align::Min, line, font, rgb(o.color), 0.0);
+                }
+            }
+        }
+    }
+    let _ = t;
 }
 
 /// Tick-aligned limits and tick values.
@@ -972,10 +1057,18 @@ fn tick_text(ticks: &Ticks, scale: &Scale, i: usize, v: f64, default: impl Fn(f6
 
 /// Kinds that take part in legends.
 fn in_legend(s: &Series) -> bool {
-    !matches!(s.kind, SeriesKind::Text | SeriesKind::ConstantLine | SeriesKind::Region)
+    !matches!(s.kind, SeriesKind::Text | SeriesKind::ConstantLine | SeriesKind::Region | SeriesKind::Light)
 }
 
 fn draw_axes(c: &mut dyn Canvas, t: &Tokens, ax: &Axes, fig_map: Option<&[[f64; 3]]>, cell: Rect, multi: bool, hover: Option<Pos2>) {
+    let ordered;
+    let t = match &ax.color_order {
+        Some(order) if !order.is_empty() => {
+            ordered = Tokens { series: order.iter().map(|&c| rgb32(c)).collect(), ..t.clone() };
+            &ordered
+        }
+        _ => t,
+    };
     let m = Frame::new(ax, multi);
     let mut plot = Rect::from_min_max(cell.min + vec2(m.left, m.top), cell.max - vec2(m.right, m.bottom));
     let parula;
@@ -1085,7 +1178,8 @@ fn draw_axes(c: &mut dyn Canvas, t: &Tokens, ax: &Axes, fig_map: Option<&[[f64; 
         c.rect(plot, 0.0, Color32::TRANSPARENT, axis);
     }
 
-    c.clip(Some(plot.expand(1.0)));
+    // Hidden axes (pie charts) let labels run outside the plot box.
+    c.clip(Some(if ax.visible_axes == Some(false) { cell } else { plot.expand(1.0) }));
     let base = ty(0.0f64.clamp(y0, y1));
     let base_x = mx(0.0f64.clamp(x0, x1)).unwrap_or(plot.left());
     // Regions first, so data draws over them.
@@ -1164,14 +1258,17 @@ fn draw_axes(c: &mut dyn Canvas, t: &Tokens, ax: &Axes, fig_map: Option<&[[f64; 
                     }
                 }
             }
-            SeriesKind::Patch => {
-                let poly: Vec<Pos2> = pts.iter().flatten().copied().collect();
-                if poly.len() >= 3 {
-                    let fill = color.gamma_multiply(s.face_alpha.clamp(0.0, 1.0));
-                    let edge = s.edge_color.filter(|_| s.line_style != LineStyle::None).map(|e| Stroke::new(1.0_f32, Color32::from_rgb(e[0], e[1], e[2]))).unwrap_or(Stroke::NONE);
-                    c.polygon(&poly, fill, edge);
+            SeriesKind::Patch | SeriesKind::Rectangle => {
+                let fill = patch_fill(s, color, &cs).gamma_multiply(s.face_alpha.clamp(0.0, 1.0));
+                let edge = s.edge_color.filter(|_| s.line_style != LineStyle::None).map(|e| Stroke::new(s.line_width.max(1.0), Color32::from_rgb(e[0], e[1], e[2]))).unwrap_or(Stroke::NONE);
+                for face in pts.split(|p| p.is_none()) {
+                    let poly: Vec<Pos2> = face.iter().flatten().copied().collect();
+                    if poly.len() >= 3 {
+                        fill_polygon(c, &poly, fill, edge);
+                    }
                 }
             }
+            SeriesKind::Light => {}
             SeriesKind::Text => {
                 if let Some(p) = pts.first().copied().flatten() {
                     let color = s.color.map(|c| Color32::from_rgb(c[0], c[1], c[2])).unwrap_or(t.fg);
@@ -1254,7 +1351,7 @@ fn draw_axes(c: &mut dyn Canvas, t: &Tokens, ax: &Axes, fig_map: Option<&[[f64; 
             }
             SeriesKind::Line | SeriesKind::Scatter => draw_polyline(c, &pts, stroke, s.line_style),
         }
-        if let (Some(mk), false) = (s.marker, matches!(s.kind, SeriesKind::Text | SeriesKind::ConstantLine | SeriesKind::Region | SeriesKind::Patch)) {
+        if let (Some(mk), false) = (s.marker, matches!(s.kind, SeriesKind::Text | SeriesKind::ConstantLine | SeriesKind::Region | SeriesKind::Patch | SeriesKind::Rectangle | SeriesKind::Light)) {
             for pt in pts.iter().flatten() {
                 draw_marker(c, mk, *pt, s.marker_size / 2.0 + 1.0, color, s.kind == SeriesKind::Scatter);
             }
@@ -1299,6 +1396,101 @@ fn draw_axes(c: &mut dyn Canvas, t: &Tokens, ax: &Axes, fig_map: Option<&[[f64; 
     for (i, l) in lines.iter().enumerate() {
         c.text(pos2(r.left() + 10.0, r.top() + 18.0 + i as f32 * 17.0), Align::Min, l, LABEL, Color32::WHITE, 0.0);
     }
+}
+
+/// Face color of a patch: none, from the colormap, or its own color.
+fn patch_fill(s: &Series, color: Color32, cs: &ColorScale) -> Color32 {
+    if s.face_none {
+        Color32::TRANSPARENT
+    } else if s.face_mapped {
+        s.c.first().and_then(|&v| cs.color(v)).unwrap_or(color)
+    } else {
+        color
+    }
+}
+
+fn is_convex(pts: &[Pos2]) -> bool {
+    let n = pts.len();
+    let mut sign = 0.0f32;
+    for i in 0..n {
+        let (a, b, c) = (pts[i], pts[(i + 1) % n], pts[(i + 2) % n]);
+        let cross = (b - a).x * (c - b).y - (b - a).y * (c - b).x;
+        if cross.abs() > 1e-3 {
+            if sign != 0.0 && cross.signum() != sign {
+                return false;
+            }
+            sign = cross.signum();
+        }
+    }
+    true
+}
+
+/// A filled polygon; non-convex ones (pie wedges over 180 degrees) are filled as a fan of
+/// triangles from the first vertex, then outlined.
+fn fill_polygon(c: &mut dyn Canvas, pts: &[Pos2], fill: Color32, edge: Stroke) {
+    if is_convex(pts) {
+        c.polygon(pts, fill, edge);
+        return;
+    }
+    if fill != Color32::TRANSPARENT {
+        for i in 1..pts.len() - 1 {
+            c.polygon(&[pts[0], pts[i], pts[i + 1]], fill, Stroke::new(0.5_f32, fill));
+        }
+    }
+    if edge != Stroke::NONE {
+        let mut ring = pts.to_vec();
+        ring.push(pts[0]);
+        c.line(&ring, edge, &[]);
+    }
+}
+
+/// Brightness of a face under the axes' lights (1 without lights): ambient plus diffuse,
+/// lit from either side.
+fn shade(ax: &Axes, v: &View3, face: &[[f64; 3]]) -> f32 {
+    if ax.lighting_none {
+        return 1.0;
+    }
+    let lights: Vec<&Series> = ax.series.iter().filter(|s| s.kind == SeriesKind::Light && s.visible).collect();
+    if lights.is_empty() || face.len() < 3 {
+        return 1.0;
+    }
+    let q: Vec<[f64; 3]> = face.iter().map(|&p| v.unit(p)).collect();
+    // Newell's normal.
+    let mut n = [0.0f64; 3];
+    for i in 0..q.len() {
+        let (a, b) = (q[i], q[(i + 1) % q.len()]);
+        n[0] += (a[1] - b[1]) * (a[2] + b[2]);
+        n[1] += (a[2] - b[2]) * (a[0] + b[0]);
+        n[2] += (a[0] - b[0]) * (a[1] + b[1]);
+    }
+    let len = (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt();
+    if !(len > 1e-12) {
+        return 1.0;
+    }
+    let n = [n[0] / len, n[1] / len, n[2] / len];
+    let centre = [0, 1, 2].map(|k| q.iter().map(|p| p[k]).sum::<f64>() / q.len() as f64);
+    let mut diffuse = 0.0;
+    for l in lights {
+        let pos = [l.x[0], l.y[0], l.z.first().copied().unwrap_or(0.0)];
+        let d = if l.label == "local" {
+            let u = v.unit(pos);
+            [u[0] - centre[0], u[1] - centre[1], u[2] - centre[2]]
+        } else {
+            [0, 1, 2].map(|k| pos[k] / (v.lim[k].1 - v.lim[k].0).abs().max(1e-300))
+        };
+        let dl = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt();
+        if dl > 0.0 {
+            diffuse += ((n[0] * d[0] + n[1] * d[1] + n[2] * d[2]) / dl).abs();
+        }
+    }
+    (0.3 + 0.7 * diffuse.min(1.0)) as f32
+}
+
+fn shaded(c: Color32, k: f32) -> Color32 {
+    if k >= 1.0 {
+        return c;
+    }
+    Color32::from_rgba_unmultiplied((c.r() as f32 * k) as u8, (c.g() as f32 * k) as u8, (c.b() as f32 * k) as u8, c.a())
 }
 
 fn draw_polyline(c: &mut dyn Canvas, pts: &[Option<Pos2>], stroke: Stroke, style: LineStyle) {
@@ -1517,6 +1709,43 @@ mod tests {
         if std::env::var_os("LIVRE_PLOT_PREVIEW").is_some() {
             let target = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target");
             for n in ["surf.png", "2d.png", "lines3.png"] {
+                std::fs::copy(dir.join(n), target.join(format!("plot-{n}"))).unwrap();
+            }
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn renders_layouts_annotations_and_charts() {
+        let ctx = ctx();
+        let mut it = livre_lang::Interpreter::new();
+        let c2 = ctx.clone();
+        it.set_figure_exporter(move |fig, format, scale| match format {
+            livre_lang::ExportFormat::Svg => Ok(to_svg(&c2, &Skin::light(), fig, vec2(560.0, 420.0)).into_bytes()),
+            livre_lang::ExportFormat::Png => to_png(&c2, &Skin::light(), fig, vec2(560.0, 420.0), scale),
+        });
+        let dir = std::env::temp_dir().join(format!("matlivre-more-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let p = |n: &str| dir.join(n).display().to_string().replace('\'', "''");
+        let names = ["tiles.png", "lit.png", "charts.png"];
+        let src = format!(
+            concat!(
+                "t = tiledlayout(2, 2); nexttile; pie([1 2 3 4]); nexttile; bar3(magic(3)); nexttile; hist(randn(1, 500)); nexttile; rectangle('Position', [0 0 2 1], 'Curvature', 0.4, 'FaceColor', 'y'); axis equal;\n",
+                "title(t, 'Tiles'); annotation('arrow', [0.1 0.4], [0.9 0.6]); annotation('textbox', [0.6 0.85 0.2 0.08], 'String', 'note'); saveas(gcf, '{a}');\n",
+                "figure; surf(peaks(30)); shading interp; camlight; colororder('reef'); saveas(gcf, '{b}');\n",
+                "figure; colororder('dye'); subplot(1, 2, 1); plot(magic(4)); subplot(1, 2, 2); ribbon(peaks(8)); saveas(gcf, '{c}');\n",
+            ),
+            a = p(names[0]),
+            b = p(names[1]),
+            c = p(names[2]),
+        );
+        it.run_source(&src).unwrap();
+        for n in names {
+            assert!(std::fs::read(dir.join(n)).unwrap().starts_with(b"\x89PNG"));
+        }
+        if std::env::var_os("LIVRE_PLOT_PREVIEW").is_some() {
+            let target = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target");
+            for n in names {
                 std::fs::copy(dir.join(n), target.join(format!("plot-{n}"))).unwrap();
             }
         }

@@ -17,6 +17,7 @@ pub mod builtins_archive;
 pub mod builtins_structio;
 pub mod builtins_ops;
 pub mod builtins_plot;
+pub mod builtins_plotmore;
 pub mod builtins_plotfmt;
 pub mod builtins_graph3d;
 pub mod builtins_geom;
