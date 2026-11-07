@@ -7,11 +7,11 @@ found in the toolbox folders, checked against MatLivre. Regenerate with
 
 | Status | Count |
 |---|---:|
-| Implemented | 1871 |
+| Implemented | 1875 |
 | In a branch not merged yet | 0 |
 | Language keyword (check it works) | 25 |
-| **To implement** | **151** |
-| Out of scope | 1332 |
+| **To implement** | **139** |
+| Out of scope | 1340 |
 
 Out of scope, by category of the function reference: app building, external language
 interfaces (Python, Java, .NET, C/C++, COM, web services), desktop/help/add-on/startup
@@ -189,12 +189,11 @@ Out of scope: `addFields` (External Language Interfaces), `callSoapService` (Ext
 
 ## MATLAB > Graphics > 2-D and 3-D Plots
 
-Implemented: 136. To implement: 12. In a branch: 0. Out of scope: 0.
+Implemented: 137. To implement: 11. In a branch: 0. Out of scope: 0.
 
 To implement:
 
 - [ ] `addToolbarMapButton`
-- [ ] `fimplicit3`
 - [ ] `flow`
 - [ ] `geoaxes`
 - [ ] `geobasemap`
@@ -206,7 +205,7 @@ To implement:
 - [ ] `refreshdata`
 - [ ] `removeToolbarMapButton`
 
-Implemented: `addpoints`, `animatedline`, `bar`, `bar3`, `bar3h`, `barh`, `binscatter`, `boxchart`, `bubblechart`, `bubblechart3`, `bubblecloud`, `bubblelegend`, `bubblelim`, `bubblesize`, `clabel`, `clearpoints`, `comet`, `comet3`, `compass`, `coneplot`, `contour`, `contour3`, `contourc`, `contourf`, `contourslice`, `curl`, `cylinder`, `divergence`, `donutchart`, `drawnow`, `ellipsoid`, `errorbar`, `ezcontour`, `ezcontourf`, `ezmesh`, `ezmeshc`, `ezplot`, `ezplot3`, `ezpolar`, `ezsurf`, `ezsurfc`, `fcontour`, `feather`, `fewerbins`, `fill`, `fill3`, `fimplicit`, `fmesh`, `fplot`, `fplot3`, `frame2im`, `fsurf`, `geobubble`, `getframe`, `getpoints`, `heatmap`, `hidden`, `hist`, `histc`, `histogram`, `histogram2`, `im2frame`, `interpstreamspeed`, `isocaps`, `isocolors`, `isonormals`, `isosurface`, `loglog`, `mesh`, `meshc`, `meshz`, `morebins`, `movie`, `parallelplot`, `pareto`, `pcolor`, `peaks`, `pie`, `pie3`, `piechart`, `plot3`, `plotmatrix`, `polar`, `polaraxes`, `polarbubblechart`, `polarhistogram`, `polarplot`, `polarscatter`, `quiver`, `quiver3`, `reducepatch`, `reducevolume`, `ribbon`, `rlim`, `rose`, `rtickangle`, `rtickformat`, `rticklabels`, `rticks`, `scatter`, `scatter3`, `scatterhistogram`, `semilogx`, `semilogy`, `shrinkfaces`, `slice`, `smooth3`, `sortx`, `sorty`, `sphere`, `stairs`, `stem`, `stem3`, `stream2`, `stream3`, `streamline`, `streamparticles`, `streamribbon`, `streamslice`, `streamtube`, `subvolume`, `surf`, `surf2patch`, `surface`, `surfc`, `surfl`, `surfnorm`, `swarmchart`, `swarmchart3`, `thetalim`, `thetatickformat`, `thetaticklabels`, `thetaticks`, `volumebounds`, `waterfall`, `wordcloud`
+Implemented: `addpoints`, `animatedline`, `bar`, `bar3`, `bar3h`, `barh`, `binscatter`, `boxchart`, `bubblechart`, `bubblechart3`, `bubblecloud`, `bubblelegend`, `bubblelim`, `bubblesize`, `clabel`, `clearpoints`, `comet`, `comet3`, `compass`, `coneplot`, `contour`, `contour3`, `contourc`, `contourf`, `contourslice`, `curl`, `cylinder`, `divergence`, `donutchart`, `drawnow`, `ellipsoid`, `errorbar`, `ezcontour`, `ezcontourf`, `ezmesh`, `ezmeshc`, `ezplot`, `ezplot3`, `ezpolar`, `ezsurf`, `ezsurfc`, `fcontour`, `feather`, `fewerbins`, `fill`, `fill3`, `fimplicit`, `fimplicit3`, `fmesh`, `fplot`, `fplot3`, `frame2im`, `fsurf`, `geobubble`, `getframe`, `getpoints`, `heatmap`, `hidden`, `hist`, `histc`, `histogram`, `histogram2`, `im2frame`, `interpstreamspeed`, `isocaps`, `isocolors`, `isonormals`, `isosurface`, `loglog`, `mesh`, `meshc`, `meshz`, `morebins`, `movie`, `parallelplot`, `pareto`, `pcolor`, `peaks`, `pie`, `pie3`, `piechart`, `plot3`, `plotmatrix`, `polar`, `polaraxes`, `polarbubblechart`, `polarhistogram`, `polarplot`, `polarscatter`, `quiver`, `quiver3`, `reducepatch`, `reducevolume`, `ribbon`, `rlim`, `rose`, `rtickangle`, `rtickformat`, `rticklabels`, `rticks`, `scatter`, `scatter3`, `scatterhistogram`, `semilogx`, `semilogy`, `shrinkfaces`, `slice`, `smooth3`, `sortx`, `sorty`, `sphere`, `stairs`, `stem`, `stem3`, `stream2`, `stream3`, `streamline`, `streamparticles`, `streamribbon`, `streamslice`, `streamtube`, `subvolume`, `surf`, `surf2patch`, `surface`, `surfc`, `surfl`, `surfnorm`, `swarmchart`, `swarmchart3`, `thetalim`, `thetatickformat`, `thetaticklabels`, `thetaticks`, `volumebounds`, `waterfall`, `wordcloud`
 
 ## MATLAB > Graphics > Formatting and Annotation
 
@@ -228,21 +227,19 @@ Implemented: `abyss`, `alim`, `alpha`, `alphamap`, `annotation`, `autumn`, `axes
 
 ## MATLAB > Graphics > Graphics Objects
 
-Implemented: 21. To implement: 9. In a branch: 0. Out of scope: 0.
+Implemented: 23. To implement: 7. In a branch: 0. Out of scope: 0.
 
 To implement:
 
 - [ ] `dragrect`
 - [ ] `hggroup`
 - [ ] `hgtransform`
-- [ ] `matlab.graphics.Graphics`
-- [ ] `matlab.graphics.GraphicsPlaceholder`
 - [ ] `Property Inspector`
 - [ ] `rbbox`
 - [ ] `uicontextmenu`
 - [ ] `uimenu`
 
-Implemented: `allchild`, `ancestor`, `copyobj`, `delete`, `findall`, `findfigs`, `findobj`, `gca`, `gcbf`, `gcbo`, `gcf`, `gco`, `gobjects`, `groot`, `ishandle`, `ishghandle`, `ishold`, `newplot`, `refresh`, `reset`, `shg`
+Implemented: `allchild`, `ancestor`, `copyobj`, `delete`, `findall`, `findfigs`, `findobj`, `gca`, `gcbf`, `gcbo`, `gcf`, `gco`, `gobjects`, `groot`, `ishandle`, `ishghandle`, `ishold`, `matlab.graphics.Graphics`, `matlab.graphics.GraphicsPlaceholder`, `newplot`, `refresh`, `reset`, `shg`
 
 ## MATLAB > Graphics > Graphics Performance
 
@@ -276,7 +273,7 @@ Implemented: `exportgraphics`, `hgload`, `hgsave`, `openfig`, `orient`, `print`,
 
 ## MATLAB > Language Fundamentals > Data Types
 
-Implemented: 385. To implement: 13. In a branch: 0. Out of scope: 0.
+Implemented: 386. To implement: 12. In a branch: 0. Out of scope: 0.
 
 To implement:
 
@@ -285,7 +282,6 @@ To implement:
 - [ ] `eventtable`
 - [ ] `extractevents`
 - [ ] `findEvent`
-- [ ] `function_handle`
 - [ ] `getTimeStr`
 - [ ] `parquetinfo`
 - [ ] `parquetread`
@@ -294,7 +290,7 @@ To implement:
 - [ ] `spreadsheetImportOptions`
 - [ ] `syncevents`
 
-Implemented: `addcats`, `addevent`, `addprop`, `addsample`, `addsampletocollection`, `addtodate`, `addts`, `addvars`, `allfinite`, `alphanumericBoundary`, `alphanumericsPattern`, `anymissing`, `anynan`, `append`, `array2table`, `array2timetable`, `arrayfun`, `asFewOfPattern`, `asManyOfPattern`, `base2dec`, `between`, `bin2dec`, `blanks`, `caldays`, `caldiff`, `calendar`, `calendarDuration`, `calmonths`, `calquarters`, `calweeks`, `calyears`, `caseInsensitivePattern`, `caseSensitivePattern`, `cast`, `categorical`, `categories`, `cell`, `cell2mat`, `cell2struct`, `cell2table`, `celldisp`, `cellfun`, `cellstr`, `char`, `characterListPattern`, `class`, `clock`, `compose`, `configureDictionary`, `containers.Map`, `contains`, `containsrange`, `convertCharsToStrings`, `convertContainedStringsToChars`, `convertStringsToChars`, `convertTo`, `convertvars`, `count`, `countcats`, `date`, `datenum`, `dateshift`, `datestr`, `datetime`, `datevec`, `day`, `days`, `deal`, `deblank`, `dec2base`, `dec2bin`, `dec2hex`, `delevent`, `delsample`, `delsamplefromcollection`, `detectImportOptions`, `detrend`, `dictionary`, `digitBoundary`, `digitsPattern`, `discretize`, `double`, `duration`, `endsWith`, `entries`, `eomdate`, `eomday`, `eps`, `erase`, `eraseBetween`, `etime`, `exceltime`, `extract`, `extractAfter`, `extractBefore`, `extractBetween`, `feval`, `fieldnames`, `fillmissing`, `filter`, `findgroups`, `findstr`, `flintmax`, `func2str`, `functions`, `getabstime`, `getdatasamples`, `getdatasamplesize`, `getfield`, `getinterpmethod`, `getqualitydesc`, `getsamples`, `getsampleusingtime`, `gettimeseriesnames`, `gettsafteratevent`, `gettsafterevent`, `gettsatevent`, `gettsbeforeatevent`, `gettsbeforeevent`, `gettsbetweenevents`, `getvaropts`, `groupcounts`, `groupfilter`, `groupsummary`, `grouptransform`, `height`, `hex2dec`, `hex2num`, `hms`, `hour`, `hours`, `idealfilter`, `Inf`, `inner2outer`, `innerjoin`, `insert`, `insertAfter`, `insertBefore`, `int16`, `int2str`, `int32`, `int64`, `int8`, `intersect`, `intmax`, `intmin`, `iqr`, `isa`, `isbetween`, `iscalendarduration`, `iscategorical`, `iscategory`, `iscell`, `iscellstr`, `ischar`, `isConfigured`, `isdatetime`, `isdst`, `isduration`, `isenum`, `isfield`, `isfinite`, `isfloat`, `isgraphics`, `isinf`, `isinteger`, `isjava`, `isKey`, `isletter`, `islogical`, `ismember`, `ismissing`, `isnan`, `isnat`, `isnumeric`, `isobject`, `isordinal`, `isprotected`, `isreal`, `isregular`, `isspace`, `issparse`, `isstr`, `isstring`, `isStringScalar`, `isstrprop`, `isstruct`, `istable`, `istabular`, `istimetable`, `isundefined`, `isUnderlyingType`, `isweekend`, `join`, `juliandate`, `keyHash`, `keyMatch`, `keys`, `lag`, `leapseconds`, `letterBoundary`, `lettersPattern`, `lineBoundary`, `localfunctions`, `lookAheadBoundary`, `lookBehindBoundary`, `lookup`, `lower`, `lweekdate`, `m2xdate`, `maskedPattern`, `mat2cell`, `mat2str`, `matches`, `matlab.datetime.compatibility.convertDatenum`, `max`, `mean`, `median`, `mergecats`, `mergevars`, `milliseconds`, `min`, `minute`, `minutes`, `month`, `months`, `movevars`, `namedPattern`, `NaN`, `NaT`, `native2unicode`, `newline`, `now`, `num2cell`, `num2hex`, `num2str`, `numEntries`, `nweekdate`, `optionalPattern`, `orderfields`, `outerjoin`, `overlapsrange`, `pad`, `pattern`, `pivot`, `plot`, `plus`, `posixtime`, `possessivePattern`, `preview`, `quarter`, `readtable`, `readtimetable`, `realmax`, `realmin`, `regexp`, `regexpi`, `regexpPattern`, `regexprep`, `regexptranslate`, `remove`, `removecats`, `removets`, `removevars`, `renamecats`, `renamevars`, `reordercats`, `replace`, `replaceBetween`, `resample`, `retime`, `reverse`, `rmfield`, `rmmissing`, `rmprop`, `rowfun`, `rows2vars`, `second`, `seconds`, `setabstime`, `setcats`, `setdiff`, `setfield`, `setinterpmethod`, `settimeseriesnames`, `setuniformtime`, `setvaropts`, `setvartype`, `setxor`, `single`, `split`, `splitapply`, `splitlines`, `splitvars`, `sprintf`, `sscanf`, `stack`, `stackedplot`, `standardizeMissing`, `startsWith`, `std`, `str2double`, `str2func`, `str2mat`, `str2num`, `strcat`, `strcmp`, `strcmpi`, `strfind`, `string`, `strings`, `strip`, `strjoin`, `strjust`, `strlength`, `strmatch`, `strncmp`, `strncmpi`, `strread`, `strrep`, `strsplit`, `strtok`, `strtrim`, `struct`, `struct2cell`, `struct2table`, `structfun`, `strvcat`, `sum`, `summary`, `symvar`, `synchronize`, `table`, `table2array`, `table2cell`, `table2struct`, `table2timetable`, `textBoundary`, `time`, `timeofday`, `timerange`, `timeseries`, `timeseries2timetable`, `timetable`, `timetable2table`, `timezones`, `today`, `topkrows`, `tscollection`, `tsdata.event`, `typecast`, `types`, `tzoffset`, `uint16`, `uint32`, `uint64`, `uint8`, `underlyingType`, `unicode2native`, `union`, `unique`, `unstack`, `upper`, `validateattributes`, `values`, `var`, `varfun`, `vartype`, `week`, `weekday`, `weeknum`, `whitespaceBoundary`, `whitespacePattern`, `whos`, `width`, `wildcardPattern`, `withinrange`, `withtol`, `writetable`, `writetimetable`, `x2mdate`, `year`, `years`, `ymd`, `yyyymmdd`
+Implemented: `addcats`, `addevent`, `addprop`, `addsample`, `addsampletocollection`, `addtodate`, `addts`, `addvars`, `allfinite`, `alphanumericBoundary`, `alphanumericsPattern`, `anymissing`, `anynan`, `append`, `array2table`, `array2timetable`, `arrayfun`, `asFewOfPattern`, `asManyOfPattern`, `base2dec`, `between`, `bin2dec`, `blanks`, `caldays`, `caldiff`, `calendar`, `calendarDuration`, `calmonths`, `calquarters`, `calweeks`, `calyears`, `caseInsensitivePattern`, `caseSensitivePattern`, `cast`, `categorical`, `categories`, `cell`, `cell2mat`, `cell2struct`, `cell2table`, `celldisp`, `cellfun`, `cellstr`, `char`, `characterListPattern`, `class`, `clock`, `compose`, `configureDictionary`, `containers.Map`, `contains`, `containsrange`, `convertCharsToStrings`, `convertContainedStringsToChars`, `convertStringsToChars`, `convertTo`, `convertvars`, `count`, `countcats`, `date`, `datenum`, `dateshift`, `datestr`, `datetime`, `datevec`, `day`, `days`, `deal`, `deblank`, `dec2base`, `dec2bin`, `dec2hex`, `delevent`, `delsample`, `delsamplefromcollection`, `detectImportOptions`, `detrend`, `dictionary`, `digitBoundary`, `digitsPattern`, `discretize`, `double`, `duration`, `endsWith`, `entries`, `eomdate`, `eomday`, `eps`, `erase`, `eraseBetween`, `etime`, `exceltime`, `extract`, `extractAfter`, `extractBefore`, `extractBetween`, `feval`, `fieldnames`, `fillmissing`, `filter`, `findgroups`, `findstr`, `flintmax`, `func2str`, `function_handle`, `functions`, `getabstime`, `getdatasamples`, `getdatasamplesize`, `getfield`, `getinterpmethod`, `getqualitydesc`, `getsamples`, `getsampleusingtime`, `gettimeseriesnames`, `gettsafteratevent`, `gettsafterevent`, `gettsatevent`, `gettsbeforeatevent`, `gettsbeforeevent`, `gettsbetweenevents`, `getvaropts`, `groupcounts`, `groupfilter`, `groupsummary`, `grouptransform`, `height`, `hex2dec`, `hex2num`, `hms`, `hour`, `hours`, `idealfilter`, `Inf`, `inner2outer`, `innerjoin`, `insert`, `insertAfter`, `insertBefore`, `int16`, `int2str`, `int32`, `int64`, `int8`, `intersect`, `intmax`, `intmin`, `iqr`, `isa`, `isbetween`, `iscalendarduration`, `iscategorical`, `iscategory`, `iscell`, `iscellstr`, `ischar`, `isConfigured`, `isdatetime`, `isdst`, `isduration`, `isenum`, `isfield`, `isfinite`, `isfloat`, `isgraphics`, `isinf`, `isinteger`, `isjava`, `isKey`, `isletter`, `islogical`, `ismember`, `ismissing`, `isnan`, `isnat`, `isnumeric`, `isobject`, `isordinal`, `isprotected`, `isreal`, `isregular`, `isspace`, `issparse`, `isstr`, `isstring`, `isStringScalar`, `isstrprop`, `isstruct`, `istable`, `istabular`, `istimetable`, `isundefined`, `isUnderlyingType`, `isweekend`, `join`, `juliandate`, `keyHash`, `keyMatch`, `keys`, `lag`, `leapseconds`, `letterBoundary`, `lettersPattern`, `lineBoundary`, `localfunctions`, `lookAheadBoundary`, `lookBehindBoundary`, `lookup`, `lower`, `lweekdate`, `m2xdate`, `maskedPattern`, `mat2cell`, `mat2str`, `matches`, `matlab.datetime.compatibility.convertDatenum`, `max`, `mean`, `median`, `mergecats`, `mergevars`, `milliseconds`, `min`, `minute`, `minutes`, `month`, `months`, `movevars`, `namedPattern`, `NaN`, `NaT`, `native2unicode`, `newline`, `now`, `num2cell`, `num2hex`, `num2str`, `numEntries`, `nweekdate`, `optionalPattern`, `orderfields`, `outerjoin`, `overlapsrange`, `pad`, `pattern`, `pivot`, `plot`, `plus`, `posixtime`, `possessivePattern`, `preview`, `quarter`, `readtable`, `readtimetable`, `realmax`, `realmin`, `regexp`, `regexpi`, `regexpPattern`, `regexprep`, `regexptranslate`, `remove`, `removecats`, `removets`, `removevars`, `renamecats`, `renamevars`, `reordercats`, `replace`, `replaceBetween`, `resample`, `retime`, `reverse`, `rmfield`, `rmmissing`, `rmprop`, `rowfun`, `rows2vars`, `second`, `seconds`, `setabstime`, `setcats`, `setdiff`, `setfield`, `setinterpmethod`, `settimeseriesnames`, `setuniformtime`, `setvaropts`, `setvartype`, `setxor`, `single`, `split`, `splitapply`, `splitlines`, `splitvars`, `sprintf`, `sscanf`, `stack`, `stackedplot`, `standardizeMissing`, `startsWith`, `std`, `str2double`, `str2func`, `str2mat`, `str2num`, `strcat`, `strcmp`, `strcmpi`, `strfind`, `string`, `strings`, `strip`, `strjoin`, `strjust`, `strlength`, `strmatch`, `strncmp`, `strncmpi`, `strread`, `strrep`, `strsplit`, `strtok`, `strtrim`, `struct`, `struct2cell`, `struct2table`, `structfun`, `strvcat`, `sum`, `summary`, `symvar`, `synchronize`, `table`, `table2array`, `table2cell`, `table2struct`, `table2timetable`, `textBoundary`, `time`, `timeofday`, `timerange`, `timeseries`, `timeseries2timetable`, `timetable`, `timetable2table`, `timezones`, `today`, `topkrows`, `tscollection`, `tsdata.event`, `typecast`, `types`, `tzoffset`, `uint16`, `uint32`, `uint64`, `uint8`, `underlyingType`, `unicode2native`, `union`, `unique`, `unstack`, `upper`, `validateattributes`, `values`, `var`, `varfun`, `vartype`, `week`, `weekday`, `weeknum`, `whitespaceBoundary`, `whitespacePattern`, `whos`, `width`, `wildcardPattern`, `withinrange`, `withtol`, `writetable`, `writetimetable`, `x2mdate`, `year`, `years`, `ymd`, `yyyymmdd`
 
 ## MATLAB > Language Fundamentals > Entering Commands
 
@@ -531,15 +527,11 @@ Out of scope: `audiouniquename` (audio/video devices or screen capture), `avgate
 
 ## Not in the function reference > matlab/datatypes
 
-Implemented: 4. To implement: 1. In a branch: 0. Out of scope: 3.
-
-To implement:
-
-- [ ] `tabular`
+Implemented: 4. To implement: 0. In a branch: 0. Out of scope: 4.
 
 Implemented: `inferiorto`, `superiorfloat`, `superiorto`, `ts2timetable`
 
-Out of scope: `DefaultObject` (internal helper, not a user function), `internalArrayUtil` (internal helper, not a user function), `opaque` (Java/.NET/COM/C/Perl interop or MEX)
+Out of scope: `DefaultObject` (internal helper, not a user function), `internalArrayUtil` (internal helper, not a user function), `opaque` (Java/.NET/COM/C/Perl interop or MEX), `tabular` (internal helper, not a user function)
 
 ## Not in the function reference > matlab/elmat
 
@@ -549,28 +541,23 @@ Implemented: `inf`, `nan`
 
 ## Not in the function reference > matlab/funfun
 
-Implemented: 10. To implement: 2. In a branch: 0. Out of scope: 47.
+Implemented: 10. To implement: 1. In a branch: 0. Out of scope: 48.
 
 To implement:
 
-- [ ] `inlineeval`
 - [ ] `pde`
 
 Implemented: `fcnchk`, `numjac`, `ode`, `odeEvent`, `odeJacobian`, `odeMassMatrix`, `odephas2`, `odephas3`, `odeplot`, `odeprint`
 
-Out of scope: `amp1dae` (MATLAB example file), `ballode` (MATLAB example file), `batonode` (MATLAB example file), `brussode` (MATLAB example file), `burgersode` (MATLAB example file), `ddex1` (MATLAB example file), `ddex1de` (MATLAB example file), `ddex1delays` (MATLAB example file), `ddex1hist` (MATLAB example file), `ddex2` (MATLAB example file), `ddex3` (MATLAB example file), `ddex4` (MATLAB example file), `ddex5` (MATLAB example file), `emdenbvp` (MATLAB example file), `fem1ode` (MATLAB example file), `fem2ode` (MATLAB example file), `fsbvp` (MATLAB example file), `hb1dae` (MATLAB example file), `hb1ode` (MATLAB example file), `iburgersode` (MATLAB example file), `ihb1dae` (MATLAB example file), `kneeode` (MATLAB example file), `lorenz` (MATLAB example file), `lotka` (MATLAB example file), `mat4bvp` (MATLAB example file), `odeexamples` (MATLAB example file), `orbitode` (MATLAB example file), `pdex1` (MATLAB example file), `pdex1bc` (MATLAB example file), `pdex1ic` (MATLAB example file), `pdex1pde` (MATLAB example file), `pdex2` (MATLAB example file), `pdex3` (MATLAB example file), `pdex4` (MATLAB example file), `pdex5` (MATLAB example file), `rcbvp` (MATLAB example file), `rigidode` (MATLAB example file), `shockbvp` (MATLAB example file), `threebvp` (MATLAB example file), `twobc` (MATLAB example file), `twobvp` (MATLAB example file), `twoode` (MATLAB example file), `vanderpoldemo` (MATLAB example file), `vdp1` (MATLAB example file), `vdp1000` (MATLAB example file), `vdpode` (MATLAB example file), `weissinger` (MATLAB example file)
+Out of scope: `amp1dae` (MATLAB example file), `ballode` (MATLAB example file), `batonode` (MATLAB example file), `brussode` (MATLAB example file), `burgersode` (MATLAB example file), `ddex1` (MATLAB example file), `ddex1de` (MATLAB example file), `ddex1delays` (MATLAB example file), `ddex1hist` (MATLAB example file), `ddex2` (MATLAB example file), `ddex3` (MATLAB example file), `ddex4` (MATLAB example file), `ddex5` (MATLAB example file), `emdenbvp` (MATLAB example file), `fem1ode` (MATLAB example file), `fem2ode` (MATLAB example file), `fsbvp` (MATLAB example file), `hb1dae` (MATLAB example file), `hb1ode` (MATLAB example file), `iburgersode` (MATLAB example file), `ihb1dae` (MATLAB example file), `inlineeval` (internal helper, not a user function), `kneeode` (MATLAB example file), `lorenz` (MATLAB example file), `lotka` (MATLAB example file), `mat4bvp` (MATLAB example file), `odeexamples` (MATLAB example file), `orbitode` (MATLAB example file), `pdex1` (MATLAB example file), `pdex1bc` (MATLAB example file), `pdex1ic` (MATLAB example file), `pdex1pde` (MATLAB example file), `pdex2` (MATLAB example file), `pdex3` (MATLAB example file), `pdex4` (MATLAB example file), `pdex5` (MATLAB example file), `rcbvp` (MATLAB example file), `rigidode` (MATLAB example file), `shockbvp` (MATLAB example file), `threebvp` (MATLAB example file), `twobc` (MATLAB example file), `twobvp` (MATLAB example file), `twoode` (MATLAB example file), `vanderpoldemo` (MATLAB example file), `vdp1` (MATLAB example file), `vdp1000` (MATLAB example file), `vdpode` (MATLAB example file), `weissinger` (MATLAB example file)
 
 ## Not in the function reference > matlab/general
 
-Implemented: 1. To implement: 1. In a branch: 0. Out of scope: 15.
-
-To implement:
-
-- [ ] `matlab`
+Implemented: 1. To implement: 0. In a branch: 0. Out of scope: 16.
 
 Implemented: `matlabpath`
 
-Out of scope: `callgraphviz` (desktop, IDE, GUI, printing or interactive tool), `depfunprophelper` (desktop, IDE, GUI, printing or interactive tool), `desktop` (desktop, IDE, GUI, printing or interactive tool), `findfile` (desktop, IDE, GUI, printing or interactive tool), `finfo` (desktop, IDE, GUI, printing or interactive tool), `getmcruserdata` (desktop, IDE, GUI, printing or interactive tool), `isdeployed` (desktop, IDE, GUI, printing or interactive tool), `ismcc` (desktop, IDE, GUI, printing or interactive tool), `java` (Java/.NET/COM/C/Perl interop or MEX), `logo` (desktop, IDE, GUI, printing or interactive tool), `membrane` (desktop, IDE, GUI, printing or interactive tool), `mexdebug` (Java/.NET/COM/C/Perl interop or MEX), `preferences` (desktop, IDE, GUI, printing or interactive tool), `setmcruserdata` (desktop, IDE, GUI, printing or interactive tool), `syntax` (desktop, IDE, GUI, printing or interactive tool)
+Out of scope: `callgraphviz` (desktop, IDE, GUI, printing or interactive tool), `depfunprophelper` (desktop, IDE, GUI, printing or interactive tool), `desktop` (desktop, IDE, GUI, printing or interactive tool), `findfile` (desktop, IDE, GUI, printing or interactive tool), `finfo` (desktop, IDE, GUI, printing or interactive tool), `getmcruserdata` (desktop, IDE, GUI, printing or interactive tool), `isdeployed` (desktop, IDE, GUI, printing or interactive tool), `ismcc` (desktop, IDE, GUI, printing or interactive tool), `java` (Java/.NET/COM/C/Perl interop or MEX), `logo` (desktop, IDE, GUI, printing or interactive tool), `matlab` (documentation page, not a function), `membrane` (desktop, IDE, GUI, printing or interactive tool), `mexdebug` (Java/.NET/COM/C/Perl interop or MEX), `preferences` (desktop, IDE, GUI, printing or interactive tool), `setmcruserdata` (desktop, IDE, GUI, printing or interactive tool), `syntax` (desktop, IDE, GUI, printing or interactive tool)
 
 ## Not in the function reference > matlab/graph2d
 
@@ -594,19 +581,18 @@ Out of scope: `cameramenu` (desktop, IDE, GUI, printing or interactive tool), `c
 
 ## Not in the function reference > matlab/graphics
 
-Implemented: 2. To implement: 5. In a branch: 0. Out of scope: 39.
+Implemented: 2. To implement: 4. In a branch: 0. Out of scope: 40.
 
 To implement:
 
 - [ ] `colornone`
 - [ ] `datachildren`
 - [ ] `figuredeletedlistener`
-- [ ] `getcrosssection`
 - [ ] `tex`
 
 Implemented: `is2D`, `white`
 
-Out of scope: `axescheck` (internal helper, not a user function), `bwcontr` (internal helper, not a user function), `capturescreen` (desktop, IDE, GUI, printing or interactive tool), `closereq` (desktop, IDE, GUI, printing or interactive tool), `copyoptionsfcn` (internal helper, not a user function), `dateTickPicker` (desktop, IDE, GUI, printing or interactive tool), `datetickstr` (internal helper, not a user function), `defaulterrorcallback` (internal helper, not a user function), `figcopytemplatelistener` (internal helper, not a user function), `figcopytemplatelistener_legacy` (internal helper, not a user function), `figureheaderdlg` (desktop, IDE, GUI, printing or interactive tool), `figureToolbarCreateFcn` (desktop, IDE, GUI, printing or interactive tool), `findprinters` (desktop, IDE, GUI, printing or interactive tool), `getFigureToolManager` (desktop, IDE, GUI, printing or interactive tool), `getprinttemplate` (desktop, IDE, GUI, printing or interactive tool), `handle2struct` (internal helper, not a user function), `hasbehavior` (internal helper, not a user function), `hgaddbehavior` (internal helper, not a user function), `hgbehaviorfactory` (internal helper, not a user function), `hgclose` (internal helper, not a user function), `hgdisp` (internal helper, not a user function), `hgfeval` (internal helper, not a user function), `hggetbehavior` (internal helper, not a user function), `hggetdisp` (internal helper, not a user function), `hgrc` (internal helper, not a user function), `hgsetdisp` (internal helper, not a user function), `openFigure` (desktop, IDE, GUI, printing or interactive tool), `parseChartInputs` (internal helper, not a user function), `parseparams` (internal helper, not a user function), `printjob` (desktop, IDE, GUI, printing or interactive tool), `printtables` (desktop, IDE, GUI, printing or interactive tool), `printtemplate` (desktop, IDE, GUI, printing or interactive tool), `regionpicker` (desktop, IDE, GUI, printing or interactive tool), `resetplotview` (desktop, IDE, GUI, printing or interactive tool), `saveFigure` (desktop, IDE, GUI, printing or interactive tool), `setprinttemplate` (desktop, IDE, GUI, printing or interactive tool), `struct2handle` (internal helper, not a user function), `vertexpicker` (desktop, IDE, GUI, printing or interactive tool), `vga` (desktop, IDE, GUI, printing or interactive tool)
+Out of scope: `axescheck` (internal helper, not a user function), `bwcontr` (internal helper, not a user function), `capturescreen` (desktop, IDE, GUI, printing or interactive tool), `closereq` (desktop, IDE, GUI, printing or interactive tool), `copyoptionsfcn` (internal helper, not a user function), `dateTickPicker` (desktop, IDE, GUI, printing or interactive tool), `datetickstr` (internal helper, not a user function), `defaulterrorcallback` (internal helper, not a user function), `figcopytemplatelistener` (internal helper, not a user function), `figcopytemplatelistener_legacy` (internal helper, not a user function), `figureheaderdlg` (desktop, IDE, GUI, printing or interactive tool), `figureToolbarCreateFcn` (desktop, IDE, GUI, printing or interactive tool), `findprinters` (desktop, IDE, GUI, printing or interactive tool), `getcrosssection` (internal helper, not a user function), `getFigureToolManager` (desktop, IDE, GUI, printing or interactive tool), `getprinttemplate` (desktop, IDE, GUI, printing or interactive tool), `handle2struct` (internal helper, not a user function), `hasbehavior` (internal helper, not a user function), `hgaddbehavior` (internal helper, not a user function), `hgbehaviorfactory` (internal helper, not a user function), `hgclose` (internal helper, not a user function), `hgdisp` (internal helper, not a user function), `hgfeval` (internal helper, not a user function), `hggetbehavior` (internal helper, not a user function), `hggetdisp` (internal helper, not a user function), `hgrc` (internal helper, not a user function), `hgsetdisp` (internal helper, not a user function), `openFigure` (desktop, IDE, GUI, printing or interactive tool), `parseChartInputs` (internal helper, not a user function), `parseparams` (internal helper, not a user function), `printjob` (desktop, IDE, GUI, printing or interactive tool), `printtables` (desktop, IDE, GUI, printing or interactive tool), `printtemplate` (desktop, IDE, GUI, printing or interactive tool), `regionpicker` (desktop, IDE, GUI, printing or interactive tool), `resetplotview` (desktop, IDE, GUI, printing or interactive tool), `saveFigure` (desktop, IDE, GUI, printing or interactive tool), `setprinttemplate` (desktop, IDE, GUI, printing or interactive tool), `struct2handle` (internal helper, not a user function), `vertexpicker` (desktop, IDE, GUI, printing or interactive tool), `vga` (desktop, IDE, GUI, printing or interactive tool)
 
 ## Not in the function reference > matlab/imagesci
 
@@ -626,14 +612,12 @@ Out of scope: `deployprefdir` (internal helper, not a user function), `matfinfo`
 
 ## Not in the function reference > matlab/lang
 
-Implemented: 4. To implement: 6. In a branch: 0. Out of scope: 2.
+Implemented: 4. To implement: 4. In a branch: 0. Out of scope: 4.
 
 To implement:
 
 - [ ] `doclink`
-- [ ] `lists`
 - [ ] `parallel_function`
-- [ ] `precedence`
 - [ ] `script`
 - [ ] `spmd_feval`
 
@@ -641,7 +625,7 @@ Language keywords to check: `break`, `case`, `catch`, `continue`, `else`, `elsei
 
 Implemented: `display`, `dynamicprops`, `handle`, `message`
 
-Out of scope: `checkSyntacticWarnings` (internal helper, not a user function), `ParallelException` (internal helper, not a user function)
+Out of scope: `checkSyntacticWarnings` (internal helper, not a user function), `lists` (help page on syntax, not a function), `ParallelException` (internal helper, not a user function), `precedence` (help page on syntax, not a function)
 
 ## Not in the function reference > matlab/matfun
 
@@ -651,12 +635,9 @@ Implemented: `ltitr`, `normest1`
 
 ## Not in the function reference > matlab/ops
 
-Implemented: 0. To implement: 2. In a branch: 0. Out of scope: 0.
+Implemented: 0. To implement: 0. In a branch: 0. Out of scope: 2.
 
-To implement:
-
-- [ ] `paren`
-- [ ] `punct`
+Out of scope: `paren` (help page on syntax, not a function), `punct` (help page on syntax, not a function)
 
 ## Not in the function reference > matlab/optimfun
 
