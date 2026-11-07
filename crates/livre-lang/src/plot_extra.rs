@@ -15,7 +15,7 @@ use crate::value::*;
 type R<T> = Result<T, LangError>;
 
 pub const NAMES: &[&str] = &[
-    "ezplot", "ezplot3", "ezsurf", "ezsurfc", "ezmesh", "ezmeshc", "ezcontour", "ezcontourf", "fimplicit", "animatedline", "addpoints", "getpoints",
+    "ezplot", "ezplot3", "ezsurf", "ezsurfc", "ezmesh", "ezmeshc", "ezcontour", "ezcontourf", "fimplicit", "fimplicit3", "animatedline", "addpoints", "getpoints",
     "clearpoints", "histogram2", "pie3", "plotmatrix", "surfl", "curl", "divergence", "getframe", "frame2im", "im2frame", "movie",
     "surfnorm", "xsecondarylabel", "ysecondarylabel", "zsecondarylabel", "ruler2num", "num2ruler",
 ];
@@ -379,6 +379,46 @@ fn ez_grid(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Ret
     title(it, &f.text)?;
     let h = (if contour { r.into_iter().nth(1) } else { r.into_iter().next() }).unwrap_or_else(Value::empty);
     handles_out(it, &ids(&h), nargout)
+}
+
+// ---- fimplicit3 ----------------------------------------------------------------------------
+
+/// fimplicit3(f, [xmin xmax ymin ymax zmin zmax]): the surface f(x, y, z) = 0, as an isosurface
+/// of f sampled on a MeshDensity-point grid (35 by default) over the ranges ([-5 5] each).
+fn fimplicit3(it: &mut Interpreter, a: &[Value], nargout: usize) -> Ret {
+    let f = fun(it, arg(a, 0, "fimplicit3")?)?;
+    let given = a.get(1).filter(|v| num(v));
+    let r = match given.map(|v| v.to_matrix()).transpose()?.map(|m| m.data) {
+        None => [-5.0, 5.0, -5.0, 5.0, -5.0, 5.0],
+        Some(v) if v.len() == 2 => [v[0], v[1], v[0], v[1], v[0], v[1]],
+        Some(v) if v.len() == 4 => [v[0], v[1], v[2], v[3], -5.0, 5.0],
+        Some(v) if v.len() == 6 => [v[0], v[1], v[2], v[3], v[4], v[5]],
+        _ => return rt("Specify the interval as a vector of the form [min max], [xmin xmax ymin ymax] or [xmin xmax ymin ymax zmin zmax]."),
+    };
+    let rest = &a[if given.is_some() { 2 } else { 1 }..];
+    let props = split_props(rest)?.1;
+    let density = props.iter().find(|(k, _)| k.eq_ignore_ascii_case("MeshDensity")).map(|(_, v)| v.scalar()).transpose()?.unwrap_or(35.0) as usize;
+    let n = density.max(2);
+    let axis = |lo: f64, hi: f64| Value::Num(Matrix::row(grid_row(lo, hi, n)));
+    let g = it.call_function("meshgrid", vec![axis(r[0], r[1]), axis(r[2], r[3]), axis(r[4], r[5])], 3)?;
+    let (x, y, z) = (g[0].to_matrix()?, g[1].to_matrix()?, g[2].to_matrix()?);
+    let v = eval(it, &f.f, &[x.clone(), y.clone(), z.clone()])?;
+    it.call_function("isosurface", vec![Value::Num(x), Value::Num(y), Value::Num(z), Value::Num(v), Value::num(0.0)], 0)?;
+    let fi = it.current_figure_index();
+    let Some(s) = it.figures[fi].axes_mut().series.last_mut() else { return none() };
+    s.class_hint = Some("matlab.graphics.function.ImplicitFunctionSurface");
+    let id = s.id;
+    it.gfx_store.entry(id).or_default().extend([
+        ("Function".to_string(), f.f.clone()),
+        ("XRange".to_string(), Value::Num(Matrix::row(r[0..2].to_vec()))),
+        ("YRange".to_string(), Value::Num(Matrix::row(r[2..4].to_vec()))),
+        ("ZRange".to_string(), Value::Num(Matrix::row(r[4..6].to_vec()))),
+        ("MeshDensity".to_string(), Value::num(n as f64)),
+        ("EdgeColor".to_string(), Value::Num(Matrix::row(vec![0.0, 0.0, 0.0]))),
+        ("FaceAlpha".to_string(), Value::num(1.0)),
+    ]);
+    apply_props(it, &[id], &props.into_iter().filter(|(k, _)| !k.eq_ignore_ascii_case("MeshDensity")).collect::<Vec<_>>())?;
+    handles_out(it, &[id], nargout)
 }
 
 // ---- fimplicit -----------------------------------------------------------------------------
@@ -929,6 +969,7 @@ pub fn call(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
         "ezplot3" => ezplot3(it, a, nargout),
         "ezsurf" | "ezsurfc" | "ezmesh" | "ezmeshc" | "ezcontour" | "ezcontourf" => ez_grid(it, name, a, nargout),
         "fimplicit" => fimplicit(it, a, nargout),
+        "fimplicit3" => fimplicit3(it, a, nargout),
         "animatedline" => animatedline(it, a, nargout),
         "addpoints" | "getpoints" | "clearpoints" => points(it, name, a),
         "histogram2" => histogram2(it, a, nargout),

@@ -415,3 +415,11 @@ xyzchk	internal helper, not a user function
 xyzvchk	internal helper, not a user function
 zoom	desktop, IDE, GUI, printing or interactive tool
 zoomInteraction	desktop, IDE, GUI, printing or interactive tool
+paren	help page on syntax, not a function
+punct	help page on syntax, not a function
+precedence	help page on syntax, not a function
+lists	help page on syntax, not a function
+matlab	documentation page, not a function
+getcrosssection	internal helper, not a user function
+inlineeval	internal helper, not a user function
+tabular	internal helper, not a user function

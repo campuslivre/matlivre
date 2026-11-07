@@ -1731,8 +1731,8 @@ fn call_dense(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize
             // Built-in classes as MATLAB reports them: dynamicprops is a file, containers.Map a class.
             if kind.is_empty() && it.get_var(&n).is_none() {
                 match n.as_str() {
-                    "dynamicprops" => return num(2.0),
-                    "containers.Map" => return num(8.0),
+                    "dynamicprops" | "function_handle" => return num(2.0),
+                    "containers.Map" | "matlab.graphics.Graphics" | "matlab.graphics.GraphicsPlaceholder" => return num(8.0),
                     _ => {}
                 }
             }

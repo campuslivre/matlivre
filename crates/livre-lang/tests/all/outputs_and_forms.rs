@@ -719,3 +719,27 @@ fn matching_and_contours() {
         ],
     );
 }
+
+#[test]
+fn implicit_surfaces_and_classes() {
+    check(
+        concat!(
+            "set(0, 'DefaultFigureVisible', 'off');\n",
+            "h = fimplicit3(@(x, y, z) x.^2 + y.^2 + z.^2 - 1, [-2 2]); class(h), h.XRange, h.ZRange, h.MeshDensity, h.EdgeColor, h.FaceAlpha\n",
+            "h2 = fimplicit3(@(x, y, z) x + y - z, [-1 1 -2 2 -3 3], 'MeshDensity', 20); h2.YRange, h2.ZRange, h2.MeshDensity\n",
+            "e = [exist('dynamicprops') exist('function_handle') exist('containers.Map') exist('matlab.graphics.Graphics') exist('matlab.graphics.GraphicsPlaceholder')]\n",
+        ),
+        &[
+            "ans = 'matlab.graphics.function.ImplicitFunctionSurface'",
+            "ans = 1×2\n\n    -2     2",
+            "ans = 1×2\n\n    -2     2",
+            "ans = 35",
+            "ans = 1×3\n\n     0     0     0",
+            "ans = 1",
+            "ans = 1×2\n\n    -2     2",
+            "ans = 1×2\n\n    -3     3",
+            "ans = 20",
+            "e = 1×5\n\n     2     2     8     8     8",
+        ],
+    );
+}

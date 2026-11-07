@@ -2206,3 +2206,46 @@ matlab.graphics.datatip.DataTip	Visible	'on'
 matlab.graphics.datatip.DataTip	X	0
 matlab.graphics.datatip.DataTip	Y	0
 matlab.graphics.datatip.DataTip	Z	0
+matlab.graphics.function.ImplicitFunctionSurface	MeshDensity	35
+matlab.graphics.function.ImplicitFunctionSurface	FaceAlpha	1
+matlab.graphics.function.ImplicitFunctionSurface	XRangeMode	'manual'
+matlab.graphics.function.ImplicitFunctionSurface	YRangeMode	'manual'
+matlab.graphics.function.ImplicitFunctionSurface	ZRangeMode	'manual'
+matlab.graphics.function.ImplicitFunctionSurface	XRange	[-2 2]
+matlab.graphics.function.ImplicitFunctionSurface	YRange	[-2 2]
+matlab.graphics.function.ImplicitFunctionSurface	ZRange	[-2 2]
+matlab.graphics.function.ImplicitFunctionSurface	Function	<function_handle [1 1]>
+matlab.graphics.function.ImplicitFunctionSurface	FaceColor	'interp'
+matlab.graphics.function.ImplicitFunctionSurface	EdgeColor	[0 0 0]
+matlab.graphics.function.ImplicitFunctionSurface	LineStyle	'-'
+matlab.graphics.function.ImplicitFunctionSurface	LineWidth	0.5
+matlab.graphics.function.ImplicitFunctionSurface	Marker	'none'
+matlab.graphics.function.ImplicitFunctionSurface	MarkerEdgeColor	'auto'
+matlab.graphics.function.ImplicitFunctionSurface	MarkerFaceColor	'none'
+matlab.graphics.function.ImplicitFunctionSurface	MarkerSize	6
+matlab.graphics.function.ImplicitFunctionSurface	AmbientStrength	0.3
+matlab.graphics.function.ImplicitFunctionSurface	DiffuseStrength	0.6
+matlab.graphics.function.ImplicitFunctionSurface	SpecularStrength	0.9
+matlab.graphics.function.ImplicitFunctionSurface	SpecularExponent	10
+matlab.graphics.function.ImplicitFunctionSurface	SpecularColorReflectance	1
+matlab.graphics.function.ImplicitFunctionSurface	Children	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.function.ImplicitFunctionSurface	Parent	<matlab.graphics.axis.Axes [1 1]>
+matlab.graphics.function.ImplicitFunctionSurface	Visible	'on'
+matlab.graphics.function.ImplicitFunctionSurface	HandleVisibility	'on'
+matlab.graphics.function.ImplicitFunctionSurface	ButtonDownFcn	''
+matlab.graphics.function.ImplicitFunctionSurface	ContextMenu	<matlab.graphics.GraphicsPlaceholder [0 0]>
+matlab.graphics.function.ImplicitFunctionSurface	BusyAction	'queue'
+matlab.graphics.function.ImplicitFunctionSurface	BeingDeleted	'off'
+matlab.graphics.function.ImplicitFunctionSurface	Interruptible	'on'
+matlab.graphics.function.ImplicitFunctionSurface	CreateFcn	''
+matlab.graphics.function.ImplicitFunctionSurface	DeleteFcn	''
+matlab.graphics.function.ImplicitFunctionSurface	Type	'implicitfunctionsurface'
+matlab.graphics.function.ImplicitFunctionSurface	Tag	''
+matlab.graphics.function.ImplicitFunctionSurface	UserData	[]
+matlab.graphics.function.ImplicitFunctionSurface	Selected	'off'
+matlab.graphics.function.ImplicitFunctionSurface	SelectionHighlight	'on'
+matlab.graphics.function.ImplicitFunctionSurface	HitTest	'on'
+matlab.graphics.function.ImplicitFunctionSurface	PickableParts	'visible'
+matlab.graphics.function.ImplicitFunctionSurface	DisplayName	'{x}^{2}+{y}^{2}+{z}^{2}-{1}'
+matlab.graphics.function.ImplicitFunctionSurface	Annotation	<matlab.graphics.eventdata.Annotation [1 1]>
+matlab.graphics.function.ImplicitFunctionSurface	DataTipTemplate	<matlab.graphics.datatip.DataTipTemplate [1 1]>
