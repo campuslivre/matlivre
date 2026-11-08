@@ -15,6 +15,7 @@ use livre_lang::{Figure, OutputKind, VarInfo};
 
 use crate::chat::{self, Chat};
 use crate::complete::{self, Completer};
+use crate::suggest::{self, Suggest};
 use crate::engine::{Command, Engine, Event, COMMAND_ID};
 use crate::mcp::{self, ToolResult};
 use crate::files::FileTree;
@@ -304,6 +305,9 @@ struct View {
     ghost_taken: bool,
     /// The caret of the focused code editor.
     caret: Option<Caret>,
+    /// The completion list on show, and whether Tab or Ctrl+Space asked for one.
+    suggest: Option<Suggest>,
+    suggest_ask: bool,
 }
 
 pub struct App {
@@ -367,6 +371,9 @@ pub struct App {
     chat_w: f32,
     completer: Completer,
     completion: Completion,
+    /// The completion list on show and the caret it was last updated for.
+    suggest: Option<Suggest>,
+    suggest_seen: Option<Caret>,
     /// When open files were last compared with the disk.
     watched: Instant,
 }
@@ -544,6 +551,8 @@ impl App {
             chat_open: layout.chat_open,
             chat_w: layout.chat_w,
             completer: Completer::new(),
+            suggest: None,
+            suggest_seen: None,
             completion: Completion { on: layout.completions, ghost: None, seen: None, edited_at: None, asked: None, next_key: 1, force: false },
             watched: Instant::now(),
         };
@@ -1574,6 +1583,51 @@ impl App {
         let vars: Vec<String> = self.workspace.iter().map(|v| v.name.clone()).collect();
         self.completer.request(key, complete::prompt(&file, &before, &after, &vars), ctx);
         self.completion.asked = Some((key, at, before, after));
+    }
+
+    /// Opens, refreshes or closes the completion list after the caret moved: typing a word
+    /// (two letters, or a `.` after a name with fields) opens it, and moving the caret any
+    /// other way closes it. `ask` (Tab after a word, Ctrl+Space) opens it for any word.
+    fn update_suggest(&mut self, caret: Option<Caret>, ask: bool) {
+        let Some(c) = caret else {
+            self.suggest = None;
+            self.suggest_seen = None;
+            return;
+        };
+        let prev = self.suggest_seen.replace(c);
+        if !ask && prev == Some(c) {
+            return;
+        }
+        let typed = matches!(prev, Some(p) if p.block == c.block && p.text != c.text);
+        let open = self.suggest.as_ref().is_some_and(|s| s.block == c.block);
+        self.suggest = None;
+        if !(ask || typed) {
+            return;
+        }
+        let Some((before, after, _)) = self.completion_context(c) else { return };
+        let Some((_, word, owner)) = suggest::word_before(&before) else { return };
+        let n = word.chars().count();
+        let enough = ask || n >= 2 || (open && n >= 1) || owner.is_some();
+        if !enough || c.index < n {
+            return;
+        }
+        let doc = format!("{}{}", &before[..before.len() - word.len()], after);
+        let vars: Vec<String> = self.workspace.iter().map(|v| v.name.clone()).collect();
+        let dir = self
+            .tabs
+            .iter()
+            .find(|t| t.doc.blocks.iter().any(|b| b.id == c.block))
+            .and_then(|t| t.path.as_deref())
+            .and_then(Path::parent)
+            .map(Path::to_path_buf)
+            .or_else(|| std::env::current_dir().ok());
+        let files = suggest::folder_files(dir.as_deref());
+        let items = suggest::candidates(&word, owner.as_deref(), &doc, &vars, &files);
+        if items.is_empty() || (!ask && items.len() == 1 && items[0].text == word) {
+            return;
+        }
+        let accept = (ask && items.len() == 1).then_some(0);
+        self.suggest = Some(Suggest { block: c.block, start: c.index - n, at: c.index, items, sel: 0, accept });
     }
 
     // ---- files on disk -----------------------------------------------------------------
@@ -2616,6 +2670,8 @@ impl App {
             ghost: self.completion.ghost.clone(),
             ghost_taken: false,
             caret: None,
+            suggest: self.suggest.clone(),
+            suggest_ask: false,
         };
         let tab = &mut self.tabs[self.active];
         let mut actions = Vec::new();
@@ -2657,6 +2713,12 @@ impl App {
             self.completion.ghost = None;
         }
         self.complete(ui.ctx(), v.caret);
+        self.suggest = v.suggest;
+        self.update_suggest(v.caret, v.suggest_ask);
+        if self.suggest.is_some() {
+            // The list and a Claude suggestion would both want Tab.
+            self.completion.ghost = None;
+        }
     }
 
     fn figure_action(&mut self, ctx: &egui::Context, fig: &Figure, action: FigAction, block: u64) {
@@ -3216,7 +3278,7 @@ fn code_editor(ui: &mut Ui, tab: &mut Tab, i: usize, focused: bool, err_line: Op
     let char_w = ui.fonts(|f| f.glyph_width(&font, '0'));
     let block_id = tab.doc.blocks[i].id;
     let edit_id = Id::new(("block", block_id));
-    if let Some(old) = take_ghost(ui, edit_id, block_id, &mut tab.doc.blocks[i].text, v) {
+    if let Some(old) = suggest_keys(ui, edit_id, block_id, &mut tab.doc.blocks[i].text, v).or_else(|| take_ghost(ui, edit_id, block_id, &mut tab.doc.blocks[i].text, v)) {
         if !tab.doc.blocks[i].controls.is_empty() {
             tab.doc.blocks[i].reanchor_controls(&old);
         }
@@ -3302,6 +3364,7 @@ fn code_editor(ui: &mut Ui, tab: &mut Tab, i: usize, focused: bool, err_line: Op
             v.caret = Some(Caret { block: block_id, index: range.primary.ccursor.index, text: hash_text(&tab.doc.blocks[i].text) });
         }
         paint_ghost(ui, &skin, v, block_id, &galley, origin, box_rect.right() - 8.0);
+        paint_suggest(ui, &skin, v, block_id, &galley, origin);
     }
     // The live controls, over their hidden literals.
     let mut changes: Vec<(usize, String)> = Vec::new();
@@ -3567,7 +3630,7 @@ fn script_view(ui: &mut Ui, tab: &mut Tab, v: &mut View) -> Option<usize> {
     let block_id = tab.doc.blocks[0].id;
     let edit_id = Id::new(("block", block_id));
     let focus = tab.focus_block.take().is_some();
-    if take_ghost(ui, edit_id, block_id, &mut tab.doc.blocks[0].text, v).is_some() {
+    if suggest_keys(ui, edit_id, block_id, &mut tab.doc.blocks[0].text, v).or_else(|| take_ghost(ui, edit_id, block_id, &mut tab.doc.blocks[0].text, v)).is_some() {
         tab.dirty = true;
     }
     ui.scope(|ui| {
@@ -3608,6 +3671,7 @@ fn script_view(ui: &mut Ui, tab: &mut Tab, v: &mut View) -> Option<usize> {
                     tab.current = line_col(&tab.doc.blocks[0].text, range.primary.ccursor.index).0;
                     v.caret = Some(Caret { block: block_id, index: range.primary.ccursor.index, text: hash_text(&tab.doc.blocks[0].text) });
                     paint_ghost(&child, &skin, v, block_id, &out.galley, out.galley_pos, code_x + width);
+                    paint_suggest(&child, &skin, v, block_id, &out.galley, out.galley_pos);
                 }
             }
             let text = tab.doc.blocks[0].text.clone();
@@ -3692,9 +3756,100 @@ fn take_ghost(ui: &Ui, edit_id: Id, block: u64, text: &mut String, v: &mut View)
     Some(old)
 }
 
+/// Keys for the completion list of the focused editor: Up and Down choose, Tab or Enter take
+/// the choice, Esc closes it. Without a list, Tab right after a word (or Ctrl+Space) asks
+/// for one. Returns the text before, when an item was inserted.
+fn suggest_keys(ui: &Ui, edit_id: Id, block: u64, text: &mut String, v: &mut View) -> Option<String> {
+    if !ui.memory(|m| m.has_focus(edit_id)) {
+        return None;
+    }
+    let key = |k: Key| ui.input_mut(|i| i.consume_key(Modifiers::NONE, k));
+    let Some(s) = v.suggest.as_mut().filter(|s| s.block == block) else {
+        if ui.input_mut(|i| i.consume_key(Modifiers::CTRL, Key::Space)) {
+            v.suggest_ask = true;
+            return None;
+        }
+        // Tab after a name completes it; anywhere else it indents as usual.
+        let caret = egui::TextEdit::load_state(ui.ctx(), edit_id).and_then(|st| st.cursor.char_range()).filter(|r| r.primary == r.secondary).map(|r| r.primary.index);
+        let after_word = caret.and_then(|k| k.checked_sub(1)).and_then(|k| text.chars().nth(k)).is_some_and(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.');
+        if v.ghost.as_ref().filter(|g| g.block == block).is_none() && after_word && ui.input(|i| i.key_pressed(Key::Tab) && i.modifiers.is_none()) {
+            key(Key::Tab);
+            v.suggest_ask = true;
+        }
+        return None;
+    };
+    let n = s.items.len();
+    if key(Key::Escape) {
+        v.suggest = None;
+        return None;
+    }
+    if key(Key::ArrowDown) {
+        s.sel = (s.sel + 1) % n;
+    }
+    if key(Key::ArrowUp) {
+        s.sel = (s.sel + n - 1) % n;
+    }
+    let take = s.accept.take().or_else(|| (key(Key::Tab) || key(Key::Enter)).then_some(s.sel))?;
+    let item = s.items.get(take)?.text.clone();
+    let (start, at) = (s.start, s.at);
+    v.suggest = None;
+    let old = text.clone();
+    let b0 = text.char_indices().nth(start).map_or(text.len(), |(b, _)| b);
+    let b1 = text.char_indices().nth(at).map_or(text.len(), |(b, _)| b);
+    text.replace_range(b0..b1, &item);
+    let end = start + item.chars().count();
+    if let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), edit_id) {
+        state.cursor.set_char_range(Some(egui::text::CCursorRange::one(CCursor::new(end))));
+        state.store(ui.ctx(), edit_id);
+    }
+    Some(old)
+}
+
+/// The completion list below the word being completed; a click takes an item.
+fn paint_suggest(ui: &Ui, skin: &Skin, v: &mut View, block: u64, galley: &egui::Galley, origin: Pos2) {
+    let Some(s) = v.suggest.as_mut().filter(|s| s.block == block) else { return };
+    const ROWS: usize = 8;
+    let at = galley.pos_from_ccursor(CCursor::new(s.start)).translate(origin.to_vec2());
+    let first = s.sel.saturating_sub(ROWS - 1).min(s.items.len().saturating_sub(ROWS));
+    let font = FontId::monospace(13.0);
+    let small = FontId::proportional(11.0);
+    let mut clicked = None;
+    egui::Area::new(Id::new(("suggest", block))).order(egui::Order::Foreground).fixed_pos(pos2(at.left() - 6.0, at.bottom() + 2.0)).show(ui.ctx(), |ui| {
+        egui::Frame::none().fill(skin.menu_bg).stroke(Stroke::new(1.0_f32, skin.menu_border)).rounding(Rounding::same(RADIUS)).inner_margin(Margin::same(3.0)).show(ui, |ui| {
+            ui.spacing_mut().item_spacing.y = 0.0;
+            for (k, item) in s.items.iter().enumerate().skip(first).take(ROWS) {
+                let (r, resp) = ui.allocate_exact_size(vec2(300.0, 22.0), Sense::click());
+                let p = ui.painter();
+                if k == s.sel {
+                    p.rect_filled(r, Rounding::same(4.0), skin.row_selected);
+                } else if resp.hovered() {
+                    p.rect_filled(r, Rounding::same(4.0), skin.menu_hover);
+                }
+                p.text(pos2(r.left() + 8.0, r.center().y), Align2::LEFT_CENTER, &item.text, font.clone(), skin.text);
+                p.text(pos2(r.right() - 8.0, r.center().y), Align2::RIGHT_CENTER, item.kind.label(), small.clone(), skin.text_tertiary);
+                if resp.clicked() {
+                    clicked = Some(k);
+                }
+            }
+            if s.items.len() > ROWS {
+                ui.add_space(2.0);
+                ui.label(RichText::new(format!("{} of {}  ·  ↑↓ to choose, Tab to insert", s.sel + 1, s.items.len())).size(11.0).color(skin.text_tertiary));
+            }
+        });
+    });
+    if let Some(k) = clicked {
+        s.accept = Some(k);
+        ui.ctx().memory_mut(|m| m.request_focus(Id::new(("block", block))));
+        ui.ctx().request_repaint();
+    }
+}
+
 /// The suggestion in grey after the caret; lines past the first cover the code below them.
 fn paint_ghost(ui: &Ui, skin: &Skin, v: &View, block: u64, galley: &egui::Galley, origin: Pos2, right: f32) {
     let Some(g) = v.ghost.as_ref().filter(|g| g.block == block) else { return };
+    if v.suggest.is_some() {
+        return;
+    }
     let at = galley.pos_from_ccursor(CCursor::new(g.at)).translate(origin.to_vec2());
     let font = FontId::monospace(13.0);
     let p = ui.painter();

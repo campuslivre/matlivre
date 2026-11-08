@@ -34,6 +34,21 @@ const NAMES: &[&str] = &[
 ];
 
 pub fn exists(name: &str) -> bool {
+    all_names().contains(name)
+}
+
+/// The functions a user can call by name (for the editor's completion list), sorted.
+pub fn function_names() -> Vec<&'static str> {
+    let mut v: Vec<&'static str> = all_names()
+        .iter()
+        .copied()
+        .filter(|n| n.bytes().next().is_some_and(|c| c.is_ascii_alphabetic()) && n.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'_') && !n.starts_with("matlivre_"))
+        .collect();
+    v.sort_unstable();
+    v
+}
+
+fn all_names() -> &'static std::collections::HashSet<&'static str> {
     static ALL: std::sync::OnceLock<std::collections::HashSet<&'static str>> = std::sync::OnceLock::new();
     ALL.get_or_init(|| {
         [NAMES, crate::builtins_elfun::NAMES, crate::builtins_datafun::NAMES, crate::builtins_lang::NAMES, crate::builtins_strings::NAMES, crate::builtins_types::NAMES, crate::builtins_dates::NAMES, crate::builtins_files::NAMES, crate::builtins_textio::NAMES, crate::builtins_data::NAMES, crate::builtins_media::NAMES, crate::builtins_archive::NAMES, crate::builtins_structio::NAMES, crate::gfx::NAMES, crate::builtins_plotfmt::NAMES, crate::builtins_graph3d::NAMES, crate::builtins_funfun::NAMES, crate::builtins_matfun::NAMES, crate::builtins_elmat::NAMES, crate::builtins_ops::NAMES, crate::builtins_specfun::NAMES, crate::polyshape::NAMES, crate::builtins_polyfun::NAMES, crate::builtins_geom::NAMES, crate::polyfun_classes::NAMES, crate::builtins_text::NAMES, crate::builtins_plot::NAMES, crate::time::NAMES, crate::table::NAMES, crate::sym::NAMES, crate::sym::extra::NAMES, crate::sym::special::NAMES, crate::sym::tools::NAMES, crate::sym::units::NAMES, crate::sym::transforms::NAMES, crate::sym::forms::NAMES, crate::sym::ode::NAMES, crate::sym::formula::NAMES, crate::sym::dae::NAMES, crate::containers::NAMES, crate::table_ops::NAMES, crate::builtins_plotmore::NAMES, crate::patterns::NAMES, crate::builtins_validate::NAMES, crate::graphs::NAMES, crate::graphs::FUNCS, crate::builtins_excel::NAMES, crate::builtins_sparse::NAMES, crate::builtins_ode::NAMES, crate::timetable::NAMES, crate::io_more::NAMES, crate::lang_more::NAMES, crate::plot_extra::NAMES, crate::volume::NAMES, crate::timeseries::NAMES, crate::charts::NAMES, crate::images::NAMES, crate::math_more::NAMES, crate::func_objects::NAMES, crate::files_more::NAMES, crate::random::NAMES, crate::timers::NAMES, crate::session_more::NAMES, crate::settings::NAMES, crate::sysobj::NAMES, crate::tiff::NAMES, crate::decomp::NAMES, crate::messages::NAMES, crate::ode_objects::NAMES, crate::gfx_util::NAMES, crate::figfile::NAMES, crate::xml_dom::NAMES, crate::gfx_defaults::NAMES]
@@ -41,7 +56,6 @@ pub fn exists(name: &str) -> bool {
             .flat_map(|n| n.iter().copied())
             .collect()
     })
-    .contains(name)
 }
 
 pub(crate) fn one(v: Value) -> Ret {

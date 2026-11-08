@@ -81,6 +81,10 @@ pub struct Skin {
     pub syn_comment: Color32,
     pub syn_number: Color32,
     pub syn_section: Color32,
+    /// A string missing its closing quote.
+    pub syn_unterminated: Color32,
+    /// A `!` system command.
+    pub syn_system: Color32,
     pub track: Color32,
     pub scroll_thumb: Color32,
     pub scroll_thumb_hover: Color32,
@@ -177,6 +181,8 @@ impl Skin {
             syn_comment: rgb(0, 128, 19),
             syn_number: rgb(29, 29, 29),
             syn_section: rgb(0, 128, 19),
+            syn_unterminated: rgb(178, 0, 0),
+            syn_system: rgb(178, 140, 0),
             track: rgb(237, 237, 237),
             scroll_thumb: rgb(194, 194, 194),
             scroll_thumb_hover: rgb(160, 160, 160),
@@ -247,6 +253,8 @@ impl Skin {
             syn_comment: rgb(106, 153, 85),
             syn_number: rgb(181, 206, 168),
             syn_section: rgb(106, 153, 85),
+            syn_unterminated: rgb(244, 112, 103),
+            syn_system: rgb(220, 180, 90),
             track: rgb(28, 28, 28),
             scroll_thumb: rgb(106, 106, 106),
             scroll_thumb_hover: rgb(140, 140, 140),

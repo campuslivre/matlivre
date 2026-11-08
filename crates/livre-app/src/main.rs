@@ -7,6 +7,7 @@ mod complete;
 mod engine;
 mod files;
 mod highlight;
+mod suggest;
 mod icons;
 mod mcp;
 #[cfg(target_os = "macos")]
