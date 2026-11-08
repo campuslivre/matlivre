@@ -76,6 +76,76 @@ pub enum Target {
     FigObj(usize, usize),
 }
 
+thread_local! {
+    /// Whether a root default (`set(groot, 'defaultAxesColor', ...)`) was ever set: only then
+    /// do builtin calls look for the objects they made.
+    static DEFAULTS_SET: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+pub(crate) fn defaults_active() -> bool {
+    DEFAULTS_SET.with(|d| d.get())
+}
+
+/// The root defaults, as (name without `default`, value).
+fn root_defaults(it: &Interpreter) -> Vec<(String, Value)> {
+    let Some(m) = it.gfx_store.get(&ROOT) else { return Vec::new() };
+    m.iter().filter(|(n, _)| n.len() > 7 && n[..7].eq_ignore_ascii_case("default")).map(|(n, v)| (n[7..].to_string(), v.clone())).collect()
+}
+
+/// Handles of every figure, axes and plotted object (giving axes their handles).
+pub(crate) fn snapshot_ids(it: &mut Interpreter) -> Vec<u64> {
+    let mut out = Vec::new();
+    for f in 0..it.figures.len() {
+        out.push(it.figures[f].id as u64);
+        for a in 0..it.figures[f].axes.len() {
+            out.push(axes_id(it, f, a));
+            out.extend(it.figures[f].axes[a].series.iter().map(|s| s.id));
+        }
+    }
+    out
+}
+
+/// Applies the root defaults to the objects a builtin call made (those not in `before`),
+/// leaving the properties the call named itself.
+pub(crate) fn apply_new_defaults(it: &mut Interpreter, before: &[u64], args: &[Value]) {
+    let skip: Vec<String> = args.iter().filter_map(|a| if a.is_text() { a.text().ok() } else { None }).collect();
+    for id in snapshot_ids(it) {
+        if id != 0 && !before.contains(&id) {
+            apply_defaults(it, id, &skip);
+        }
+    }
+}
+
+/// Sets each root default that applies to object `id`, except the properties in `skip`.
+pub(crate) fn apply_defaults(it: &mut Interpreter, id: u64, skip: &[String]) {
+    let defs = root_defaults(it);
+    if defs.is_empty() {
+        return;
+    }
+    let Some(t) = resolve(it, id) else { return };
+    let class = class_of(it, t);
+    if crate::charts::is_chart(class) {
+        return;
+    }
+    let Ok(Some(kind)) = get_prop(it, id, "Type").map(|v| v.text().ok()) else { return };
+    for (n, v) in defs {
+        if n.len() <= kind.len() || !n[..kind.len()].eq_ignore_ascii_case(&kind) {
+            continue;
+        }
+        let rest = &n[kind.len()..];
+        // Plotted lines take their colors from the color order, not defaultLineColor.
+        if class.contains(".chart.") && rest.eq_ignore_ascii_case("Color") {
+            continue;
+        }
+        if skip.iter().any(|s| s.eq_ignore_ascii_case(rest)) {
+            continue;
+        }
+        if let Some(p) = canonical(class, rest) {
+            let _ = set_prop(it, id, &p, v);
+        }
+    }
+}
+
 /// The next free handle number for an axes or plotted object.
 pub fn alloc(it: &mut Interpreter) -> u64 {
     let id = it.next_handle.max(OBJ_BASE);
@@ -1010,7 +1080,7 @@ fn limits_arg(v: &Value) -> R<Option<(f64, f64)>> {
 }
 
 /// Sets property `name` (MATLAB's spelling) of handle `id`.
-fn set_prop(it: &mut Interpreter, id: u64, name: &str, v: Value) -> R<()> {
+pub(crate) fn set_prop(it: &mut Interpreter, id: u64, name: &str, v: Value) -> R<()> {
     if let Some(r) = histogram_set(it, id, name, &v) {
         return r;
     }
@@ -1026,6 +1096,9 @@ fn set_prop(it: &mut Interpreter, id: u64, name: &str, v: Value) -> R<()> {
     let mut keep = true;
     match t {
         Target::Root | Target::Figure(_) => {
+            if t == Target::Root && name.len() > 7 && name[..7].eq_ignore_ascii_case("default") {
+                DEFAULTS_SET.with(|d| d.set(true));
+            }
             if let (Target::Figure(f), "Name") = (t, name) {
                 mark(it, f);
             }
@@ -1091,6 +1164,14 @@ fn set_prop(it: &mut Interpreter, id: u64, name: &str, v: Value) -> R<()> {
                 "XTickLabelRotation" => ax.xticks.angle = v.scalar()? as f32,
                 "YTickLabelRotation" => ax.yticks.angle = v.scalar()? as f32,
                 "FontSize" => ax.font_size = Some(v.scalar()? as f32),
+                "ColorOrder" => {
+                    let m = v.to_matrix()?;
+                    if m.cols() != 3 || m.rows() == 0 {
+                        return rt("Value must be an m-by-3 matrix of RGB triplets.");
+                    }
+                    ax.color_order = Some((0..m.rows()).map(|r| [m.get(r, 0), m.get(r, 1), m.get(r, 2)]).collect());
+                    keep = true;
+                }
                 "NextPlot" => ax.hold = matches!(v.text()?.as_str(), "add" | "replacechildren"),
                 "DataAspectRatio" => {
                     let m = v.to_matrix()?;
@@ -1633,7 +1714,7 @@ fn get_builtin(it: &mut Interpreter, a: &[Value]) -> Ret {
 }
 
 /// Every handle below `id` (children first-to-last), including parts when `all`.
-fn descendants(it: &mut Interpreter, id: u64, out: &mut Vec<u64>) {
+pub(crate) fn descendants(it: &mut Interpreter, id: u64, out: &mut Vec<u64>) {
     match resolve(it, id) {
         Some(Target::Root) => {
             let figs: Vec<u64> = it.figures.iter().map(|f| f.id as u64).collect();

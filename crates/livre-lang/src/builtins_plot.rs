@@ -43,6 +43,7 @@ impl Interpreter {
         let ax = self.current_figure().axes_mut();
         let mut removed = Vec::new();
         let mut side_colors = Vec::new();
+        let mut reset = 0;
         if let Some(yy) = &ax.yy {
             // yyaxis: a new plot replaces the active side's objects only, in that side's color.
             let (right, color) = (yy.right_active, yy.colors[yy.right_active as usize]);
@@ -61,6 +62,7 @@ impl Interpreter {
             let (grid, id) = (ax.grid, ax.id);
             removed = ax.series.iter().map(|s| s.id).collect();
             *ax = Axes { grid, id, overlay_of: ax.overlay_of, ..Axes::default() };
+            reset = id;
         }
         if ax.series.is_empty() {
             ax.x_kind = x_kind;
@@ -68,6 +70,10 @@ impl Interpreter {
         ax.series.extend(series);
         for id in removed {
             self.gfx_store.remove(&id);
+        }
+        // A replacing plot resets the axes to the root defaults.
+        if reset != 0 && crate::gfx::defaults_active() {
+            crate::gfx::apply_defaults(self, reset, &[]);
         }
         for (id, c) in side_colors {
             self.gfx_store.entry(id).or_default().push(("Color".to_string(), Value::Num(Matrix::row(c.to_vec()))));
