@@ -779,3 +779,56 @@ fn rowfilter_and_nested() {
         ],
     );
 }
+
+#[test]
+fn xml_dom() {
+    check(
+        concat!(
+            "f = [tempname '.xml']; fid = fopen(f, 'w');\n",
+            "fprintf(fid, '<?xml version=\"1.0\" encoding=\"utf-8\"?>\\n<library name=\"city\">\\n  <book id=\"1\">\\n    <title>Dune</title>\\n    <year>1965</year>\\n  </book>\\n  <book id=\"2\">\\n    <title>Emma</title>\\n    <year>1815</year>\\n  </book>\\n</library>\\n');\n",
+            "fclose(fid);\n",
+            "doc = xmlread(f); delete(f);\n",
+            "class(doc)\n",
+            "root = doc.getDocumentElement(); char(root.getNodeName()), char(root.getAttribute('name'))\n",
+            "books = doc.getElementsByTagName('book'); n = books.getLength()\n",
+            "b = books.item(0); char(b.getAttribute('id'))\n",
+            "s = char(b.getElementsByTagName('title').item(0).getTextContent())\n",
+            "y = str2double(b.getElementsByTagName('year').item(0).getTextContent())\n",
+            "kids = root.getChildNodes(); kids.getLength(), char(kids.item(1).getNodeName()), kids.item(1).getNodeType(), char(kids.item(0).getNodeName())\n",
+            "[b.hasAttribute('id'), b.hasAttribute('zz')]\n",
+            "a = root.getAttributes(); a.getLength(), char(a.item(0).getName()), char(a.item(0).getValue())\n",
+            "char(root.getFirstChild().getNextSibling().getNodeName())\n",
+            "char(root.getElementsByTagName('title').item(1).getFirstChild().getNodeValue())\n",
+            "char(books.item(0).getParentNode().getNodeName())\n",
+            "root.getElementsByTagName('nothing').getLength()\n",
+            "d = com.mathworks.xml.XMLUtils.createDocument('config');\n",
+            "r = d.getDocumentElement(); r.setAttribute('version', '2');\n",
+            "p = d.createElement('param'); p.setAttribute('name', 'alpha'); p.appendChild(d.createTextNode('0.5')); r.appendChild(p);\n",
+            "q = d.createElement('group'); it = d.createElement('item'); it.setTextContent('x & y'); q.appendChild(it); r.appendChild(q);\n",
+            "r.appendChild(d.createComment('end')); r.appendChild(d.createElement('empty'));\n",
+            "txt = xmlwrite(d)\n",
+        ),
+        &[
+            "ans = 'org.apache.xerces.dom.DeferredDocumentImpl'",
+            "ans = 'library'",
+            "ans = 'city'",
+            "n = 2",
+            "ans = '1'",
+            "s = 'Dune'",
+            "y = 1965",
+            "ans = 5",
+            "ans = 'book'",
+            "ans = 1",
+            "ans = '#text'",
+            "ans = 1×2 logical array\n\n   1   0",
+            "ans = 1",
+            "ans = 'name'",
+            "ans = 'city'",
+            "ans = 'book'",
+            "ans = 'Emma'",
+            "ans = 'library'",
+            "ans = 0",
+            "txt = \n    '<?xml version=\"1.0\" encoding=\"utf-8\"?>\n     <config version=\"2\">\n        <param name=\"alpha\">0.5</param>\n        <group>\n           <item>x &amp; y</item>\n        </group>\n        <!--end--><empty/>\n     </config>'",
+        ],
+    );
+}

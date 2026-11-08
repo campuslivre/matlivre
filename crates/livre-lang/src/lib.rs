@@ -43,6 +43,7 @@ pub mod class;
 pub mod cplx;
 pub mod decomp;
 pub mod figfile;
+pub mod xml_dom;
 pub mod messages;
 pub mod display;
 pub mod error;

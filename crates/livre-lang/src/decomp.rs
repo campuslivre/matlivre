@@ -44,6 +44,9 @@ pub fn class_def() -> Rc<ClassDef> {
 
 /// The display of a decomposition object.
 pub fn object_text(o: &Object) -> Option<String> {
+    if let Some(t) = crate::xml_dom::object_text(o) {
+        return Some(t);
+    }
     if o.class.name == RF_CLASS {
         return Some(rowfilter_text(o));
     }
