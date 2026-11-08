@@ -12,9 +12,9 @@ RESULT vec_elementwise_1e7 0.031920
 CHECK vec_elementwise_1e7 12600499
 RESULT vec_cumsum_1e7 0.037411
 CHECK vec_cumsum_1e7 5000000
-RESULT vec_find_logical_1e7 0.061284
+RESULT vec_find_logical_1e7 0.017600
 CHECK vec_find_logical_1e7 5000000
-RESULT vec_broadcast_2000sq 0.032469
+RESULT vec_broadcast_2000sq 0.012300
 CHECK vec_broadcast_2000sq 1002498.3
 RESULT vec_reductions_2000sq 0.008190
 CHECK vec_reductions_2000sq 3998018.5

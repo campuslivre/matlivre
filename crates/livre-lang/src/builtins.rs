@@ -1561,7 +1561,7 @@ fn call_dense(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize) 
                 Value::Num(m) => {
                     if kind == Kind::Logical {
                         if m.data.iter().any(|x| x.is_nan()) {
-                            return rt("NaN's cannot be converted to logicals.");
+                            return rt("NaN values cannot be converted to logicals.");
                         }
                         if m.is_complex() {
                             return rt("Conversion to logical from complex is not possible.");

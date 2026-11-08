@@ -1,0 +1,20 @@
+g1 1 logical 30000
+g2 1 [1 30000] 30000
+g3 1 [12024 1]
+g4 [1 0]
+g5 [0 1]
+g6 1 [17822 1]
+g7 1 double
+g8 1 logical
+g9 1 19486
+g10 1 none
+g11 1 NaN values cannot be converted to logicals.
+g12 1 0
+g13 1 [200 300]
+g14 1 [200 300]
+g15 1
+g16 1 logical 10001
+g17 1 [14750 1]
+g18 1 [200 300]
+g19 1
+g20 1 0

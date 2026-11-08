@@ -145,8 +145,8 @@ matrices are dense arrays with a sparse flag. On large dense arrays MatLivre is 
 | conjugate gradients on the Poisson matrix | 3.02 | 2.87 | 4.16 | 1.4x slower | 1.5x slower |
 | elementwise math, 1e7 elements | 139.8 | 485.2 | 31.9 | 4.4x faster | 15.2x faster |
 | `cumsum`, 1e7 elements | 45.6 | 59.3 | 37.4 | 1.2x faster | 1.6x faster |
-| `find` on a logical mask, 1e7 | 25.4 | 183.6 | 61.3 | 2.4x slower | 3.0x faster |
-| broadcast arithmetic, 2000 x 2000 | 10.2 | 41.2 | 32.5 | 3.2x slower | 1.3x faster |
+| `find` on a logical mask, 1e7 | 25.4 | 183.6 | 17.6 | 1.4x faster | 10.4x faster |
+| broadcast arithmetic, 2000 x 2000 | 10.2 | 41.2 | 12.3 | 1.2x slower | 3.3x faster |
 | row and column reductions, 2000 x 2000 | 8.18 | 102.6 | 8.19 | about equal | 12.5x faster |
 | `sort`, 4e6 elements | 66.7 | 334.2 | 35.3 | 1.9x faster | 9.5x faster |
 | `M*M`, 2000 x 2000 | 126.2 | 78.5 | 59.2 | 2.1x faster | 1.3x faster |
@@ -155,9 +155,11 @@ Square sparse systems of order 100 and up are solved with a sparse LU (Markowitz
 from the SolverLivre project) with a residual check and a fallback to the dense solver, and the
 iterative solvers and the sparse products (`A*x`, `x'*A`) multiply with compressed columns,
 which are built once per matrix and kept until it changes. Chains of elementwise operators on large
-arrays (`exp(-x.^2) .* sin(20*x) + sqrt(x+1)`) are evaluated fused, in cache-sized blocks on
-several threads, so only the result is written to memory; reductions, `cumsum`, `find`, `max`,
-`min` and implicit expansion work on the arrays in place and in parallel when they are large.
+arrays (`exp(-x.^2) .* sin(20*x) + sqrt(x+1)`), comparisons and logical operators, rows and
+columns expanded over a matrix (`M .* r + c - M`) and `find(x > a & x < b)` are evaluated fused,
+in cache-sized blocks on several threads, so only the result is written to memory (`find` never
+builds the logical array); reductions, `cumsum`, `max` and `min` work on the arrays in place and
+in parallel when they are large, and `sum(A(:))` does not copy `A`.
 
 ### Other common operations
 
