@@ -3307,7 +3307,7 @@ fn code_editor(ui: &mut Ui, tab: &mut Tab, i: usize, focused: bool, err_line: Op
                 let job = crate::highlight::highlight(s, &skin2, f2.clone(), Some(20.0), false);
                 let mut job = control_layout(job, s, &spans2, char_w);
                 job.wrap.max_width = wrap;
-                ui.fonts(|f| f.layout_job(job))
+                crate::highlight::center_rows(ui.fonts(|f| f.layout_job(job)), 20.0)
             };
             let out = egui::TextEdit::multiline(&mut tab.doc.blocks[i].text)
                 .id(edit_id)
@@ -3330,8 +3330,7 @@ fn code_editor(ui: &mut Ui, tab: &mut Tab, i: usize, focused: bool, err_line: Op
     let origin = out.galley_pos;
     // Line numbers (40 px, right-aligned, 12 px padding) and the failing line's tint. Text
     // sits at the top of a 20 px row, and centred in a control's 36 px row.
-    let fh = ui.fonts(|f| f.row_height(&font));
-    let text_y = |r: Rect| r.top() + ((r.height() - 20.0) / 2.0).max(0.0) + fh / 2.0;
+    let text_y = |r: Rect| r.top() + ((r.height() - 20.0) / 2.0).max(0.0) + 10.0;
     let mut line = 0usize;
     let mut first_row = true;
     let p = ui.painter();
@@ -3646,7 +3645,7 @@ fn script_view(ui: &mut Ui, tab: &mut Tab, v: &mut View) -> Option<usize> {
             let f2 = font.clone();
             let mut layouter = move |ui: &Ui, s: &str, _wrap: f32| {
                 let job = crate::highlight::highlight(s, &skin2, f2.clone(), Some(20.0), true);
-                ui.fonts(|f| f.layout_job(job))
+                crate::highlight::center_rows(ui.fonts(|f| f.layout_job(job)), 20.0)
             };
             let width = (ui.available_width() - (code_x - x0) - 16.0).max(200.0);
             let mut child = ui.new_child(UiBuilder::new().max_rect(Rect::from_min_size(pos2(code_x, top), vec2(width, f32::INFINITY))).layout(Layout::top_down(Align::Min)));
@@ -3679,7 +3678,6 @@ fn script_view(ui: &mut Ui, tab: &mut Tab, v: &mut View) -> Option<usize> {
             let sections = script_sections(&text);
             let current = script_section_of(&text, tab.current);
             let origin = out.galley_pos;
-            let fh = ui.fonts(|f| f.row_height(&font));
             let rows: Vec<Rect> = out.galley.rows.iter().map(|r| r.rect.translate(origin.to_vec2())).collect();
             let row_of = |line: usize| rows.get(line).copied();
             let pointer = ui.ctx().pointer_hover_pos();
@@ -3699,7 +3697,7 @@ fn script_view(ui: &mut Ui, tab: &mut Tab, v: &mut View) -> Option<usize> {
                 for line in range.clone() {
                     let Some(r) = row_of(line) else { continue };
                     let color = if si == current { skin.text_secondary } else { skin.text_tertiary };
-                    p.text(pos2(code_x - 16.0, r.top() + fh / 2.0), Align2::RIGHT_CENTER, (line + 1).to_string(), font.clone(), color);
+                    p.text(pos2(code_x - 16.0, r.top() + 10.0), Align2::RIGHT_CENTER, (line + 1).to_string(), font.clone(), color);
                     if lines.get(line).is_some_and(|l| is_section_header(l)) {
                         if line > 0 {
                             p.line_segment([pos2(code_x, r.top() + 0.5), pos2(code_x + width, r.top() + 0.5)], Stroke::new(1.0_f32, skin.separator));
@@ -3854,7 +3852,9 @@ fn paint_ghost(ui: &Ui, skin: &Skin, v: &View, block: u64, galley: &egui::Galley
     let font = FontId::monospace(13.0);
     let p = ui.painter();
     let mut lines = g.text.split('\n');
-    p.text(at.left_top(), Align2::LEFT_TOP, lines.next().unwrap_or(""), font.clone(), skin.text_tertiary);
+    // Text sits centred in its 20 px row.
+    let d = crate::highlight::row_offset(ui.fonts(|f| f.row_height(&font)), 20.0);
+    p.text(at.left_top() + vec2(0.0, d), Align2::LEFT_TOP, lines.next().unwrap_or(""), font.clone(), skin.text_tertiary);
     let rest: Vec<&str> = lines.collect();
     if rest.is_empty() {
         return;
@@ -3864,7 +3864,7 @@ fn paint_ghost(ui: &Ui, skin: &Skin, v: &View, block: u64, galley: &egui::Galley
     p.rect_filled(cover, Rounding::same(2.0), skin.code_bg);
     p.rect_filled(Rect::from_min_size(pos2(origin.x - 6.0, top + 2.0), vec2(2.0, cover.height() - 4.0)), Rounding::same(1.0), skin.accent);
     for (k, l) in rest.iter().enumerate() {
-        p.text(pos2(origin.x, top + 20.0 * k as f32), Align2::LEFT_TOP, *l, font.clone(), skin.text_tertiary);
+        p.text(pos2(origin.x, top + d + 20.0 * k as f32), Align2::LEFT_TOP, *l, font.clone(), skin.text_tertiary);
     }
 }
 

@@ -337,3 +337,30 @@ mod tests {
         assert_eq!(marked("[a b]"), vec![]);
     }
 }
+
+/// How far text sits below the top of a `row_h` row once centred in it.
+pub fn row_offset(font_height: f32, row_h: f32) -> f32 {
+    ((row_h - font_height) / 2.0).max(0.0).round()
+}
+
+/// Moves the text of each row down to the middle of its `row_h` rows. egui 0.29 puts text
+/// at the top of a row taller than the font, so the caret and selection, which span the
+/// row, hung below it.
+pub fn center_rows(galley: std::sync::Arc<eframe::egui::Galley>, row_h: f32) -> std::sync::Arc<eframe::egui::Galley> {
+    let Some(fh) = galley.rows.iter().flat_map(|r| r.glyphs.iter()).map(|g| g.font_height).next() else { return galley };
+    let d = row_offset(fh, row_h);
+    if d == 0.0 {
+        return galley;
+    }
+    let mut g = (*galley).clone();
+    let shift = eframe::egui::vec2(0.0, d);
+    for row in &mut g.rows {
+        for glyph in &mut row.glyphs {
+            glyph.pos.y += d;
+        }
+        row.visuals.mesh.translate(shift);
+        row.visuals.mesh_bounds = row.visuals.mesh_bounds.translate(shift);
+    }
+    g.mesh_bounds = g.mesh_bounds.translate(shift);
+    std::sync::Arc::new(g)
+}
