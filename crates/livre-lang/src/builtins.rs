@@ -2856,7 +2856,19 @@ fn call_dense(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize) 
         "polyval" => {
             let p = m_arg(a, 0, name)?;
             let x = m_arg(a, 1, name)?;
-            mat(x.map(|xv| p.data.iter().fold(0.0, |acc, &c| acc * xv + c)))
+            if !p.is_complex() && !x.is_complex() {
+                return mat(x.map(|xv| p.data.iter().fold(0.0, |acc, &c| acc * xv + c)));
+            }
+
+            let coeffs: Vec<C> = (0..p.numel()).map(|k| C::new(p.data[k], p.im_at(k))).collect();
+            let (re, im): (Vec<f64>, Vec<f64>) = (0..x.numel())
+                .map(|k| {
+                    let xv = C::new(x.data[k], x.im_at(k));
+                    let v = coeffs.iter().fold(C::new(0.0, 0.0), |acc, &c| acc.mul(xv).add(c));
+                    (v.re, v.im)
+                })
+                .unzip();
+            mat(Matrix::complex(x.dims.clone(), re, im))
         }
         "interp1" => {
             let x = m_arg(a, 0, name)?;
