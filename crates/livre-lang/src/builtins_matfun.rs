@@ -1992,6 +1992,104 @@ fn ordeig_pencil(aa: &M, bb: &M) -> Vec<Z> {
 // ---- matrix functions --------------------------------------------------------------------
 
 /// Scaling and squaring with Padé approximants (Higham 2005).
+/// `expm` of a real matrix with real arithmetic (blocked products and one LU solve), following the
+/// same scaling and squaring with Pade approximants as `expm_of`. `None` when the arithmetic
+/// turns out non-finite, so the general routine decides.
+fn expm_real(a: &Matrix) -> Option<Matrix> {
+    use crate::ops::{matmul, solve, take_warnings};
+    let n = a.rows();
+    let mm = |x: &Matrix, y: &Matrix| matmul(x, y).ok();
+    // sum of coef * matrix, plus eye * identity
+    let comb = |terms: &[(f64, &Matrix)], eye: f64| -> Matrix {
+        let mut data = vec![0.0; n * n];
+        for (c, m) in terms {
+            for (o, v) in data.iter_mut().zip(&m.data) {
+                *o += c * v;
+            }
+        }
+        if eye != 0.0 {
+            for i in 0..n {
+                data[i * n + i] += eye;
+            }
+        }
+        Matrix::new(n, n, data)
+    };
+    let pade = |a: &Matrix, m: usize| -> Option<Matrix> {
+        let b: &[f64] = match m {
+            3 => &[120.0, 60.0, 12.0, 1.0],
+            5 => &[30240.0, 15120.0, 3360.0, 420.0, 30.0, 1.0],
+            7 => &[17297280.0, 8648640.0, 1995840.0, 277200.0, 25200.0, 1512.0, 56.0, 1.0],
+            9 => &[17643225600.0, 8821612800.0, 2075673600.0, 302702400.0, 30270240.0, 2162160.0, 110880.0, 3960.0, 90.0, 1.0],
+            _ => &[
+                64764752532480000.0,
+                32382376266240000.0,
+                7771770303897600.0,
+                1187353796428800.0,
+                129060195264000.0,
+                10559470521600.0,
+                670442572800.0,
+                33522128640.0,
+                1323241920.0,
+                40840800.0,
+                960960.0,
+                16380.0,
+                182.0,
+                1.0,
+            ],
+        };
+        let a2 = mm(a, a)?;
+        let (u, v);
+        if m == 13 {
+            let a4 = mm(&a2, &a2)?;
+            let a6 = mm(&a4, &a2)?;
+            let lin1 = comb(&[(b[13], &a6), (b[11], &a4), (b[9], &a2)], 0.0);
+            let lin2 = comb(&[(b[12], &a6), (b[10], &a4), (b[8], &a2)], 0.0);
+            let p1 = mm(&a6, &lin1)?;
+            let u_in = comb(&[(1.0, &p1), (b[7], &a6), (b[5], &a4), (b[3], &a2)], b[1]);
+            u = mm(a, &u_in)?;
+            let p2 = mm(&a6, &lin2)?;
+            v = comb(&[(1.0, &p2), (b[6], &a6), (b[4], &a4), (b[2], &a2)], b[0]);
+        } else {
+            let mut eye = vec![0.0; n * n];
+            for i in 0..n {
+                eye[i * n + i] = 1.0;
+            }
+            let mut powers = vec![Matrix::new(n, n, eye), a2.clone()];
+            while powers.len() <= m / 2 {
+                let next = mm(powers.last().unwrap(), &a2)?;
+                powers.push(next);
+            }
+            let odd: Vec<(f64, &Matrix)> = powers.iter().enumerate().take(m / 2 + 1).map(|(k, pw)| (b[2 * k + 1], pw)).collect();
+            let even: Vec<(f64, &Matrix)> = powers.iter().enumerate().take(m / 2 + 1).map(|(k, pw)| (b[2 * k], pw)).collect();
+            u = mm(a, &comb(&odd, 0.0))?;
+            v = comb(&even, 0.0);
+        }
+        let _ = take_warnings();
+        let x = solve(&comb(&[(1.0, &v), (-1.0, &u)], 0.0), &comb(&[(1.0, &v), (1.0, &u)], 0.0)).ok()?;
+        if !take_warnings().is_empty() || x.data.iter().any(|z| !z.is_finite()) {
+            return None;
+        }
+        Some(x)
+    };
+    const THETA: [(usize, f64); 4] = [(3, 1.495585217958292e-2), (5, 2.53939833006323e-1), (7, 9.504178996162932e-1), (9, 2.097847961257068)];
+    let nrm = (0..n).map(|j| a.data[j * n..(j + 1) * n].iter().map(|v| v.abs()).sum::<f64>()).fold(0.0, f64::max);
+    if !nrm.is_finite() {
+        return None;
+    }
+    for (m, th) in THETA {
+        if nrm <= th {
+            return pade(a, m);
+        }
+    }
+    let s = ((nrm / 5.371920351148152).log2().ceil()).max(0.0) as i32;
+    let scaled = comb(&[(2f64.powi(-s), a)], 0.0);
+    let mut x = pade(&scaled, 13)?;
+    for _ in 0..s {
+        x = mm(&x, &x)?;
+    }
+    Some(x)
+}
+
 fn expm_of(a: &M) -> M {
     const THETA: [(usize, f64); 4] = [(3, 1.495585217958292e-2), (5, 2.53939833006323e-1), (7, 9.504178996162932e-1), (9, 2.097847961257068)];
     let nrm = a.norm1();
@@ -3379,6 +3477,13 @@ pub fn call(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
             one(zcol(&e, e.iter().any(|z| z.im != 0.0)))
         }
         "expm" => {
+            if let Some(Value::Num(mx)) = a.first() {
+                if mx.kind == Kind::Double && !mx.is_complex() && mx.dims.len() == 2 && mx.rows() == mx.cols() && mx.rows() >= 8 {
+                    if let Some(x) = expm_real(mx) {
+                        return one(Value::Num(x));
+                    }
+                }
+            }
             let (m, c) = square(a, 0, name, "Input must be square.")?;
             one(expm_of(&m).val(c))
         }

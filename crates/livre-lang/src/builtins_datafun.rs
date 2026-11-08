@@ -535,6 +535,15 @@ fn fft_len(v: Option<&Value>, current: usize) -> R<usize> {
 /// FFT along `dim` with length `n` (padding with zeros or truncating). With `symmetric` (an
 /// inverse only), the input is treated as conjugate symmetric and the result is real.
 fn fft_dim(x: &Matrix, n: usize, dim: usize, inverse: bool, symmetric: bool) -> Matrix {
+    // One long vector: the multithreaded transform.
+    if !symmetric && n >= crate::fft_big::BIG {
+        let (stride, len, outer) = layout(&x.dims, dim);
+        if stride == 1 && outer == 1 {
+            if let Some((re, im)) = crate::fft_big::transform(&x.data[..len], x.im.as_deref().map(|v| &v[..len]), n, inverse) {
+                return Matrix::complex(with_dim(&x.dims, dim, n), re, im);
+            }
+        }
+    }
     let scale = if inverse && n > 0 { 1.0 / n as f64 } else { 1.0 };
     let mut buf = vec![Complex64::new(0.0, 0.0); n];
     let mut out = map_dim_c(x, dim, n, |v| {
@@ -606,24 +615,37 @@ fn finish_fft(mut m: Matrix, kind: Kind, real: bool) -> Matrix {
     m
 }
 
-fn symmetric_flag(a: &[Value]) -> R<(Vec<Value>, Option<bool>)> {
-    let mut rest = Vec::new();
+fn symmetric_flag(a: &[Value]) -> R<(std::borrow::Cow<'_, [Value]>, Option<bool>)> {
     let mut sym = None;
+    let mut options = false;
     for v in a {
         match lower(v).as_deref() {
-            Some("symmetric") => sym = Some(true),
-            Some("nonsymmetric") => sym = Some(false),
+            Some("symmetric") => {
+                sym = Some(true);
+                options = true;
+            }
+            Some("nonsymmetric") => {
+                sym = Some(false);
+                options = true;
+            }
             Some(t) => return rt(format!("Invalid option '{t}'.")),
-            None => rest.push(v.clone()),
+            None => {}
         }
     }
-    Ok((rest, sym))
+    // Without option words the arguments are used as given (large arrays are not copied).
+    if !options {
+        return Ok((std::borrow::Cow::Borrowed(a), sym));
+    }
+    Ok((std::borrow::Cow::Owned(a.iter().filter(|v| lower(v).is_none()).cloned().collect()), sym))
 }
 
 fn fft1(name: &str, a: &[Value]) -> R<Matrix> {
     let inverse = name == "ifft";
     let (a, sym) = symmetric_flag(a)?;
-    let x = num_arg(&a, 0, name)?;
+    let x: std::borrow::Cow<Matrix> = match a.first() {
+        Some(Value::Num(m)) => std::borrow::Cow::Borrowed(m),
+        _ => std::borrow::Cow::Owned(num_arg(&a, 0, name)?),
+    };
     let kind = fft_input(&x)?;
     let dim = match a.get(2) {
         Some(v) => {

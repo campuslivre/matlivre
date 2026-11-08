@@ -113,3 +113,31 @@ fn flattened_large_arguments_are_lent_and_restored() {
     let want = "F1 18003000 [6000 1] [60 100]\nF2 6000 6000 1 [60 100]\nF3 [60 100]\nF4 36006000 36006000\nF5 18003000 [4 5 300] 3000\nF6 18003000 1 [60 100]";
     assert_eq!(got.trim_end(), want);
 }
+
+fn script_output(src: &str) -> String {
+    let mut it = Interpreter::new();
+    let _ = it.run_source(src);
+    it.take_outputs()
+        .into_iter()
+        .filter_map(|o| match o.kind {
+            OutputKind::Text(t) => Some(t),
+            OutputKind::Error(e) => Some(format!("Error: {e}\n")),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The multithreaded FFT of long vectors (real and complex input, padding, truncation, lengths
+/// that do not split, single precision) gives MATLAB R2023b's results (`data/fft_big.m`).
+#[test]
+fn long_fft_vectors_match_matlab() {
+    assert_eq!(script_output(include_str!("data/fft_big.m")).trim_end(), include_str!("data/fft_big_matlab.txt").trim_end());
+}
+
+/// `expm` of real matrices runs in real arithmetic; scaling and squaring, the small-norm Pade
+/// orders and complex input all agree with MATLAB R2023b (`data/expm_real.m`), and `trace` keeps
+/// the imaginary part of a complex matrix.
+#[test]
+fn real_expm_and_complex_trace_match_matlab() {
+    assert_eq!(script_output(include_str!("data/expm_real.m")).trim_end(), include_str!("data/expm_real_matlab.txt").trim_end());
+}

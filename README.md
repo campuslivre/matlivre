@@ -166,19 +166,19 @@ in parallel when they are large, and `sum(A(:))` does not copy `A`.
 [`benchmarks/bench_more.m`](benchmarks/bench_more.m) times 34 everyday operations (linear algebra
 factorizations, FFT, convolution, lookups, sorting, strings, function handles, structs and maps)
 in MATLAB R2023b and MatLivre, best of 3, checksums recorded. MatLivre is faster in 9 of them,
-within 4.6x of MATLAB in all of them, and 1.21x slower on the geometric mean; a selection:
+within 3.7x of MATLAB in all of them, and 1.10x slower on the geometric mean; a selection:
 
 | Case | MATLAB (ms) | MatLivre (ms) | MatLivre vs MATLAB |
 |---|---:|---:|---|
-| `expm`, 150 x 150 | 3.44 | 15.77 | 4.6x slower |
 | `rand(1,1e7)` and `randn(1000)` | 67.51 | 253.1 | 3.7x slower |
-| `fft`, 2^20 points | 6.62 | 24.00 | 3.6x slower |
+| `fft`, 2^20 points | 6.62 | 10.00 | 1.5x slower |
 | `chol`, 300 x 300 | 0.24 | 0.76 | 3.1x slower |
 | `[Q,R] = qr`, 300 x 300 | 1.45 | 4.17 | 2.9x slower |
 | `svd`, 300 x 300 | 5.55 | 13.80 | 2.5x slower |
 | `[L,U,P] = lu`, 300 x 300 | 0.62 | 1.34 | 2.2x slower |
 | `eig`, symmetric 300 x 300 | 2.45 | 4.56 | 1.9x slower |
 | `inv`, 300 x 300 | 2.17 | 1.88 | 1.2x faster |
+| `expm`, 150 x 150 | 3.44 | 0.93 | 3.7x faster |
 | `unique`, 1e6 elements | 48.56 | 46.04 | 1.1x faster |
 | `ismember`, 1e5 in 1e5 | 3.38 | 4.37 | 1.3x slower |
 | `[s,i] = sort`, 1e6 | 35.37 | 53.76 | 1.5x slower |
@@ -198,6 +198,8 @@ within 4.6x of MATLAB in all of them, and 1.21x slower on the geometric mean; a 
 - **Multithreaded linear algebra** through `faer`: blocked matrix products and LU
   factorization.
 - **Parallel elementwise math and sorting** on large arrays (rayon).
+- **Multithreaded FFT** of long vectors (four-step transform with the transposes folded into the
+  passes, half-length transform for real input) and real-arithmetic `expm`.
 - **A retaining allocator** (mimalloc): large arrays are not handed back to the OS and faulted in again
   on the next operation, which made products, solves and whole-array operations 25 to 35% faster.
 - **No copies where MATLAB semantics allow it**: in-place appends (`x(end+1) = v`,
