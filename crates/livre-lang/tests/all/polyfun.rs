@@ -71,6 +71,12 @@ fn polynomials_and_1d_interpolation() {
     case(r#"r__ = polyint([3 2 1],5);"#, &[("r__", "double", &[1, 4], &[1.0, 1.0, 1.0, 5.0], &[])], None);
     case(r#"r__ = polyint([3;2;1]);"#, &[], Some(r#"Dimensions of arrays being concatenated are not consistent."#));
     case(r#"r__ = polyint([]);"#, &[("r__", "double", &[1, 1], &[0.0], &[])], None);
+    case(r#"r__ = polyval([1 2 1],2);"#, &[("r__", "double", &[1, 1], &[9.0], &[])], None);
+    case(r#"r__ = polyval([1 2 1],1j);"#, &[("r__", "double", &[1, 1], &[0.0], &[2.0])], None);
+    case(r#"r__ = polyval([1 2 1],1j*[0.01 1 100]);"#, &[("r__", "double", &[1, 3], &[0.99990000000000001, 0.0, -9999.0], &[0.02, 2.0, 200.0])], None);
+    case(r#"r__ = polyval([1 2 1],[1+2i 3-1i;0 2]);"#, &[("r__", "double", &[2, 2], &[0.0, 1.0, 15.0, 9.0], &[8.0, 0.0, -8.0, 0.0])], None);
+    case(r#"r__ = polyval([1+1i 2 -1i],[1 2 3]);"#, &[("r__", "double", &[1, 3], &[3.0, 8.0, 15.0], &[0.0, 3.0, 8.0])], None);
+    case(r#"r__ = polyval([1+1i 2 -1i],1j);"#, &[("r__", "double", &[1, 1], &[-1.0], &[0.0])], None);
     case(r#"r__ = polyvalm([1 2 3],[1 2;3 4]);"#, &[("r__", "double", &[2, 2], &[12.0, 21.0, 14.0, 33.0], &[])], None);
     case(r#"r__ = polyvalm([],[1 2;3 4]);"#, &[("r__", "double", &[2, 2], &[0.0, 0.0, 0.0, 0.0], &[])], None);
     case(r#"r__ = polyvalm([1 2],[1 2 3]);"#, &[], Some(r#"Matrix must be square."#));
