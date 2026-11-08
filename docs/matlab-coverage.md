@@ -3,14 +3,14 @@
 Every function in the MATLAB R2023b and Symbolic Math Toolbox function references (the
 installation's `help/*/helpfuncbycat.xml`), plus key classes and undocumented public functions
 found in the toolbox folders, checked against MatLivre. Regenerate with
-`tools/coverage/update.sh` after merging work (2026-11-07).
+`tools/coverage/update.sh` after merging work (2026-11-08).
 
 | Status | Count |
 |---|---:|
-| Implemented | 1879 |
+| Implemented | 1882 |
 | In a branch not merged yet | 0 |
 | Language keyword (check it works) | 25 |
-| **To implement** | **135** |
+| **To implement** | **132** |
 | Out of scope | 1340 |
 
 Out of scope, by category of the function reference: app building, external language
@@ -187,7 +187,7 @@ Out of scope: `addFields` (External Language Interfaces), `callSoapService` (Ext
 
 ## MATLAB > Graphics > 2-D and 3-D Plots
 
-Implemented: 137. To implement: 11. In a branch: 0. Out of scope: 0.
+Implemented: 138. To implement: 10. In a branch: 0. Out of scope: 0.
 
 To implement:
 
@@ -200,28 +200,25 @@ To implement:
 - [ ] `geoplot`
 - [ ] `geoscatter`
 - [ ] `geotickformat`
-- [ ] `refreshdata`
 - [ ] `removeToolbarMapButton`
 
-Implemented: `addpoints`, `animatedline`, `bar`, `bar3`, `bar3h`, `barh`, `binscatter`, `boxchart`, `bubblechart`, `bubblechart3`, `bubblecloud`, `bubblelegend`, `bubblelim`, `bubblesize`, `clabel`, `clearpoints`, `comet`, `comet3`, `compass`, `coneplot`, `contour`, `contour3`, `contourc`, `contourf`, `contourslice`, `curl`, `cylinder`, `divergence`, `donutchart`, `drawnow`, `ellipsoid`, `errorbar`, `ezcontour`, `ezcontourf`, `ezmesh`, `ezmeshc`, `ezplot`, `ezplot3`, `ezpolar`, `ezsurf`, `ezsurfc`, `fcontour`, `feather`, `fewerbins`, `fill`, `fill3`, `fimplicit`, `fimplicit3`, `fmesh`, `fplot`, `fplot3`, `frame2im`, `fsurf`, `geobubble`, `getframe`, `getpoints`, `heatmap`, `hidden`, `hist`, `histc`, `histogram`, `histogram2`, `im2frame`, `interpstreamspeed`, `isocaps`, `isocolors`, `isonormals`, `isosurface`, `loglog`, `mesh`, `meshc`, `meshz`, `morebins`, `movie`, `parallelplot`, `pareto`, `pcolor`, `peaks`, `pie`, `pie3`, `piechart`, `plot3`, `plotmatrix`, `polar`, `polaraxes`, `polarbubblechart`, `polarhistogram`, `polarplot`, `polarscatter`, `quiver`, `quiver3`, `reducepatch`, `reducevolume`, `ribbon`, `rlim`, `rose`, `rtickangle`, `rtickformat`, `rticklabels`, `rticks`, `scatter`, `scatter3`, `scatterhistogram`, `semilogx`, `semilogy`, `shrinkfaces`, `slice`, `smooth3`, `sortx`, `sorty`, `sphere`, `stairs`, `stem`, `stem3`, `stream2`, `stream3`, `streamline`, `streamparticles`, `streamribbon`, `streamslice`, `streamtube`, `subvolume`, `surf`, `surf2patch`, `surface`, `surfc`, `surfl`, `surfnorm`, `swarmchart`, `swarmchart3`, `thetalim`, `thetatickformat`, `thetaticklabels`, `thetaticks`, `volumebounds`, `waterfall`, `wordcloud`
+Implemented: `addpoints`, `animatedline`, `bar`, `bar3`, `bar3h`, `barh`, `binscatter`, `boxchart`, `bubblechart`, `bubblechart3`, `bubblecloud`, `bubblelegend`, `bubblelim`, `bubblesize`, `clabel`, `clearpoints`, `comet`, `comet3`, `compass`, `coneplot`, `contour`, `contour3`, `contourc`, `contourf`, `contourslice`, `curl`, `cylinder`, `divergence`, `donutchart`, `drawnow`, `ellipsoid`, `errorbar`, `ezcontour`, `ezcontourf`, `ezmesh`, `ezmeshc`, `ezplot`, `ezplot3`, `ezpolar`, `ezsurf`, `ezsurfc`, `fcontour`, `feather`, `fewerbins`, `fill`, `fill3`, `fimplicit`, `fimplicit3`, `fmesh`, `fplot`, `fplot3`, `frame2im`, `fsurf`, `geobubble`, `getframe`, `getpoints`, `heatmap`, `hidden`, `hist`, `histc`, `histogram`, `histogram2`, `im2frame`, `interpstreamspeed`, `isocaps`, `isocolors`, `isonormals`, `isosurface`, `loglog`, `mesh`, `meshc`, `meshz`, `morebins`, `movie`, `parallelplot`, `pareto`, `pcolor`, `peaks`, `pie`, `pie3`, `piechart`, `plot3`, `plotmatrix`, `polar`, `polaraxes`, `polarbubblechart`, `polarhistogram`, `polarplot`, `polarscatter`, `quiver`, `quiver3`, `reducepatch`, `reducevolume`, `refreshdata`, `ribbon`, `rlim`, `rose`, `rtickangle`, `rtickformat`, `rticklabels`, `rticks`, `scatter`, `scatter3`, `scatterhistogram`, `semilogx`, `semilogy`, `shrinkfaces`, `slice`, `smooth3`, `sortx`, `sorty`, `sphere`, `stairs`, `stem`, `stem3`, `stream2`, `stream3`, `streamline`, `streamparticles`, `streamribbon`, `streamslice`, `streamtube`, `subvolume`, `surf`, `surf2patch`, `surface`, `surfc`, `surfl`, `surfnorm`, `swarmchart`, `swarmchart3`, `thetalim`, `thetatickformat`, `thetaticklabels`, `thetaticks`, `volumebounds`, `waterfall`, `wordcloud`
 
 ## MATLAB > Graphics > Formatting and Annotation
 
-Implemented: 115. To implement: 9. In a branch: 0. Out of scope: 0.
+Implemented: 117. To implement: 7. In a branch: 0. Out of scope: 0.
 
 To implement:
 
 - [ ] `cameratoolbar`
-- [ ] `colordef`
 - [ ] `Colormap Editor`
 - [ ] `ginput`
-- [ ] `graymon`
 - [ ] `gtext`
 - [ ] `spinmap`
 - [ ] `tightPosition`
 - [ ] `whitebg`
 
-Implemented: `abyss`, `alim`, `alpha`, `alphamap`, `annotation`, `autumn`, `axes`, `axis`, `bone`, `box`, `brighten`, `camdolly`, `camlight`, `camlookat`, `camorbit`, `campan`, `campos`, `camproj`, `camroll`, `camtarget`, `camup`, `camva`, `camzoom`, `cla`, `clf`, `clim`, `colorbar`, `colorcube`, `colormap`, `colororder`, `contrast`, `cool`, `copper`, `daspect`, `datatip`, `datetick`, `diffuse`, `figure`, `flag`, `fontname`, `fontsize`, `gray`, `grid`, `hold`, `hot`, `hsv`, `hsv2rgb`, `jet`, `legend`, `light`, `lightangle`, `lighting`, `line`, `lines`, `makehgtform`, `material`, `nexttile`, `num2ruler`, `orderedcolors`, `parula`, `pbaspect`, `pink`, `plotyy`, `prism`, `rectangle`, `rgb2hsv`, `rgbplot`, `ruler2num`, `sgtitle`, `shading`, `sky`, `specular`, `spring`, `subplot`, `subtitle`, `summer`, `texlabel`, `text`, `tiledlayout`, `tilenum`, `tilerowcol`, `title`, `turbo`, `view`, `viewmtx`, `winter`, `xlabel`, `xlim`, `xline`, `xregion`, `xscale`, `xsecondarylabel`, `xtickangle`, `xtickformat`, `xticklabels`, `xticks`, `ylabel`, `ylim`, `yline`, `yregion`, `yscale`, `ysecondarylabel`, `ytickangle`, `ytickformat`, `yticklabels`, `yticks`, `yyaxis`, `zlabel`, `zlim`, `zscale`, `zsecondarylabel`, `ztickangle`, `ztickformat`, `zticklabels`, `zticks`
+Implemented: `abyss`, `alim`, `alpha`, `alphamap`, `annotation`, `autumn`, `axes`, `axis`, `bone`, `box`, `brighten`, `camdolly`, `camlight`, `camlookat`, `camorbit`, `campan`, `campos`, `camproj`, `camroll`, `camtarget`, `camup`, `camva`, `camzoom`, `cla`, `clf`, `clim`, `colorbar`, `colorcube`, `colordef`, `colormap`, `colororder`, `contrast`, `cool`, `copper`, `daspect`, `datatip`, `datetick`, `diffuse`, `figure`, `flag`, `fontname`, `fontsize`, `gray`, `graymon`, `grid`, `hold`, `hot`, `hsv`, `hsv2rgb`, `jet`, `legend`, `light`, `lightangle`, `lighting`, `line`, `lines`, `makehgtform`, `material`, `nexttile`, `num2ruler`, `orderedcolors`, `parula`, `pbaspect`, `pink`, `plotyy`, `prism`, `rectangle`, `rgb2hsv`, `rgbplot`, `ruler2num`, `sgtitle`, `shading`, `sky`, `specular`, `spring`, `subplot`, `subtitle`, `summer`, `texlabel`, `text`, `tiledlayout`, `tilenum`, `tilerowcol`, `title`, `turbo`, `view`, `viewmtx`, `winter`, `xlabel`, `xlim`, `xline`, `xregion`, `xscale`, `xsecondarylabel`, `xtickangle`, `xtickformat`, `xticklabels`, `xticks`, `ylabel`, `ylim`, `yline`, `yregion`, `yscale`, `ysecondarylabel`, `ytickangle`, `ytickformat`, `yticklabels`, `yticks`, `yyaxis`, `zlabel`, `zlim`, `zscale`, `zsecondarylabel`, `ztickangle`, `ztickformat`, `zticklabels`, `zticks`
 
 ## MATLAB > Graphics > Graphics Objects
 
@@ -319,7 +316,7 @@ Implemented: `&amp;`, `&gt;`, `&gt;=`, `&lt;`, `&lt;=`, `'`, `*`, `+`, `-`, `.'`
 
 Implemented: 84. To implement: 0. In a branch: 0. Out of scope: 0.
 
-Implemented: `addboundary`, `alphaShape`, `alphaSpectrum`, `alphaTriangulation`, `area`, `barycentricToCartesian`, `baryToCart`, `boundary`, `boundaryFacets`, `boundaryshape`, `boundingbox`, `cartesianToBarycentric`, `cartToBary`, `centroid`, `circumcenter`, `circumcenters`, `convexHull`, `convhull`, `convhulln`, `criticalAlpha`, `delaunay`, `delaunayn`, `DelaunayTri`, `delaunayTriangulation`, `dsearchn`, `edgeAttachments`, `edges`, `faceNormal`, `faceNormals`, `featureEdges`, `freeBoundary`, `holes`, `incenter`, `incenters`, `inOutStatus`, `inpolygon`, `inShape`, `isConnected`, `isEdge`, `ishole`, `isinterior`, `isInterior`, `issimplified`, `nearestNeighbor`, `nearestvertex`, `nsidedpoly`, `numboundaries`, `numRegions`, `numsides`, `overlaps`, `patch`, `perimeter`, `pointLocation`, `polyarea`, `polybuffer`, `polyshape`, `rectint`, `regions`, `rmboundary`, `rmholes`, `rmslivers`, `rotate`, `scale`, `sortboundaries`, `sortregions`, `stlread`, `stlwrite`, `subtract`, `surfaceArea`, `tetramesh`, `translate`, `triangulation`, `trimesh`, `triplot`, `TriRep`, `trisurf`, `tsearchn`, `turningdist`, `vertexAttachments`, `vertexNormal`, `volume`, `voronoi`, `voronoiDiagram`, `voronoin`
+Implemented: `addboundary`, `alphaShape`, `alphaSpectrum`, `alphaTriangulation`, `area`, `barycentricToCartesian`, `baryToCart`, `boundary`, `boundaryFacets`, `boundaryshape`, `boundingbox`, `cartesianToBarycentric`, `cartToBary`, `centroid`, `circumcenter`, `circumcenters`, `convexHull`, `convhull`, `convhulln`, `criticalAlpha`, `delaunay`, `delaunayn`, `DelaunayTri`, `delaunayTriangulation`, `dsearchn`, `edgeAttachments`, `edges`, `faceNormal`, `faceNormals`, `featureEdges`, `freeBoundary`, `holes`, `incenter`, `incenters`, `inOutStatus`, `inpolygon`, `inShape`, `isConnected`, `isEdge`, `ishole`, `isInterior`, `isinterior`, `issimplified`, `nearestNeighbor`, `nearestvertex`, `nsidedpoly`, `numboundaries`, `numRegions`, `numsides`, `overlaps`, `patch`, `perimeter`, `pointLocation`, `polyarea`, `polybuffer`, `polyshape`, `rectint`, `regions`, `rmboundary`, `rmholes`, `rmslivers`, `rotate`, `scale`, `sortboundaries`, `sortregions`, `stlread`, `stlwrite`, `subtract`, `surfaceArea`, `tetramesh`, `translate`, `triangulation`, `trimesh`, `triplot`, `TriRep`, `trisurf`, `tsearchn`, `turningdist`, `vertexAttachments`, `vertexNormal`, `volume`, `voronoi`, `voronoiDiagram`, `voronoin`
 
 ## MATLAB > Mathematics > Elementary Math
 
