@@ -835,7 +835,7 @@ pub fn meijer_g(an: &[f64], ap: &[f64], bm: &[f64], bq: &[f64], z: f64) -> f64 {
             }
         }
     }
-    let sign = if (p - m - n) % 2 == 0 { 1.0 } else { -1.0 };
+    let sign = if (p + m + n) % 2 == 0 { 1.0 } else { -1.0 };
     let mut total = 0.0;
     for h in 0..m {
         let bh = b[h];
