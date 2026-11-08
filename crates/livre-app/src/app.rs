@@ -1590,6 +1590,10 @@ impl App {
     /// other way closes it. `ask` (Tab after a word, Ctrl+Space) opens it for any word.
     fn update_suggest(&mut self, caret: Option<Caret>, ask: bool) {
         let Some(c) = caret else {
+            // A press on the list takes the editor's focus (so no caret) before the choice is applied.
+            if self.suggest.as_ref().is_some_and(|s| s.accept.is_some()) {
+                return;
+            }
             self.suggest = None;
             self.suggest_seen = None;
             return;
@@ -3825,7 +3829,8 @@ fn paint_suggest(ui: &Ui, skin: &Skin, v: &mut View, block: u64, galley: &egui::
                 }
                 p.text(pos2(r.left() + 8.0, r.center().y), Align2::LEFT_CENTER, &item.text, font.clone(), skin.text);
                 p.text(pos2(r.right() - 8.0, r.center().y), Align2::RIGHT_CENTER, item.kind.label(), small.clone(), skin.text_tertiary);
-                if resp.clicked() {
+                // On press, not release: the press already moves focus out of the editor.
+                if resp.is_pointer_button_down_on() {
                     clicked = Some(k);
                 }
             }
