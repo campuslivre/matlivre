@@ -30,7 +30,7 @@ Notes for coding agents (and people) working in this repository.
 5. **Update `README.md`** in the same change: the implemented-function count (from
    `docs/matlab-coverage.md`) wherever it appears, the feature lists under "The language" and
    "The app" when a new area is covered, and "Known limits" when a listed gap is closed.
-6. Push.
+6. Push, for maintainers only. Contributors submit a pull request from their fork.
 
 ## Layout
 
