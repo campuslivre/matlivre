@@ -128,18 +128,21 @@ measure toolbox breadth or plotting. Details and the per-case Octave comparison 
 
 [`benchmarks/bench_sparse.m`](benchmarks/bench_sparse.m) runs in MATLAB R2023b and MatLivre, and
 [`bench_sparse.sce`](benchmarks/bench_sparse.sce) is its Scilab version (best of 3, checksums
-agree; Scilab has no `spdiags`, implicit expansion or `pcg`, so those parts are written out). This
-is where MatLivre is behind: sparse matrices are stored densely, so sparse operations cost
-O(n^2) instead of O(nonzeros), and sizes are limited by memory (MATLAB solves a 1,000,000-unknown
-tridiagonal system in 23 ms; MatLivre cannot hold it). On large dense arrays it is ahead.
+agree; Scilab has no `spdiags`, implicit expansion or `pcg`, so those parts are written out).
+Sparse matrices of 4,096 elements or more are held as compressed columns, so they cost
+O(nonzeros) and can be far larger than memory would allow densely: a 1,000,000-unknown
+tridiagonal system is built in about 100 ms and solved in about 300 ms (MATLAB: 23 ms for the
+solve). Operations without a native sparse version expand the matrix, run, and compress the
+result again, and fail with "Out of memory" when the dense form would not fit. Smaller sparse
+matrices are dense arrays with a sparse flag. On large dense arrays MatLivre is ahead.
 
 | Case | MATLAB (ms) | Scilab (ms) | MatLivre (ms) | vs MATLAB | vs Scilab |
 |---|---:|---:|---:|---|---|
-| sparse tridiagonal solve, n = 3,000 | 0.07 | 0.32 | 0.44 | 6.0x slower | 1.4x slower |
-| 2-D Poisson solve, 2,500 unknowns | 1.69 | 87.5 | 6.66 | 3.9x slower | 13.1x faster |
-| 200 sparse matrix-vector products, n = 3,000 | 2.10 | 6.99 | 13.1 | 6.2x slower | 1.9x slower |
-| 20 builds with `sparse(i,j,s,n,n)`, n = 2,000 | 2.57 | 3.10 | 30.6 | 11.9x slower | 9.8x slower |
-| conjugate gradients on the Poisson matrix | 3.02 | 2.87 | 3.96 | 1.3x slower | 1.4x slower |
+| sparse tridiagonal solve, n = 3,000 | 0.07 | 0.32 | 0.46 | 6.2x slower | 1.4x slower |
+| 2-D Poisson solve, 2,500 unknowns | 1.69 | 87.5 | 6.97 | 4.1x slower | 12.6x faster |
+| 200 sparse matrix-vector products, n = 3,000 | 2.10 | 6.99 | 4.07 | 1.9x slower | 1.7x faster |
+| 20 builds with `sparse(i,j,s,n,n)`, n = 2,000 | 2.57 | 3.10 | 2.27 | 1.1x faster | 1.4x faster |
+| conjugate gradients on the Poisson matrix | 3.02 | 2.87 | 4.12 | 1.4x slower | 1.4x slower |
 | elementwise math, 1e7 elements | 139.8 | 485.2 | 31.9 | 4.4x faster | 15.2x faster |
 | `cumsum`, 1e7 elements | 45.6 | 59.3 | 37.4 | 1.2x faster | 1.6x faster |
 | `find` on a logical mask, 1e7 | 25.4 | 183.6 | 61.3 | 2.4x slower | 3.0x faster |
@@ -390,8 +393,10 @@ installation when one is present. Benchmarks: [`benchmarks/run_bench.bat`](bench
 - `settings` holds only a few of MATLAB's product settings (`matlab.fonts.codefont`), personal
   values last for the session instead of being saved, and a group lists its settings in the
   order they were added rather than in MATLAB's order.
-- Sparse matrices are stored densely: they behave and display as in MATLAB, but matrices
-  with more than 2e8 elements are refused.
+- Sparse matrices are compressed columns from 4,096 elements up. Construction (`sparse`,
+  `speye`, `spdiags`, `kron`), `A*x`, `A'`, `A+B`, `A*B`, `A\b`, `A(i,j)`, `A(i,j) = x`, `nnz`, `size`,
+  `sum`, `find`, `diag`, `norm` and the iterative solvers run on them directly; other
+  functions expand the matrix first, so they are limited to 2e8 elements.
 - Windows is the main platform. Linux builds and runs (tested on Ubuntu 24.04, GNOME/Wayland),
   but the benchmarks and most testing are on Windows.
 
