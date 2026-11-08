@@ -65,3 +65,88 @@ fn fused_expressions_equal_stepwise_evaluation() {
         .collect();
     assert_eq!(got.trim_end(), include_str!("data/fusion_matlab.txt").trim_end());
 }
+
+/// Comparisons, logical operators, `find(expression)` and rows or columns expanded over a matrix
+/// are fused as well; each result equals the operator-by-operator computation, with the output of
+/// MATLAB R2023b (`data/fusion2.m`), including NaN in logical operators and complex outcomes.
+#[test]
+fn fused_comparisons_find_and_broadcast_equal_stepwise_evaluation() {
+    let mut it = Interpreter::new();
+    let _ = it.run_source(include_str!("data/fusion2.m"));
+    let got: String = it
+        .take_outputs()
+        .into_iter()
+        .filter_map(|o| match o.kind {
+            OutputKind::Text(t) => Some(t),
+            OutputKind::Error(e) => Some(format!("Error: {e}\n")),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(got.trim_end(), include_str!("data/fusion2_matlab.txt").trim_end());
+}
+
+/// `f(A(:))` on a large variable is lent with its shape flattened instead of copied; the variable
+/// keeps its shape and values afterwards, also when the call fails (output of MATLAB R2023b).
+#[test]
+fn flattened_large_arguments_are_lent_and_restored() {
+    let mut it = Interpreter::new();
+    let src = concat!(
+        "M = reshape(1:6000, 60, 100);\n",
+        "s = sum(M(:)); c = size(M(:)); d = size(M);\n",
+        "fprintf('F1 %d %s %s\\n', s, mat2str(c), mat2str(d));\n",
+        "m = max(M(:)); n = numel(M(:)); q = norm(M(:)) > 0; fprintf('F2 %d %d %d %s\\n', m, n, q, mat2str(size(M)));\n",
+        "try, r = norm(M(:), 'bogus'); catch, end; fprintf('F3 %s\\n', mat2str(size(M)));\n",
+        "t = sum(M(:)) + sum(M(:)); u = sum(M(:) .* 2); fprintf('F4 %d %d\\n', t, u);\n",
+        "T = zeros(4,5,300); T(:) = 1:6000; w = sum(T(:)); fprintf('F5 %d %s %d\\n', w, mat2str(size(T)), numel(find(T(:) > 3000)));\n",
+        "k = sum(M(:), 1); l = any(M(:) > 5999); fprintf('F6 %d %d %s\\n', k, l, mat2str(size(M)));\n",
+    );
+    let _ = it.run_source(src);
+    let got: String = it
+        .take_outputs()
+        .into_iter()
+        .filter_map(|o| match o.kind {
+            OutputKind::Text(t) => Some(t),
+            OutputKind::Error(e) => Some(format!("Error: {e}\n")),
+            _ => None,
+        })
+        .collect();
+    let want = "F1 18003000 [6000 1] [60 100]\nF2 6000 6000 1 [60 100]\nF3 [60 100]\nF4 36006000 36006000\nF5 18003000 [4 5 300] 3000\nF6 18003000 1 [60 100]";
+    assert_eq!(got.trim_end(), want);
+}
+
+fn script_output(src: &str) -> String {
+    let mut it = Interpreter::new();
+    let _ = it.run_source(src);
+    it.take_outputs()
+        .into_iter()
+        .filter_map(|o| match o.kind {
+            OutputKind::Text(t) => Some(t),
+            OutputKind::Error(e) => Some(format!("Error: {e}\n")),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The multithreaded FFT of long vectors (real and complex input, padding, truncation, lengths
+/// that do not split, single precision) gives MATLAB R2023b's results (`data/fft_big.m`).
+#[test]
+fn long_fft_vectors_match_matlab() {
+    assert_eq!(script_output(include_str!("data/fft_big.m")).trim_end(), include_str!("data/fft_big_matlab.txt").trim_end());
+}
+
+/// `expm` of real matrices runs in real arithmetic; scaling and squaring, the small-norm Pade
+/// orders and complex input all agree with MATLAB R2023b (`data/expm_real.m`), and `trace` keeps
+/// the imaginary part of a complex matrix.
+#[test]
+fn real_expm_and_complex_trace_match_matlab() {
+    assert_eq!(script_output(include_str!("data/expm_real.m")).trim_end(), include_str!("data/expm_real_matlab.txt").trim_end());
+}
+
+/// `chol`, `lu`, `qr` and `svd` of real 300 x 300 matrices take the direct real paths and give
+/// MATLAB R2023b's results in every output form (`data/factor_real.m`), including the pivot
+/// vector and permutation matrix of `lu`, economy `qr`, a matrix that is not positive definite,
+/// and singular values without vectors.
+#[test]
+fn real_factorizations_match_matlab() {
+    assert_eq!(script_output(include_str!("data/factor_real.m")).trim_end(), include_str!("data/factor_real_matlab.txt").trim_end());
+}

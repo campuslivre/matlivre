@@ -1,0 +1,25 @@
+n = 300; A = reshape(sin((1:n*n).^1.1 * 0.37), n, n) + 3*eye(n); S = A + A' + n*eye(n);
+R = chol(S); fprintf('c1 %.8g %.8g %.8g %d\n', sum(R(:)), R(1,1), R(5,9), norm(R'*R - S, 1) < 1e-9);
+L = chol(S, 'lower'); fprintf('c2 %.8g %d %d\n', sum(L(:)), isequal(L, tril(L)), norm(L*L' - S, 1) < 1e-9);
+[R2, p] = chol(S); fprintf('c3 %d %d\n', p, isequal(R, R2));
+T = S; T(10,10) = -5*n; [R3, p3] = chol(T); fprintf('c4 %d %s\n', p3, mat2str(size(R3)));
+try, chol(T); catch err, fprintf('c5 %s\n', err.message); end
+Y = lu(A); fprintf('l1 %.8g %.8g\n', sum(Y(:)), Y(7,3));
+[L1, U1] = lu(A); fprintf('l2 %.8g %.8g %d\n', sum(L1(:)), sum(U1(:)), norm(L1*U1 - A, 1) < 1e-9);
+[L2, U2, P2] = lu(A); fprintf('l3 %.8g %.8g %d %d\n', sum(L2(:)), sum(U2(:)), norm(L2*U2 - P2*A, 1) < 1e-9, nnz(P2));
+[L3, U3, p3v] = lu(A, 'vector'); fprintf('l4 %s %d\n', mat2str(p3v(1:6)), isequal(p3v, (P2 * (1:n)')'));
+B = A(:, 1:200); [Lb, Ub, Pb] = lu(B); fprintf('l5 %s %s %d\n', mat2str(size(Lb)), mat2str(size(Ub)), norm(Lb*Ub - Pb*B, 1) < 1e-9);
+Rq = qr(A); fprintf('q1 %.8g %.8g %.8g\n', sum(Rq(:)), Rq(1,1), Rq(3,5));
+[Q, R4] = qr(A); fprintf('q2 %.8g %.8g %d %d\n', sum(Q(:)), sum(R4(:)), norm(Q*R4 - A, 1) < 1e-9, norm(Q'*Q - eye(n), 1) < 1e-9);
+C = A(:, 1:150); [Qe, Re] = qr(C, 'econ'); fprintf('q3 %s %s %.8g\n', mat2str(size(Qe)), mat2str(size(Re)), sum(Qe(:)));
+[Qf, Rf] = qr(C); fprintf('q4 %s %s %.8g\n', mat2str(size(Qf)), mat2str(size(Rf)), sum(Rf(:)));
+[Q0, R0] = qr(C, 0); fprintf('q5 %s %s\n', mat2str(size(Q0)), mat2str(size(R0)));
+s = svd(A); fprintf('s1 %.8g %.8g %.8g %d\n', s(1), s(2), s(end), numel(s));
+[U, Sg, V] = svd(A); fprintf('s2 %.8g %d\n', Sg(1,1), norm(U*Sg*V' - A, 1) < 1e-8);
+fprintf('s3 %.8g %.8g %d\n', cond(A), norm(A), rank(A));
+A2 = A([2:2:n 1:2:n], :); [Lp, Up, Pp] = lu(A2); [~, ~, pv] = lu(A2, 'vector'); fprintf('l6 %.8g %d %s %d\n', sum(Up(:)), norm(Lp*Up - Pp*A2, 1) < 1e-9, mat2str(pv(1:8)), isequal(pv, (Pp * (1:n)')'));
+[Lq, Uq] = lu(A2); fprintf('l7 %d %.8g\n', norm(Lq*Uq - A2, 1) < 1e-9, sum(Lq(:)));
+Pa = pinv(A(:, 1:100)); fprintf('p1 %s %.8g %d\n', mat2str(size(Pa)), sum(Pa(:)), norm(A(:,1:100)*Pa*A(:,1:100) - A(:,1:100), 1) < 1e-8);
+Pw = pinv(A(1:80, :)); fprintf('p2 %s %.8g\n', mat2str(size(Pw)), sum(Pw(:)));
+K = reshape(mod((1:30*30)*7919, 1013), 30, 30) / 1013; Pk = pinv(K); fprintf('p3 %d %d\n', rank(K), norm(K*Pk*K - K, 1) < 1e-8);
+Pt = pinv(A(1:60,1:60), 0.5); fprintf('p4 %.8g\n', sum(Pt(:)));

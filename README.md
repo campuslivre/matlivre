@@ -131,22 +131,22 @@ measure toolbox breadth or plotting. Details and the per-case Octave comparison 
 agree; Scilab has no `spdiags`, implicit expansion or `pcg`, so those parts are written out).
 Sparse matrices of 4,096 elements or more are held as compressed columns, so they cost
 O(nonzeros) and can be far larger than memory would allow densely: a 1,000,000-unknown
-tridiagonal system is built in about 60 ms and solved in about 65 ms (MATLAB: 23 ms for the
+tridiagonal system is built in about 55 ms and solved in about 60 ms (MATLAB: 23 ms for the
 solve). Operations without a native sparse version expand the matrix, run, and compress the
 result again, and fail with "Out of memory" when the dense form would not fit. Smaller sparse
 matrices are dense arrays with a sparse flag. On large dense arrays MatLivre is ahead.
 
 | Case | MATLAB (ms) | Scilab (ms) | MatLivre (ms) | vs MATLAB | vs Scilab |
 |---|---:|---:|---:|---|---|
-| sparse tridiagonal solve, n = 3,000 | 0.07 | 0.32 | 0.14 | 1.8x slower | 2.4x faster |
-| 2-D Poisson solve, 2,500 unknowns | 1.69 | 87.5 | 7.75 | 4.6x slower | 11.3x faster |
-| 200 sparse matrix-vector products, n = 3,000 | 2.10 | 6.99 | 4.21 | 2.0x slower | 1.7x faster |
-| 20 builds with `sparse(i,j,s,n,n)`, n = 2,000 | 2.57 | 3.10 | 2.28 | 1.1x faster | 1.4x faster |
-| conjugate gradients on the Poisson matrix | 3.02 | 2.87 | 4.15 | 1.4x slower | 1.4x slower |
+| sparse tridiagonal solve, n = 3,000 | 0.07 | 0.32 | 0.13 | 1.7x slower | 2.5x faster |
+| 2-D Poisson solve, 2,500 unknowns | 1.69 | 87.5 | 1.52 | 1.1x faster | 57.5x faster |
+| 200 sparse matrix-vector products, n = 3,000 | 2.10 | 6.99 | 4.09 | 1.9x slower | 1.7x faster |
+| 20 builds with `sparse(i,j,s,n,n)`, n = 2,000 | 2.57 | 3.10 | 2.25 | 1.1x faster | 1.4x faster |
+| conjugate gradients on the Poisson matrix | 3.02 | 2.87 | 4.16 | 1.4x slower | 1.5x slower |
 | elementwise math, 1e7 elements | 139.8 | 485.2 | 31.9 | 4.4x faster | 15.2x faster |
 | `cumsum`, 1e7 elements | 45.6 | 59.3 | 37.4 | 1.2x faster | 1.6x faster |
-| `find` on a logical mask, 1e7 | 25.4 | 183.6 | 61.3 | 2.4x slower | 3.0x faster |
-| broadcast arithmetic, 2000 x 2000 | 10.2 | 41.2 | 32.5 | 3.2x slower | 1.3x faster |
+| `find` on a logical mask, 1e7 | 25.4 | 183.6 | 17.6 | 1.4x faster | 10.4x faster |
+| broadcast arithmetic, 2000 x 2000 | 10.2 | 41.2 | 12.3 | 1.2x slower | 3.3x faster |
 | row and column reductions, 2000 x 2000 | 8.18 | 102.6 | 8.19 | about equal | 12.5x faster |
 | `sort`, 4e6 elements | 66.7 | 334.2 | 35.3 | 1.9x faster | 9.5x faster |
 | `M*M`, 2000 x 2000 | 126.2 | 78.5 | 59.2 | 2.1x faster | 1.3x faster |
@@ -155,37 +155,39 @@ Square sparse systems of order 100 and up are solved with a sparse LU (Markowitz
 from the SolverLivre project) with a residual check and a fallback to the dense solver, and the
 iterative solvers and the sparse products (`A*x`, `x'*A`) multiply with compressed columns,
 which are built once per matrix and kept until it changes. Chains of elementwise operators on large
-arrays (`exp(-x.^2) .* sin(20*x) + sqrt(x+1)`) are evaluated fused, in cache-sized blocks on
-several threads, so only the result is written to memory; reductions, `cumsum`, `find`, `max`,
-`min` and implicit expansion work on the arrays in place and in parallel when they are large.
+arrays (`exp(-x.^2) .* sin(20*x) + sqrt(x+1)`), comparisons and logical operators, rows and
+columns expanded over a matrix (`M .* r + c - M`) and `find(x > a & x < b)` are evaluated fused,
+in cache-sized blocks on several threads, so only the result is written to memory (`find` never
+builds the logical array); reductions, `cumsum`, `max` and `min` work on the arrays in place and
+in parallel when they are large, and `sum(A(:))` does not copy `A`.
 
 ### Other common operations
 
 [`benchmarks/bench_more.m`](benchmarks/bench_more.m) times 34 everyday operations (linear algebra
 factorizations, FFT, convolution, lookups, sorting, strings, function handles, structs and maps)
 in MATLAB R2023b and MatLivre, best of 3, checksums recorded. MatLivre is faster in 9 of them,
-within 4.6x of MATLAB in all of them, and 1.21x slower on the geometric mean; a selection:
+within 3.7x of MATLAB in all of them, and 1.03x slower on the geometric mean; a selection:
 
 | Case | MATLAB (ms) | MatLivre (ms) | MatLivre vs MATLAB |
 |---|---:|---:|---|
-| `expm`, 150 x 150 | 3.44 | 15.77 | 4.6x slower |
 | `rand(1,1e7)` and `randn(1000)` | 67.51 | 253.1 | 3.7x slower |
-| `fft`, 2^20 points | 6.62 | 24.00 | 3.6x slower |
-| `chol`, 300 x 300 | 0.24 | 0.76 | 3.1x slower |
-| `[Q,R] = qr`, 300 x 300 | 1.45 | 4.17 | 2.9x slower |
-| `svd`, 300 x 300 | 5.55 | 13.80 | 2.5x slower |
-| `[L,U,P] = lu`, 300 x 300 | 0.62 | 1.34 | 2.2x slower |
+| `[Q,R] = qr`, 300 x 300 | 1.45 | 3.73 | 2.6x slower |
 | `eig`, symmetric 300 x 300 | 2.45 | 4.56 | 1.9x slower |
-| `inv`, 300 x 300 | 2.17 | 1.88 | 1.2x faster |
-| `unique`, 1e6 elements | 48.56 | 46.04 | 1.1x faster |
-| `ismember`, 1e5 in 1e5 | 3.38 | 4.37 | 1.3x slower |
+| `fft`, 2^20 points | 6.62 | 10.00 | 1.5x slower |
+| `chol`, 300 x 300 | 0.24 | 0.37 | 1.5x slower |
+| `svd`, 300 x 300 | 5.55 | 8.25 | 1.5x slower |
 | `[s,i] = sort`, 1e6 | 35.37 | 53.76 | 1.5x slower |
+| `ismember`, 1e5 in 1e5 | 3.38 | 4.37 | 1.3x slower |
+| `[L,U,P] = lu`, 300 x 300 | 0.62 | 0.70 | 1.1x slower |
+| `unique`, 1e6 elements | 48.56 | 46.04 | 1.1x faster |
+| `inv`, 300 x 300 | 2.17 | 1.88 | 1.2x faster |
 | `mean`, `std`, `median`, `var`, 1e6 | 14.07 | 11.03 | 1.3x faster |
 | `cellfun` with an anonymous function, 1e5 | 161.5 | 47.04 | 3.4x faster |
-| `num2str` in a loop, 1e4 | 147.0 | 19.52 | 7.5x faster |
-| `containers.Map`, 5,000 inserts and lookups | 71.77 | 8.13 | 8.8x faster |
-| 20,000 calls of a user function | 0.64 | 0.08 | 8.2x faster |
+| `expm`, 150 x 150 | 3.44 | 0.93 | 3.7x faster |
 | `strjoin` and `strsplit`, 2e4 words | 14.27 | 3.51 | 4.1x faster |
+| `num2str` in a loop, 1e4 | 147.0 | 19.52 | 7.5x faster |
+| 20,000 calls of a user function | 0.64 | 0.08 | 8.2x faster |
+| `containers.Map`, 5,000 inserts and lookups | 71.77 | 8.13 | 8.8x faster |
 
 ### Why it is fast
 
@@ -196,6 +198,8 @@ within 4.6x of MATLAB in all of them, and 1.21x slower on the geometric mean; a 
 - **Multithreaded linear algebra** through `faer`: blocked matrix products and LU
   factorization.
 - **Parallel elementwise math and sorting** on large arrays (rayon).
+- **Multithreaded FFT** of long vectors (four-step transform with the transposes folded into the
+  passes, half-length transform for real input) and real-arithmetic `expm`.
 - **A retaining allocator** (mimalloc): large arrays are not handed back to the OS and faulted in again
   on the next operation, which made products, solves and whole-array operations 25 to 35% faster.
 - **No copies where MATLAB semantics allow it**: in-place appends (`x(end+1) = v`,

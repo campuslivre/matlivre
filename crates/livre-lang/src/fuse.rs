@@ -6,12 +6,15 @@
 //! cache, on several threads, and only the final result is written to memory.
 //!
 //! Only expressions whose meaning is plain double arithmetic are fused: variables holding real
-//! double arrays (all of one size, or scalars), numeric literals, `+ - .* ./ .^`, unary minus,
-//! `*` and `/` with a scalar operand, and a short list of elementwise functions. The arithmetic
-//! of every operator is the same as in `ops`, so results are identical. Whenever something does
-//! not fit (another class, complex results such as `sqrt` of a negative number or a negative base
-//! with a fractional exponent, differing sizes) the function gives up and the ordinary evaluator
-//! runs, so behaviour and error messages are unchanged. `MATLIVRE_NOFUSE=1` turns fusion off.
+//! double arrays (all of one size, or scalars, or rows and columns that expand over a matrix),
+//! numeric literals, `+ - .* ./ .^`, unary minus, `*` and `/` with a scalar operand, the
+//! comparisons, `&`, `|` and `~`, and a short list of elementwise functions. `find(expression)`
+//! of such an expression is fused too: the indices are collected block by block without ever
+//! building the logical array. The arithmetic of every operator is the same as in `ops`, so
+//! results are identical. Whenever something does not fit (another class, complex results such
+//! as `sqrt` of a negative number or a negative base with a fractional exponent, NaN in a
+//! logical operator, incompatible sizes) the function gives up and the ordinary evaluator runs,
+//! so behaviour and error messages are unchanged. `MATLIVRE_NOFUSE=1` turns fusion off.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
@@ -27,6 +30,8 @@ use crate::value::{Kind, Matrix, Value};
 const BLOCK: usize = 4096;
 /// Fewest operators (calls count) for which fusion pays.
 const MIN_OPS: usize = 3;
+/// Fewest rows for which expanding a row or column over a matrix is done in segments.
+const MIN_ROWS: usize = 64;
 
 #[derive(Clone, Copy, PartialEq)]
 enum Func {
@@ -106,6 +111,26 @@ enum Bop {
     Mul,
     Div,
     Pow,
+    Gt,
+    Lt,
+    Ge,
+    Le,
+    Eq,
+    Ne,
+    And,
+    Or,
+}
+
+impl Bop {
+    /// Comparisons and the logical operators: the result is logical (0 or 1).
+    fn is_logical(self) -> bool {
+        matches!(self, Bop::Gt | Bop::Lt | Bop::Ge | Bop::Le | Bop::Eq | Bop::Ne | Bop::And | Bop::Or)
+    }
+
+    /// `&` and `|` refuse NaN operands.
+    fn rejects_nan(self) -> bool {
+        matches!(self, Bop::And | Bop::Or)
+    }
 }
 
 enum Node {
@@ -113,6 +138,7 @@ enum Node {
     /// Index into the list of variables.
     Leaf(usize),
     Neg(usize),
+    Not(usize),
     Bin(Bop, usize, usize),
     Call(Func, usize),
 }
@@ -129,6 +155,25 @@ struct Plan {
 fn disabled() -> bool {
     static OFF: OnceLock<bool> = OnceLock::new();
     *OFF.get_or_init(|| std::env::var_os("MATLIVRE_NOFUSE").is_some())
+}
+
+fn bop_of(op: BinOp) -> Option<Bop> {
+    Some(match op {
+        BinOp::Add => Bop::Add,
+        BinOp::Sub => Bop::Sub,
+        BinOp::Mul | BinOp::MatMul => Bop::Mul,
+        BinOp::Div | BinOp::MatDiv => Bop::Div,
+        BinOp::Pow => Bop::Pow,
+        BinOp::Gt => Bop::Gt,
+        BinOp::Lt => Bop::Lt,
+        BinOp::Ge => Bop::Ge,
+        BinOp::Le => Bop::Le,
+        BinOp::Eq => Bop::Eq,
+        BinOp::Ne => Bop::Ne,
+        BinOp::And => Bop::And,
+        BinOp::Or => Bop::Or,
+        _ => return None,
+    })
 }
 
 /// Appends the nodes of `e`; `None` when `e` is not a fusable expression.
@@ -164,17 +209,15 @@ fn build(e: &Expr, it: &Interpreter, plan: &mut Plan) -> Option<usize> {
             plan.ops += 1;
             Node::Neg(a)
         }
+        Expr::Unary(UnOp::Not, x) => {
+            let a = build(x, it, plan)?;
+            plan.ops += 1;
+            Node::Not(a)
+        }
         Expr::Binary(op, l, r) => {
             // `*` and `/` are elementwise only with a scalar operand, which is checked once the
             // sizes are known; the matrix products are left to the ordinary evaluator.
-            let bop = match op {
-                BinOp::Add => Bop::Add,
-                BinOp::Sub => Bop::Sub,
-                BinOp::Mul | BinOp::MatMul => Bop::Mul,
-                BinOp::Div | BinOp::MatDiv => Bop::Div,
-                BinOp::Pow => Bop::Pow,
-                _ => return None,
-            };
+            let bop = bop_of(*op)?;
             let a = build(l, it, plan)?;
             let b = build(r, it, plan)?;
             plan.ops += 1;
@@ -205,12 +248,12 @@ fn shape_ok(e: &Expr, ops: &mut usize) -> bool {
     match e {
         Expr::Num(_) | Expr::Ident(_) => true,
         Expr::Unary(UnOp::Plus, x) => shape_ok(x, ops),
-        Expr::Unary(UnOp::Neg, x) => {
+        Expr::Unary(UnOp::Neg | UnOp::Not, x) => {
             *ops += 1;
             shape_ok(x, ops)
         }
         Expr::Binary(op, l, r) => {
-            if !matches!(op, BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::MatMul | BinOp::Div | BinOp::MatDiv | BinOp::Pow) {
+            if bop_of(*op).is_none() {
                 return false;
             }
             *ops += 1;
@@ -227,55 +270,167 @@ fn shape_ok(e: &Expr, ops: &mut usize) -> bool {
     }
 }
 
+/// What the fused evaluation produces.
+#[derive(Clone, Copy, PartialEq)]
+enum Mode {
+    /// The array itself.
+    Array,
+    /// `find` of the array: the 1-based positions of its nonzero elements.
+    Find,
+}
+
 /// Evaluates `e` fused, or returns `None` to let the ordinary evaluator handle it.
 pub fn try_eval(it: &Interpreter, e: &Expr) -> Option<Value> {
+    if disabled() {
+        return None;
+    }
+    let (inner, mode, min_ops) = match e {
+        Expr::Index(base, args) if args.len() == 1 && matches!(base.as_ref(), Expr::Ident(n) if n == "find") => {
+            if it.get_var("find").is_some() || it.user_function_defined("find") {
+                return None;
+            }
+            (&args[0], Mode::Find, 1)
+        }
+        _ => (e, Mode::Array, MIN_OPS),
+    };
     let mut ops = 0;
-    if !shape_ok(e, &mut ops) || ops < MIN_OPS || disabled() {
+    if !shape_ok(inner, &mut ops) || ops < min_ops {
         return None;
     }
     let mut plan = Plan { nodes: Vec::new(), vars: Vec::new(), ops: 0, markers: Vec::new() };
-    let root = build(e, it, &mut plan)?;
-    if plan.ops < MIN_OPS {
+    let root = build(inner, it, &mut plan)?;
+    if plan.ops < min_ops {
         return None;
     }
-    run(it, &plan.nodes, root, &plan.vars, &plan.markers)
+    run(it, &plan, root, mode)
 }
 
-fn run(it: &Interpreter, nodes: &[Node], root: usize, vars: &[String], markers: &[(usize, bool)]) -> Option<Value> {
-    // The variables: real double arrays or scalars, all of one size.
-    let mut mats: Vec<&Matrix> = Vec::with_capacity(vars.len());
-    for name in vars {
+/// How a node's values are laid out over the result.
+#[derive(Clone, Copy, PartialEq)]
+enum Class {
+    /// One value for every element.
+    Scalar,
+    /// One value per column (a row vector expanded down the rows).
+    Row,
+    /// One value per row (a column vector expanded across the columns).
+    Col,
+    /// One value per element.
+    Full,
+}
+
+fn combine(a: Class, b: Class) -> Class {
+    match (a, b) {
+        (Class::Scalar, x) | (x, Class::Scalar) => x,
+        (Class::Full, _) | (_, Class::Full) => Class::Full,
+        (Class::Row, Class::Row) => Class::Row,
+        (Class::Col, Class::Col) => Class::Col,
+        _ => Class::Full,
+    }
+}
+
+/// Everything the block evaluator reads.
+struct Ctx<'a> {
+    nodes: &'a [Node],
+    root: usize,
+    mats: Vec<&'a Matrix>,
+    class: Vec<Class>,
+    /// Nodes whose value is logical (0 or 1), so known not to be NaN.
+    logical: Vec<bool>,
+    cval: Vec<f64>,
+    /// Values of the nodes of class Row or Col that are not variables.
+    small: Vec<Vec<f64>>,
+    rows: usize,
+    broadcast: bool,
+}
+
+impl Ctx<'_> {
+    /// The per-column or per-row values of a node of class Row or Col.
+    fn vals(&self, j: usize) -> &[f64] {
+        if let Node::Leaf(id) = self.nodes[j] {
+            &self.mats[id].data
+        } else {
+            &self.small[j]
+        }
+    }
+}
+
+fn run(it: &Interpreter, plan: &Plan, root: usize, mode: Mode) -> Option<Value> {
+    let nodes = &plan.nodes[..];
+    // The variables: real double arrays or scalars.
+    let mut mats: Vec<&Matrix> = Vec::with_capacity(plan.vars.len());
+    for name in &plan.vars {
         match it.get_var(name)? {
             Value::Num(m) if m.kind == Kind::Double && m.im.is_none() && !m.sparse => mats.push(m),
             _ => return None,
         }
     }
+    // The shape of the result: all arrays of one size, or 2-D rows and columns that expand.
     let mut dims: Option<&Vec<usize>> = None;
+    let mut same = true;
     for m in &mats {
         if m.numel() != 1 {
             match dims {
                 None => dims = Some(&m.dims),
                 Some(d) if *d == m.dims => {}
-                _ => return None,
+                _ => same = false,
             }
         }
     }
-    let dims = dims?;
-    let n: usize = dims.iter().product();
+    let first = dims?;
+    let (mut rows, mut cols) = (0usize, 0usize);
+    let mut out_dims = first.clone();
+    let mut broadcast = false;
+    if !same {
+        if mats.iter().any(|m| m.numel() != 1 && m.dims.len() != 2) {
+            return None;
+        }
+        for m in mats.iter().filter(|m| m.numel() != 1) {
+            rows = rows.max(m.rows());
+            cols = cols.max(m.cols());
+        }
+        if mats.iter().any(|m| m.numel() != 1 && !((m.rows() == rows || m.rows() == 1) && (m.cols() == cols || m.cols() == 1))) {
+            return None;
+        }
+        if rows < MIN_ROWS {
+            return None;
+        }
+        out_dims = vec![rows, cols];
+        broadcast = true;
+    }
+    let n: usize = out_dims.iter().product();
     if n < PAR_MIN {
         return None;
     }
-    // Which nodes hold a single value (the same for every element).
-    let mut scalar = vec![false; nodes.len()];
+    let var_class = |m: &Matrix| -> Class {
+        if m.numel() == 1 {
+            Class::Scalar
+        } else if !broadcast || (m.rows() == rows && m.cols() == cols) {
+            Class::Full
+        } else if m.rows() == 1 {
+            Class::Row
+        } else {
+            Class::Col
+        }
+    };
+    let mut class = vec![Class::Scalar; nodes.len()];
     for (k, node) in nodes.iter().enumerate() {
-        scalar[k] = match node {
-            Node::Const(_) => true,
-            Node::Leaf(id) => mats[*id].numel() == 1,
-            Node::Neg(a) | Node::Call(_, a) => scalar[*a],
-            Node::Bin(_, a, b) => scalar[*a] && scalar[*b],
+        class[k] = match node {
+            Node::Const(_) => Class::Scalar,
+            Node::Leaf(id) => var_class(mats[*id]),
+            Node::Neg(a) | Node::Not(a) | Node::Call(_, a) => class[*a],
+            Node::Bin(_, a, b) => combine(class[*a], class[*b]),
         };
     }
-    for &(at, either) in markers {
+    let scalar: Vec<bool> = class.iter().map(|c| *c == Class::Scalar).collect();
+    let mut logical = vec![false; nodes.len()];
+    for (k, node) in nodes.iter().enumerate() {
+        logical[k] = match node {
+            Node::Not(_) => true,
+            Node::Bin(op, _, _) => op.is_logical(),
+            _ => false,
+        };
+    }
+    for &(at, either) in &plan.markers {
         let Node::Bin(_, a, b) = &nodes[at] else { return None };
         // `A*B` is elementwise with a scalar on either side; `A/B` with a scalar divisor.
         if !(scalar[*b] || (either && scalar[*a])) {
@@ -300,6 +455,12 @@ fn run(it: &Interpreter, nodes: &[Node], root: usize, vars: &[String], markers: 
             Node::Const(c) => *c,
             Node::Leaf(id) => mats[*id].data[0],
             Node::Neg(a) => -cval[*a],
+            Node::Not(a) => {
+                if !logical[*a] && cval[*a].is_nan() {
+                    return None;
+                }
+                bool_f64(cval[*a] == 0.0)
+            }
             Node::Call(f, a) => {
                 if f.has_domain() && cval[*a] < 0.0 {
                     return None;
@@ -311,30 +472,138 @@ fn run(it: &Interpreter, nodes: &[Node], root: usize, vars: &[String], markers: 
                 if *op == Bop::Pow && x < 0.0 && y.fract() != 0.0 && y.is_finite() {
                     return None;
                 }
+                if op.rejects_nan() && ((!logical[*a] && x.is_nan()) || (!logical[*b] && y.is_nan())) {
+                    return None;
+                }
                 scalar_bin(*op, x, y)
             }
         };
     }
-    if scalar[root] {
+    if class[root] != Class::Full {
         return None;
     }
+    // Nodes that depend only on rows or only on columns are computed once, outside the blocks.
+    let mut small: Vec<Vec<f64>> = vec![Vec::new(); nodes.len()];
+    if broadcast {
+        for k in 0..nodes.len() {
+            if !matches!(class[k], Class::Row | Class::Col) || matches!(nodes[k], Node::Leaf(_)) {
+                continue;
+            }
+            let len = if class[k] == Class::Row { cols } else { rows };
+            let v = {
+                let vals_of = |j: usize| -> Option<&[f64]> {
+                    match class[j] {
+                        Class::Row | Class::Col => Some(if let Node::Leaf(id) = nodes[j] { &mats[id].data[..] } else { &small[j][..] }),
+                        _ => None,
+                    }
+                };
+                let get = |j: usize, t: usize| -> f64 { vals_of(j).map_or(cval[j], |v| v[t]) };
+                let mut v = Vec::with_capacity(len);
+                for t in 0..len {
+                    v.push(match &nodes[k] {
+                        Node::Neg(a) => -get(*a, t),
+                        Node::Not(a) => {
+                            let x = get(*a, t);
+                            if !logical[*a] && x.is_nan() {
+                                return None;
+                            }
+                            bool_f64(x == 0.0)
+                        }
+                        Node::Call(f, a) => {
+                            let x = get(*a, t);
+                            if f.has_domain() && x < 0.0 {
+                                return None;
+                            }
+                            f.apply(x)
+                        }
+                        Node::Bin(op, a, b) => {
+                            let (x, y) = (get(*a, t), get(*b, t));
+                            if *op == Bop::Pow && x < 0.0 && y.fract() != 0.0 && y.is_finite() {
+                                return None;
+                            }
+                            if op.rejects_nan() && ((!logical[*a] && x.is_nan()) || (!logical[*b] && y.is_nan())) {
+                                return None;
+                            }
+                            scalar_bin(*op, x, y)
+                        }
+                        Node::Const(_) | Node::Leaf(_) => unreachable!(),
+                    });
+                }
+                v
+            };
+            small[k] = v;
+        }
+    }
+    let cx = Ctx { nodes, root, mats, class, logical, cval, small, rows, broadcast };
     let abort = AtomicBool::new(false);
-    let mut out = vec![0.0f64; n];
-    out.par_chunks_mut(BLOCK).enumerate().for_each_init(
-        || vec![vec![0.0f64; BLOCK]; nodes.len()],
-        |scratch, (ci, chunk)| {
+    match mode {
+        Mode::Array => {
+            let mut out = vec![0.0f64; n];
+            out.par_chunks_mut(BLOCK).enumerate().for_each_init(
+                || Scratch::new(nodes.len()),
+                |sc, (ci, chunk)| {
+                    if abort.load(Ordering::Relaxed) {
+                        return;
+                    }
+                    if !eval_block(&cx, ci * BLOCK, sc, chunk) {
+                        abort.store(true, Ordering::Relaxed);
+                    }
+                },
+            );
             if abort.load(Ordering::Relaxed) {
-                return;
+                return None;
             }
-            if !eval_block(nodes, root, &mats, &scalar, &cval, ci * BLOCK, scratch, chunk) {
-                abort.store(true, Ordering::Relaxed);
+            let m = Matrix::from_dims(out_dims, out);
+            Some(Value::Num(if cx.logical[root] { m.with_kind(Kind::Logical) } else { m }))
+        }
+        Mode::Find => {
+            let blocks = n.div_ceil(BLOCK);
+            let parts: Vec<Vec<f64>> = (0..blocks)
+                .into_par_iter()
+                .map_init(
+                    || (Scratch::new(nodes.len()), vec![0.0f64; BLOCK]),
+                    |(sc, buf), ci| {
+                        if abort.load(Ordering::Relaxed) {
+                            return Vec::new();
+                        }
+                        let start = ci * BLOCK;
+                        let len = BLOCK.min(n - start);
+                        if !eval_block(&cx, start, sc, &mut buf[..len]) {
+                            abort.store(true, Ordering::Relaxed);
+                            return Vec::new();
+                        }
+                        let mut hits = Vec::new();
+                        for (t, &v) in buf[..len].iter().enumerate() {
+                            if v != 0.0 {
+                                hits.push((start + t + 1) as f64);
+                            }
+                        }
+                        hits
+                    },
+                )
+                .collect();
+            if abort.load(Ordering::Relaxed) {
+                return None;
             }
-        },
-    );
-    if abort.load(Ordering::Relaxed) {
-        return None;
+            let total: usize = parts.iter().map(|p| p.len()).sum();
+            let mut idx = Vec::with_capacity(total);
+            for p in parts {
+                idx.extend(p);
+            }
+            // A row gives a row, anything else a column.
+            let d = if out_dims.len() == 2 && out_dims[0] == 1 { vec![1, total] } else { vec![total, 1] };
+            Some(Value::Num(Matrix::from_dims(d, idx)))
+        }
     }
-    Some(Value::Num(Matrix::from_dims(dims.clone(), out)))
+}
+
+#[inline]
+fn bool_f64(b: bool) -> f64 {
+    if b {
+        1.0
+    } else {
+        0.0
+    }
 }
 
 #[inline]
@@ -352,6 +621,14 @@ fn scalar_bin(op: Bop, x: f64, y: f64) -> f64 {
                 x.powf(y)
             }
         }
+        Bop::Gt => bool_f64(x > y),
+        Bop::Lt => bool_f64(x < y),
+        Bop::Ge => bool_f64(x >= y),
+        Bop::Le => bool_f64(x <= y),
+        Bop::Eq => bool_f64(x == y),
+        Bop::Ne => bool_f64(x != y),
+        Bop::And => bool_f64(x != 0.0 && y != 0.0),
+        Bop::Or => bool_f64(x != 0.0 || y != 0.0),
     }
 }
 
@@ -384,90 +661,156 @@ fn zip2(out: &mut [f64], a: Opd, b: Opd, f: impl Fn(f64, f64) -> f64) {
     }
 }
 
+/// Per-thread buffers: one block of values for every node, and the segments of the block.
+struct Scratch {
+    bufs: Vec<Vec<f64>>,
+    /// `(column, first row, end row, offset in the block)` of each run of one column.
+    segs: Vec<(usize, usize, usize, usize)>,
+}
+
+impl Scratch {
+    fn new(nodes: usize) -> Scratch {
+        Scratch { bufs: vec![vec![0.0f64; BLOCK]; nodes], segs: Vec::new() }
+    }
+}
+
 /// Evaluates all nodes for the elements `start..start + chunk.len()`, writing the root into
-/// `chunk`. Returns false when the block needs a complex result.
-#[allow(clippy::too_many_arguments)]
-fn eval_block(nodes: &[Node], root: usize, mats: &[&Matrix], scalar: &[bool], cval: &[f64], start: usize, scratch: &mut [Vec<f64>], chunk: &mut [f64]) -> bool {
+/// `chunk`. Returns false when the block needs a complex result or a logical operator meets NaN.
+fn eval_block(cx: &Ctx, start: usize, sc: &mut Scratch, chunk: &mut [f64]) -> bool {
     let len = chunk.len();
-    for k in 0..=root {
-        if scalar[k] {
+    let Scratch { bufs, segs } = sc;
+    segs.clear();
+    if cx.broadcast {
+        // Runs inside one column, so a row operand is a constant and a column operand a slice.
+        let end = start + len;
+        let mut pos = start;
+        while pos < end {
+            let (c, r0) = (pos / cx.rows, pos % cx.rows);
+            let r1 = (r0 + (end - pos)).min(cx.rows);
+            segs.push((c, r0, r1, pos - start));
+            pos += r1 - r0;
+        }
+    } else {
+        segs.push((0, 0, len, 0));
+    }
+    for k in 0..=cx.root {
+        if cx.class[k] != Class::Full || matches!(cx.nodes[k], Node::Leaf(_)) {
             continue;
         }
-        if let Node::Leaf(_) = nodes[k] {
-            continue;
-        }
-        let (before, rest) = scratch.split_at_mut(k);
+        let (before, rest) = bufs.split_at_mut(k);
         let before: &[Vec<f64>] = before;
-        let operand = |j: usize| -> Opd {
-            if scalar[j] {
-                Opd::C(cval[j])
-            } else if let Node::Leaf(id) = nodes[j] {
-                Opd::S(&mats[id].data[start..start + len])
-            } else {
-                Opd::S(&before[j][..len])
-            }
-        };
-        let out: &mut [f64] = if k == root { &mut *chunk } else { &mut rest[0][..len] };
-        match &nodes[k] {
-            Node::Neg(a) => match operand(*a) {
-                Opd::S(x) => {
-                    for (o, &p) in out.iter_mut().zip(x) {
-                        *o = -p;
-                    }
-                }
-                Opd::C(c) => out.fill(-c),
-            },
-            Node::Call(f, a) => {
-                let Opd::S(x) = operand(*a) else { continue };
-                if f.has_domain() && x.iter().any(|&p| p < 0.0) {
-                    return false;
-                }
-                match f {
-                    Func::Sin => map1(out, x, f64::sin),
-                    Func::Cos => map1(out, x, f64::cos),
-                    Func::Tan => map1(out, x, f64::tan),
-                    Func::Sinh => map1(out, x, f64::sinh),
-                    Func::Cosh => map1(out, x, f64::cosh),
-                    Func::Tanh => map1(out, x, f64::tanh),
-                    Func::Exp => map1(out, x, f64::exp),
-                    Func::Log => map1(out, x, f64::ln),
-                    Func::Log10 => map1(out, x, f64::log10),
-                    Func::Log2 => map1(out, x, f64::log2),
-                    Func::Sqrt => map1(out, x, f64::sqrt),
-                    Func::Atan => map1(out, x, f64::atan),
-                    Func::Abs => map1(out, x, f64::abs),
-                    Func::Round => map1(out, x, f64::round),
-                    Func::Floor => map1(out, x, f64::floor),
-                    Func::Ceil => map1(out, x, f64::ceil),
-                }
-            }
-            Node::Bin(op, a, b) => {
-                let (x, y) = (operand(*a), operand(*b));
-                match op {
-                    Bop::Add => zip2(out, x, y, |p, q| p + q),
-                    Bop::Sub => zip2(out, x, y, |p, q| p - q),
-                    Bop::Mul => zip2(out, x, y, |p, q| p * q),
-                    Bop::Div => zip2(out, x, y, |p, q| p / q),
-                    Bop::Pow => {
-                        // The exponent is a scalar (checked when planning).
-                        let Opd::C(e) = y else { return false };
-                        if e == 2.0 {
-                            zip2(out, x, y, |p, _| p * p);
+        let out_all: &mut [f64] = if k == cx.root { &mut *chunk } else { &mut rest[0][..len] };
+        for &(c, r0, r1, off) in segs.iter() {
+            let sl = r1 - r0;
+            let operand = |j: usize| -> Opd {
+                match cx.class[j] {
+                    Class::Scalar => Opd::C(cx.cval[j]),
+                    Class::Row => Opd::C(cx.vals(j)[c]),
+                    Class::Col => Opd::S(&cx.vals(j)[r0..r1]),
+                    Class::Full => {
+                        if let Node::Leaf(id) = cx.nodes[j] {
+                            Opd::S(&cx.mats[id].data[start + off..start + off + sl])
                         } else {
-                            if e.fract() != 0.0 && e.is_finite() {
-                                if let Opd::S(s) = x {
-                                    if s.iter().any(|&p| p < 0.0) {
-                                        return false;
-                                    }
-                                }
-                            }
-                            zip2(out, x, y, |p, q| p.powf(q));
+                            Opd::S(&before[j][off..off + sl])
                         }
                     }
                 }
+            };
+            if !apply(cx, k, &mut out_all[off..off + sl], &operand) {
+                return false;
             }
-            Node::Const(_) | Node::Leaf(_) => {}
         }
+    }
+    true
+}
+
+/// True when the operand holds a NaN (a logical operand never does).
+fn has_nan(o: Opd) -> bool {
+    match o {
+        Opd::C(c) => c.is_nan(),
+        Opd::S(s) => s.iter().any(|p| p.is_nan()),
+    }
+}
+
+/// One node over one run of elements.
+fn apply<'a>(cx: &Ctx, k: usize, out: &mut [f64], operand: &dyn Fn(usize) -> Opd<'a>) -> bool {
+    match &cx.nodes[k] {
+        Node::Neg(a) => match operand(*a) {
+            Opd::S(x) => {
+                for (o, &p) in out.iter_mut().zip(x) {
+                    *o = -p;
+                }
+            }
+            Opd::C(c) => out.fill(-c),
+        },
+        Node::Not(a) => {
+            let x = operand(*a);
+            if !cx.logical[*a] && has_nan(x) {
+                return false;
+            }
+            zip2(out, x, Opd::C(0.0), |p, _| bool_f64(p == 0.0));
+        }
+        Node::Call(f, a) => {
+            let Opd::S(x) = operand(*a) else { return true };
+            if f.has_domain() && x.iter().any(|&p| p < 0.0) {
+                return false;
+            }
+            match f {
+                Func::Sin => map1(out, x, f64::sin),
+                Func::Cos => map1(out, x, f64::cos),
+                Func::Tan => map1(out, x, f64::tan),
+                Func::Sinh => map1(out, x, f64::sinh),
+                Func::Cosh => map1(out, x, f64::cosh),
+                Func::Tanh => map1(out, x, f64::tanh),
+                Func::Exp => map1(out, x, f64::exp),
+                Func::Log => map1(out, x, f64::ln),
+                Func::Log10 => map1(out, x, f64::log10),
+                Func::Log2 => map1(out, x, f64::log2),
+                Func::Sqrt => map1(out, x, f64::sqrt),
+                Func::Atan => map1(out, x, f64::atan),
+                Func::Abs => map1(out, x, f64::abs),
+                Func::Round => map1(out, x, f64::round),
+                Func::Floor => map1(out, x, f64::floor),
+                Func::Ceil => map1(out, x, f64::ceil),
+            }
+        }
+        Node::Bin(op, a, b) => {
+            let (x, y) = (operand(*a), operand(*b));
+            if op.rejects_nan() && ((!cx.logical[*a] && has_nan(x)) || (!cx.logical[*b] && has_nan(y))) {
+                return false;
+            }
+            match op {
+                Bop::Add => zip2(out, x, y, |p, q| p + q),
+                Bop::Sub => zip2(out, x, y, |p, q| p - q),
+                Bop::Mul => zip2(out, x, y, |p, q| p * q),
+                Bop::Div => zip2(out, x, y, |p, q| p / q),
+                Bop::Gt => zip2(out, x, y, |p, q| bool_f64(p > q)),
+                Bop::Lt => zip2(out, x, y, |p, q| bool_f64(p < q)),
+                Bop::Ge => zip2(out, x, y, |p, q| bool_f64(p >= q)),
+                Bop::Le => zip2(out, x, y, |p, q| bool_f64(p <= q)),
+                Bop::Eq => zip2(out, x, y, |p, q| bool_f64(p == q)),
+                Bop::Ne => zip2(out, x, y, |p, q| bool_f64(p != q)),
+                Bop::And => zip2(out, x, y, |p, q| bool_f64(p != 0.0 && q != 0.0)),
+                Bop::Or => zip2(out, x, y, |p, q| bool_f64(p != 0.0 || q != 0.0)),
+                Bop::Pow => {
+                    // The exponent is a scalar (checked when planning).
+                    let Opd::C(e) = y else { return false };
+                    if e == 2.0 {
+                        zip2(out, x, y, |p, _| p * p);
+                    } else {
+                        if e.fract() != 0.0 && e.is_finite() {
+                            if let Opd::S(s) = x {
+                                if s.iter().any(|&p| p < 0.0) {
+                                    return false;
+                                }
+                            }
+                        }
+                        zip2(out, x, y, |p, q| p.powf(q));
+                    }
+                }
+            }
+        }
+        Node::Const(_) | Node::Leaf(_) => {}
     }
     true
 }

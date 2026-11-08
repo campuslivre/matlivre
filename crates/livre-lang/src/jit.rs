@@ -105,7 +105,7 @@ extern "C" fn h_err(ctx: *mut Ctx, code: i64, a: f64, b: f64, line: i64) -> i32 
         4 => format!("Index in position {} exceeds array bounds. Index must not exceed {}.", a as i64, b as i64),
         5 => format!("Maximum recursion limit of {MAX_DEPTH} reached."),
         6 => "Execution stopped by user.".to_string(),
-        7 => "NaN's cannot be converted to logicals.".to_string(),
+        7 => "NaN values cannot be converted to logicals.".to_string(),
         8 => FALLBACK.to_string(),
         _ => "Internal error in compiled code.".to_string(),
     };

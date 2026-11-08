@@ -284,3 +284,21 @@ fn banded_sparse_systems_match_dense_solves() {
     let out: Vec<String> = shown(src).into_iter().map(|s| s.trim_end().to_string()).collect();
     assert_eq!(out, ["B1 1 1 1", "B2 1", "B3 1", "B4 1", "B5 0"]);
 }
+
+/// Sparse systems with a wide band or general pattern (2-D Poisson, convection-diffusion) are
+/// solved by faer's sparse Cholesky or LU; a singular one still warns like MATLAB.
+#[test]
+fn wide_sparse_systems_match_dense_solves() {
+    let src = concat!(
+        "m = 40; e = ones(m,1); I = speye(m,m);\n",
+        "T = spdiags([-e 2*e -e], -1:1, m, m); P = kron(I,T) + kron(T,I); f = (1:m*m)'/(m*m);\n",
+        "u = P\\f; fprintf('W1 %d %d\\n', issparse(P), norm(P*u - f, inf) < 1e-9);\n",
+        "D = full(P); ud = D\\f; fprintf('W2 %d\\n', norm(u - ud, inf) < 1e-9);\n",
+        "Tn = spdiags([-1.5*e 2*e -0.5*e], -1:1, m, m); Q = kron(I,Tn) + kron(Tn,I);\n",
+        "v = Q\\f; fprintf('W3 %d %d\\n', norm(Q*v - f, inf) < 1e-9, norm(v - full(Q)\\f, inf) < 1e-9);\n",
+        "F = [f, 2*f, sin(f)]; V = P\\F; fprintf('W4 %d\\n', norm(P*V - F, inf) < 1e-9);\n",
+        "N = P - 4*speye(m*m); N(1,:) = 0; lastwarn(''); w = N\\f; [msg, id] = lastwarn; fprintf('W5 %d\\n', ~isempty(msg));\n",
+    );
+    let out: Vec<String> = shown(src).into_iter().map(|s| s.trim_end().to_string()).collect();
+    assert_eq!(out, ["W1 1 1", "W2 1", "W3 1 1", "W4 1", "Warning: Matrix is singular to working precision.", "W5 1"]);
+}

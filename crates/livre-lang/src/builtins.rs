@@ -1561,7 +1561,7 @@ fn call_dense(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize) 
                 Value::Num(m) => {
                     if kind == Kind::Logical {
                         if m.data.iter().any(|x| x.is_nan()) {
-                            return rt("NaN's cannot be converted to logicals.");
+                            return rt("NaN values cannot be converted to logicals.");
                         }
                         if m.is_complex() {
                             return rt("Conversion to logical from complex is not possible.");
@@ -2589,7 +2589,14 @@ fn call_dense(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize) 
         }
         "trace" => {
             let m = m_arg(a, 0, name)?;
-            num((0..m.rows().min(m.cols())).map(|i| m.get(i, i)).sum())
+            let k = m.rows().min(m.cols());
+            if m.is_complex() {
+                let (re, im): (f64, f64) = (0..k).fold((0.0, 0.0), |(r, i), d| (r + m.get(d, d), i + m.im_at(d * m.rows() + d)));
+                let mut out = Matrix::complex(vec![1, 1], vec![re], vec![im]);
+                out.narrow();
+                return one(Value::Num(out));
+            }
+            num((0..k).map(|i| m.get(i, i)).sum())
         }
         "transpose" => one(ops::unary(crate::ast::UnOp::Transpose, arg(a, 0, name)?)?),
         "ctranspose" => one(ops::unary(crate::ast::UnOp::CTranspose, arg(a, 0, name)?)?),

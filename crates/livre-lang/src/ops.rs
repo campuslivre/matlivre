@@ -460,7 +460,7 @@ pub fn unary(op: UnOp, v: &Value) -> R<Value> {
         }
         (UnOp::Not, Value::Num(m)) => {
             if m.data.iter().any(|x| x.is_nan()) {
-                return rt("NaN's cannot be converted to logicals.");
+                return rt("NaN values cannot be converted to logicals.");
             }
             let mut out = Matrix::from_dims(m.dims.clone(), (0..m.numel()).map(|i| b2f(m.data[i] == 0.0 && m.im_at(i) == 0.0)).collect()).with_kind(Kind::Logical);
             out.sparse = m.sparse;
@@ -767,6 +767,62 @@ fn band_solve(a: &crate::value::Csc, b: &Matrix) -> Option<Matrix> {
     Some(Matrix::new(n, k, out))
 }
 
+/// `a \ b` through faer's sparse factorizations: supernodal Cholesky with an AMD ordering when
+/// `a` is symmetric with a positive diagonal, else LU with partial pivoting and a COLAMD
+/// ordering. `None` when the factorization fails or the residual check does not pass.
+fn faer_sparse_solve(a: &crate::value::Csc, b: &Matrix) -> Option<Matrix> {
+    use faer::linalg::solvers::SolveCore;
+    use faer::sparse::{SparseColMatRef, SymbolicSparseColMatRef};
+    use faer::Side;
+    let n = a.rows;
+    if a.val.len() >= u32::MAX as usize || n >= u32::MAX as usize {
+        return None;
+    }
+    let ptr: Vec<u32> = a.ptr.iter().map(|&p| p as u32).collect();
+    let sym = SymbolicSparseColMatRef::new_checked(n, n, &ptr[..], None, &a.idx[..]);
+    let mat = SparseColMatRef::new(sym, &a.val[..]);
+    let k = b.cols();
+    let mut x = b.data.clone();
+    let symmetric = {
+        let t = crate::sparse_ops::transpose(a);
+        t.ptr == a.ptr && t.idx == a.idx && t.val == a.val && (0..n).all(|j| a.idx[a.ptr[j]..a.ptr[j + 1]].binary_search(&(j as u32)).is_ok_and(|p| a.val[a.ptr[j] + p] > 0.0))
+    };
+    let mut done = false;
+    if symmetric {
+        if let Ok(llt) = mat.sp_cholesky(Side::Lower) {
+            llt.solve_in_place_with_conj(faer::Conj::No, faer::MatMut::from_column_major_slice_mut(&mut x, n, k));
+            done = true;
+        }
+    }
+    if !done {
+        let lu = mat.sp_lu().ok()?;
+        x.copy_from_slice(&b.data);
+        lu.solve_in_place_with_conj(faer::Conj::No, faer::MatMut::from_column_major_slice_mut(&mut x, n, k));
+    }
+    // Residual check against the original system.
+    let anorm = (0..n).map(|j| a.val[a.ptr[j]..a.ptr[j + 1]].iter().map(|v| v.abs()).sum::<f64>()).fold(0.0, f64::max);
+    let mut r = vec![0.0; n];
+    for c in 0..k {
+        let (rhs, xc) = (&b.data[c * n..(c + 1) * n], &x[c * n..(c + 1) * n]);
+        r.copy_from_slice(rhs);
+        for j in 0..n {
+            let xj = xc[j];
+            if xj != 0.0 {
+                for e in a.ptr[j]..a.ptr[j + 1] {
+                    r[a.idx[e] as usize] -= a.val[e] * xj;
+                }
+            }
+        }
+        let rn = r.iter().fold(0.0f64, |m, v| m.max(v.abs()));
+        let xn = xc.iter().fold(0.0f64, |m, v| m.max(v.abs()));
+        let bn = rhs.iter().fold(0.0f64, |m, v| m.max(v.abs()));
+        if !(rn <= 1e-10 * (anorm * xn + bn)) {
+            return None;
+        }
+    }
+    Some(Matrix::new(n, k, x))
+}
+
 /// `a \ b` for a square sparse `a` given as compressed columns (see [`sparse_solve`]).
 pub fn sparse_solve_csc(csc: &crate::value::Csc, b: &Matrix) -> Option<Matrix> {
     use crate::sparse_lu::LuFactor;
@@ -783,6 +839,11 @@ pub fn sparse_solve_csc(csc: &crate::value::Csc, b: &Matrix) -> Option<Matrix> {
         return None;
     }
     if let Some(x) = band_solve(csc, b) {
+        return Some(x);
+    }
+    // Wide bands and general patterns: faer's supernodal Cholesky or LU with fill-reducing
+    // orderings; the Markowitz LU below takes over when they fail.
+    if let Some(x) = faer_sparse_solve(csc, b) {
         return Some(x);
     }
     let lu = LuFactor::factorize_csc(n, ptr, idx, val).ok()?;
