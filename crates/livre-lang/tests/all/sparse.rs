@@ -262,3 +262,25 @@ fn vector_two_norm_is_scaled() {
     let out: Vec<String> = shown(src).into_iter().map(|s| s.trim_end().to_string()).collect();
     assert_eq!(out, ["N1 5 1.41421e+200 1.41421e-200 0", "N2 NaN Inf 5 3"]);
 }
+
+/// Banded systems (few diagonals) are solved by a banded LU with partial pivoting; results agree
+/// with the dense solver and MATLAB R2023b, including with tiny pivots and several right sides.
+#[test]
+fn banded_sparse_systems_match_dense_solves() {
+    let src = concat!(
+        "n = 150; k = (1:n)';\n",
+        "B = [sin(k)+0.3, 1e-9*cos(2*k), 0.5*cos(k), sin(3*k), 1+0.2*sin(5*k), cos(7*k)];\n",
+        "A = spdiags(B, [-2 -1 0 1 2 3], n, n);\n",
+        "D = full(A);\n",
+        "b = cos(k) + 2; X = [b, k/n, sin(2*k)];\n",
+        "x1 = A\\X; x2 = D\\X;\n",
+        "fprintf('B1 %d %d %d\\n', issparse(A), nnz(A) > 600, norm(x1 - x2, 1) < 1e-8*norm(x2, 1));\n",
+        "fprintf('B2 %d\\n', norm(D*x1 - X, 1) < 1e-8*norm(X, 1));\n",
+        "m = 500; e = ones(m,1); T = spdiags([-e 2*e -e], -1:1, m, m); bt = T*(1:m)';\n",
+        "xt = T\\bt; fprintf('B3 %d\\n', norm(xt - (1:m)', inf) < 1e-6);\n",
+        "P = spdiags([e 1e-12*e e], -1:1, m, m); xp = P\\ones(m,1); fprintf('B4 %d\\n', norm(full(P)*xp - ones(m,1), inf) < 1e-6);\n",
+        "S = spdiags([e 0*e e], -1:1, m, m); lastwarn(''); xs = S\\ones(m,1); [w, id] = lastwarn; fprintf('B5 %d\\n', ~isempty(w));\n",
+    );
+    let out: Vec<String> = shown(src).into_iter().map(|s| s.trim_end().to_string()).collect();
+    assert_eq!(out, ["B1 1 1 1", "B2 1", "B3 1", "B4 1", "B5 0"]);
+}

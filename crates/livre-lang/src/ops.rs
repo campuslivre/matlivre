@@ -650,7 +650,124 @@ fn sparse_solve(a: &Matrix, b: &Matrix) -> Option<Matrix> {
     sparse_solve_csc(&csc, b)
 }
 
-/// `a  b` for a square sparse `a` given as compressed columns (see [`sparse_solve`]).
+/// Widest band (lower plus upper bandwidth) solved by the banded LU; wider systems go to the
+/// general sparse LU, which handles fill-in better.
+const BAND_MAX: usize = 16;
+
+/// `a \ b` for a square banded `a` (few diagonals, such as tridiagonal or pentadiagonal): LU with
+/// partial pivoting on band storage (the LAPACK `gbtrf`/`gbtrs` scheme), in O(n * band^2) time
+/// and O(n * band) memory. `None` when the band is wide, a pivot is zero, or the residual check
+/// fails; the caller then takes the general path.
+fn band_solve(a: &crate::value::Csc, b: &Matrix) -> Option<Matrix> {
+    let n = a.rows;
+    let (mut kl, mut ku) = (0usize, 0usize);
+    for j in 0..n {
+        for e in a.ptr[j]..a.ptr[j + 1] {
+            let i = a.idx[e] as usize;
+            if i > j {
+                kl = kl.max(i - j);
+            } else {
+                ku = ku.max(j - i);
+            }
+        }
+        if kl + ku > BAND_MAX {
+            return None;
+        }
+    }
+    let kv = kl + ku;
+    let ld = 2 * kl + ku + 1;
+    let mut ab = vec![0.0f64; ld * n];
+    // Element (r, c) lives at ab[kv + r - c + c * ld].
+    for j in 0..n {
+        for e in a.ptr[j]..a.ptr[j + 1] {
+            ab[kv + a.idx[e] as usize - j + j * ld] = a.val[e];
+        }
+    }
+    let mut piv = vec![0usize; n];
+    let mut ju = 0usize;
+    for j in 0..n {
+        let km = kl.min(n - 1 - j);
+        let (mut jp, mut best) = (0usize, ab[kv + j * ld].abs());
+        for i in 1..=km {
+            let v = ab[kv + i + j * ld].abs();
+            if v > best {
+                best = v;
+                jp = i;
+            }
+        }
+        if best == 0.0 {
+            return None;
+        }
+        piv[j] = jp;
+        ju = ju.max((j + ku + jp).min(n - 1));
+        if jp != 0 {
+            for c in j..=ju {
+                ab.swap(kv + j - c + c * ld, kv + j + jp - c + c * ld);
+            }
+        }
+        let p = ab[kv + j * ld];
+        for i in 1..=km {
+            ab[kv + i + j * ld] /= p;
+        }
+        for c in j + 1..=ju {
+            let t = ab[kv + j - c + c * ld];
+            if t != 0.0 {
+                for i in 1..=km {
+                    let m = ab[kv + i + j * ld];
+                    ab[kv + j + i - c + c * ld] -= m * t;
+                }
+            }
+        }
+    }
+    let k = b.cols();
+    let mut out = vec![0.0; n * k];
+    for col in 0..k {
+        let rhs = &b.data[col * n..(col + 1) * n];
+        let x = &mut out[col * n..(col + 1) * n];
+        x.copy_from_slice(rhs);
+        for j in 0..n {
+            let km = kl.min(n - 1 - j);
+            if piv[j] != 0 {
+                x.swap(j, j + piv[j]);
+            }
+            let xj = x[j];
+            if xj != 0.0 {
+                for i in 1..=km {
+                    x[j + i] -= ab[kv + i + j * ld] * xj;
+                }
+            }
+        }
+        for j in (0..n).rev() {
+            x[j] /= ab[kv + j * ld];
+            let xj = x[j];
+            if xj != 0.0 {
+                for i in j.saturating_sub(kv)..j {
+                    x[i] -= ab[kv + i + j * ld - j] * xj;
+                }
+            }
+        }
+        // Residual check against the original matrix.
+        let mut r = rhs.to_vec();
+        for j in 0..n {
+            let xj = x[j];
+            if xj != 0.0 {
+                for e in a.ptr[j]..a.ptr[j + 1] {
+                    r[a.idx[e] as usize] -= a.val[e] * xj;
+                }
+            }
+        }
+        let anorm = (0..n).map(|j| a.val[a.ptr[j]..a.ptr[j + 1]].iter().map(|v| v.abs()).sum::<f64>()).fold(0.0, f64::max);
+        let rn = r.iter().fold(0.0f64, |m, v| m.max(v.abs()));
+        let xn = x.iter().fold(0.0f64, |m, v| m.max(v.abs()));
+        let bn = rhs.iter().fold(0.0f64, |m, v| m.max(v.abs()));
+        if !(rn <= 1e-10 * (anorm * xn + bn)) {
+            return None;
+        }
+    }
+    Some(Matrix::new(n, k, out))
+}
+
+/// `a \ b` for a square sparse `a` given as compressed columns (see [`sparse_solve`]).
 pub fn sparse_solve_csc(csc: &crate::value::Csc, b: &Matrix) -> Option<Matrix> {
     use crate::sparse_lu::LuFactor;
     let (n, k) = (csc.rows, b.cols());
@@ -664,6 +781,9 @@ pub fn sparse_solve_csc(csc: &crate::value::Csc, b: &Matrix) -> Option<Matrix> {
     let (ptr, idx, val) = (&csc.ptr, &csc.idx, &csc.val);
     if b.data.iter().any(|v| !v.is_finite()) {
         return None;
+    }
+    if let Some(x) = band_solve(csc, b) {
+        return Some(x);
     }
     let lu = LuFactor::factorize_csc(n, ptr, idx, val).ok()?;
     let anorm = (0..n).map(|j| val[ptr[j]..ptr[j + 1]].iter().map(|v| v.abs()).sum::<f64>()).fold(0.0, f64::max);

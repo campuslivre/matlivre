@@ -514,27 +514,40 @@ fn build_spdiags(a: &[Value]) -> Ret {
     if b.is_complex() {
         return Ok(None);
     }
-    let mut t = Vec::new();
-    for (k, &dk) in d.data.iter().enumerate() {
-        let dk = dk as i64;
-        for j in 0..n {
-            let i = j as i64 - dk;
+    // Column by column: the entries of the few diagonals through each column, sorted by row
+    // (a later diagonal overwrites an earlier one at the same position, zeros included).
+    let mut ptr = Vec::with_capacity(n + 1);
+    let (mut idx, mut val) = (Vec::with_capacity(d.numel() * n.min(m)), Vec::with_capacity(d.numel() * n.min(m)));
+    ptr.push(0usize);
+    let mut col: Vec<(u32, usize, f64)> = Vec::new();
+    for j in 0..n {
+        col.clear();
+        for (k, &dk) in d.data.iter().enumerate() {
+            let i = j as i64 - dk as i64;
             if i < 0 || i as usize >= m || b.cols() <= k {
                 continue;
             }
-            let idx = if m >= n { j } else { i as usize };
-            let v = if idx < b.rows() { b.data[k * b.rows() + idx] } else { 0.0 };
-            // Later diagonals overwrite earlier ones, zeros included.
-            t.push((i as u32, j as u32, v));
+            let pos = if m >= n { j } else { i as usize };
+            let v = if pos < b.rows() { b.data[k * b.rows() + pos] } else { 0.0 };
+            col.push((i as u32, k, v));
         }
+        col.sort_by_key(|&(r, k, _)| (r, k));
+        let mut q = 0;
+        while q < col.len() {
+            let mut last = col[q];
+            while q + 1 < col.len() && col[q + 1].0 == last.0 {
+                q += 1;
+                last = col[q];
+            }
+            q += 1;
+            if last.2 != 0.0 {
+                idx.push(last.0);
+                val.push(last.2);
+            }
+        }
+        ptr.push(idx.len());
     }
-    let c = from_triplets_keep_last(m, n, t);
-    Ok(Some(vec![wrap(c)?]))
-}
-
-/// As `from_triplets` with `Dup::Last` (a repeated position keeps its last value, even zero).
-fn from_triplets_keep_last(rows: usize, cols: usize, t: Vec<(u32, u32, f64)>) -> Csc {
-    from_triplets(rows, cols, t, Dup::Last, false)
+    Ok(Some(vec![sparse_value(m, n, ptr, idx, val, false)?]))
 }
 
 fn build_kron(a: &[Value]) -> Ret {
