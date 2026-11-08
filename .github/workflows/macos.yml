@@ -73,7 +73,7 @@ jobs:
         # --clobber: running again for the same tag replaces the files. The portable zip stays out.
         run: |
           shopt -s nullglob
-          gh release upload "$TAG" dist/*.dmg dist/velopack/releases.osx.json dist/velopack/RELEASES-os[x] dist/velopack/*.nupkg --clobber
+          gh release upload "$TAG" dist/*.dmg dist/velopack/releases.osx.json dist/velopack/assets.osx.json dist/velopack/RELEASES-os[x] dist/velopack/*.nupkg --clobber
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
