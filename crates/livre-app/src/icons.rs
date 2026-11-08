@@ -13,6 +13,8 @@ use crate::theme::Skin;
 pub enum Ic {
     New,
     Open,
+    OpenFile,
+    OpenFolder,
     Save,
     SaveAs,
     ExportM,
@@ -145,6 +147,12 @@ fn body(ic: Ic, bg: &str, fg: &str) -> String {
         Ic::Open => {
             f("M1 3.5A1.5 1.5 0 0 1 2.5 2H5.6L7.2 3.6H12.5A1.5 1.5 0 0 1 14 5.1V7H1Z", "#E8A317")
                 + &f("M2.6 7H15.2A.8.8 0 0 1 15.9 8.1L13.9 13.2A1.3 1.3 0 0 1 12.7 14H2.2A1.2 1.2 0 0 1 1 12.8V8.5A1.5 1.5 0 0 1 2.6 7Z", "#FFC83D")
+        }
+        Ic::OpenFile => {
+            page() + &f("M9 9.6H12.2V8L15.4 11L12.2 14V12.4H9Z", B)
+        }
+        Ic::OpenFolder => {
+            folder.clone() + &f("M9 9.6H12.2V8L15.4 11L12.2 14V12.4H9Z", B) + &l("M9 9.6H12.2V8L15.4 11L12.2 14V12.4H9Z", "#FFFFFF", 0.5)
         }
         Ic::FolderOpen => {
             f("M1 3.5A1.5 1.5 0 0 1 2.5 2H5.6L7.2 3.6H12.5A1.5 1.5 0 0 1 14 5.1V7H1Z", "#E8A317")

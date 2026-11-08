@@ -226,6 +226,7 @@ enum HistKind {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Menu {
     New,
+    Open,
     Save,
     Insert,
     More,
@@ -244,6 +245,8 @@ enum ControlTag {
 enum MenuCmd {
     NewLive,
     NewScript,
+    OpenFile,
+    OpenFolder,
     Save,
     SaveAs,
     ExportM,
@@ -1856,6 +1859,8 @@ impl App {
         match cmd {
             MenuCmd::NewLive => self.new_doc(Kind::Live),
             MenuCmd::NewScript => self.new_doc(Kind::Script),
+            MenuCmd::OpenFile => self.open_dialog(),
+            MenuCmd::OpenFolder => self.open_folder_dialog(),
             MenuCmd::Save => {
                 self.save(false);
             }
@@ -2031,10 +2036,9 @@ impl App {
                     let open = |m: Menu| self.menu.is_some_and(|(o, _)| o == m);
                     let r = widgets::cmd_button(ui, &skin, Some(Ic::New), file_label("New"), true, true, open(Menu::New)).on_hover_text("New live script or script");
                     self.toggle_menu(Menu::New, &r);
-                    if widgets::cmd_button(ui, &skin, Some(Ic::Open), file_label("Open"), true, false, false).on_hover_text("Open .mlx or .m (Ctrl+O)").clicked() {
-                        self.menu = None;
-                        self.open_dialog();
-                    }
+                    let open = |m: Menu| self.menu.is_some_and(|(o, _)| o == m);
+                    let r = widgets::cmd_button(ui, &skin, Some(Ic::Open), file_label("Open"), true, true, open(Menu::Open)).on_hover_text("Open a file (Ctrl+O) or a folder");
+                    self.toggle_menu(Menu::Open, &r);
                     let open = |m: Menu| self.menu.is_some_and(|(o, _)| o == m);
                     let r = widgets::cmd_button(ui, &skin, Some(Ic::Save), file_label("Save"), true, true, open(Menu::Save)).on_hover_text("Save (Ctrl+S), Save as, Export");
                     self.toggle_menu(Menu::Save, &r);
@@ -2115,6 +2119,10 @@ impl App {
                 Menu::New => {
                     item(ui, MenuEntry::new(Ic::Mlx, "Live script (.mlx)").shortcut("Ctrl+N"), MenuCmd::NewLive);
                     item(ui, MenuEntry::new(Ic::MFile, "Script (.m)").shortcut("Ctrl+Alt+N"), MenuCmd::NewScript);
+                }
+                Menu::Open => {
+                    item(ui, MenuEntry::new(Ic::OpenFile, "File…").shortcut("Ctrl+O"), MenuCmd::OpenFile);
+                    item(ui, MenuEntry::new(Ic::OpenFolder, "Folder…"), MenuCmd::OpenFolder);
                 }
                 Menu::Save => {
                     item(ui, MenuEntry::new(Ic::Save, "Save").shortcut("Ctrl+S"), MenuCmd::Save);
@@ -2359,13 +2367,9 @@ impl App {
         };
         let has_root = self.tree.root().is_some();
         let mut pick = false;
-        let mut close = false;
         Self::drawer_header(&mut ui, &skin, Some(Ic::Folder), &title, |ui| {
             if has_root {
-                if widgets::cmd_button(ui, &skin, Some(Ic::Clear), "", true, false, false).on_hover_text("Close folder").clicked() {
-                    close = true;
-                }
-                if widgets::cmd_button(ui, &skin, Some(Ic::Open), "", true, false, false).on_hover_text("Open folder").clicked() {
+                if widgets::cmd_button(ui, &skin, Some(Ic::OpenFolder), "", true, false, false).on_hover_text("Open folder").clicked() {
                     pick = true;
                 }
             }
@@ -2374,16 +2378,13 @@ impl App {
             egui::Frame::none().inner_margin(Margin { left: 16.0, right: 12.0, top: 12.0, bottom: 0.0 }).show(&mut ui, |ui| {
                 ui.spacing_mut().item_spacing.y = 8.0;
                 ui.add(egui::Label::new(RichText::new("No folder opened.").color(skin.text_secondary)).wrap());
-                if widgets::cmd_button(ui, &skin, Some(Ic::Open), "Open Folder", true, false, false).on_hover_text("Choose the project folder").clicked() {
+                if widgets::cmd_button(ui, &skin, Some(Ic::OpenFolder), "Open Folder", true, false, false).on_hover_text("Choose the project folder").clicked() {
                     pick = true;
                 }
             });
         }
         if pick {
             self.open_folder_dialog();
-        }
-        if close {
-            self.tree.set_root(None);
         }
         let selected = self.tab().path.clone();
         let mut toggle = None;
