@@ -252,6 +252,12 @@ impl Table {
 
     /// `T(rows, vars)`.
     pub fn paren(&self, args: &[Value]) -> R<Table> {
+        // T(rf, vars): a rowfilter selects the rows it keeps.
+        if let Some(Value::Object(o)) = args.first().filter(|v| matches!(v, Value::Object(o) if o.class.name == crate::decomp::RF_CLASS)) {
+            let mut a = args.to_vec();
+            a[0] = crate::decomp::rowfilter_mask(self, o)?;
+            return self.paren(&a);
+        }
         let (rows, vars) = self.subscripts(args)?;
         let mut out = Table { names: Vec::new(), vars: Vec::new(), nrows: 0, row_names: None, description: self.description.clone(), row_times: None, dim_names: self.dim_names.clone(), custom: self.custom.clone() };
         for &k in &vars {

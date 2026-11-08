@@ -1919,6 +1919,7 @@ impl Interpreter {
             }
             Value::Object(o) if crate::gfx::is_gfx_class(&o.class.name) => crate::gfx::member(self, v, name),
             Value::Object(o) if crate::settings::is_node(&o.class.name) => crate::settings::member(self, v, name),
+            Value::Object(o) if o.class.name == crate::decomp::RF_CLASS => crate::decomp::rowfilter_member(o, name),
             Value::Object(o) if crate::sym::units::is_symunit(&o.class.name) => crate::sym::units::member(name),
             Value::Object(o) => {
                 let Some(i) = o.class.prop_index(name) else {

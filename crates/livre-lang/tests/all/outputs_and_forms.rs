@@ -743,3 +743,39 @@ fn implicit_surfaces_and_classes() {
         ],
     );
 }
+
+#[test]
+fn rowfilter_and_nested() {
+    check(
+        concat!(
+            "G = nested(4)\n",
+            "G = nested(8)\n",
+            "T = table([1; 2; 3; 4], {'a'; 'b'; 'c'; 'd'}, [0.5; 1.5; 2.5; 3.5], 'VariableNames', {'X', 'Name', 'Y'});\n",
+            "rf = rowfilter(T);\n",
+            "f1 = rf.X <= 1 | rf.Name == \"d\"\n",
+            "f2 = (rf.X > 1) & (rf.Y < 3)\n",
+            "f3 = ~(rf.X == 2)\n",
+            "f4 = rf.Name ~= 'a'\n",
+            "f5 = 2 < rf.X\n",
+            "v = rf.X\n",
+            "T(f2, :)\n",
+            "T(f3, :)\n",
+            "T(f5, 'Y')\n",
+            "try, rf.Z, catch e, disp(e.message), end\n",
+        ),
+        &[
+            "G = 4×4\n\n     0     0     0     0\n     0     3     1     0\n     0     4     2     0\n     0     0     0     0",
+            "G = 8×8\n\n     0     0     0     0     0     0     0     0\n     0     3     1    31    13    17    15     0\n     0     4     2    32    14    18    16     0\n     0    11    12    33    28    29    30     0\n     0     5     6    34    19    25    22     0\n     0     9    10    35    20    26    23     0\n     0     7     8    36    21    27    24     0\n     0     0     0     0     0     0     0     0",
+            "f1 = \n  RowFilter with constraints:\n\n    X <= 1 | Name == \"d\"\n\n  VariableNames: X, Name, Y\n",
+            "f2 = \n  RowFilter with constraints:\n\n    X > 1 & Y < 3\n\n  VariableNames: X, Name, Y\n",
+            "f3 = \n  RowFilter with constraint:\n\n    ~(X == 2)\n\n  VariableNames: X, Name, Y\n",
+            "f4 = \n  RowFilter with constraint:\n\n    Name ~= 'a'\n\n  VariableNames: X, Name, Y\n",
+            "f5 = \n  RowFilter with constraint:\n\n    X > 2\n\n  VariableNames: X, Name, Y\n",
+            "v = \n  RowFilter with no constraints on variable: X\n\n    X <unconstrained>\n\n  VariableNames: X, Name, Y\n",
+            "ans = 2×3 table\n\n    X    Name      Y \n    _    _____    ___\n\n    2    {'b'}    1.5\n    3    {'c'}    2.5",
+            "ans = 3×3 table\n\n    X    Name      Y \n    _    _____    ___\n\n    1    {'a'}    0.5\n    3    {'c'}    2.5\n    4    {'d'}    3.5",
+            "ans = 2×1 table\n\n     Y \n    ___\n\n    2.5\n    3.5",
+            "Unrecognized variable name for filtering. Select a variable for filtering using one of the following variable names: X, Name, Y.\n",
+        ],
+    );
+}
