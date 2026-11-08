@@ -18,8 +18,8 @@ title = "MatLivre"
 linux = true
 linux-icon = "assets/matlivre.png"
 file-types = [
-    { extension = "mlx", description = "MATLAB Live Script", icon = "assets/mlx.ico" },
-    { extension = "m", description = "MATLAB Script", icon = "assets/m.ico" },
+    { extension = "mlx", description = "MatLivre Live Script", icon = "assets/mlx.ico" },
+    { extension = "m", description = "MatLivre Script", icon = "assets/m.ico" },
 ]
 
 [dependencies]

@@ -15,6 +15,7 @@ mod theme;
 mod transfer;
 mod widgets;
 mod updater;
+mod file_types;
 
 use std::path::PathBuf;
 
@@ -30,7 +31,7 @@ pub enum Launch {
 
 fn main() -> eframe::Result<()> {
     // Velopack's install, update and uninstall hooks: answered and quit before anything else.
-    velopack::VelopackApp::build().run();
+    file_types::with_hooks(velopack::VelopackApp::build()).run();
     // An MCP server over stdio for Claude Code (`claude mcp add matlivre -- matlivre --mcp`).
     if std::env::args().nth(1).as_deref() == Some("--mcp") {
         mcp::stdio();
