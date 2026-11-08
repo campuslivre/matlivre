@@ -1,14 +1,26 @@
-# Builds the macOS app (universal: Apple Silicon and Intel) and attaches the .dmg to a release.
-# Started by Release Manager after it publishes a release; can also be run by hand from the Actions tab.
+# Builds the macOS app (universal: Apple Silicon and Intel) and attaches it to a release: the .dmg to
+# download, and the Velopack update files (releases.osx.json and the update package) so installed
+# copies update themselves. Started by Release Manager after it publishes a release; can also be run
+# by hand from the Actions tab (untick "upload" for a test build that changes nothing).
 name: macOS release
 
 on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Release tag to build and attach the .dmg to (for example v0.1.5)
+        description: Release tag to build and attach the files to (for example v0.1.5)
         required: true
         type: string
+      ref:
+        description: Build this branch or commit instead of the tag (for a test build)
+        required: false
+        default: ''
+        type: string
+      upload:
+        description: Attach the files to the release (untick for a test build)
+        required: false
+        default: true
+        type: boolean
 
 permissions:
   contents: write
@@ -20,7 +32,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.tag }}
+          ref: ${{ inputs.ref || inputs.tag }}
 
       - name: Stamp the release version
         # The tag may be on a commit from before the version was stamped; build-mac.sh names the app after Cargo.toml.
@@ -33,11 +45,29 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      - name: Build MatLivre.app and the .dmg
-        run: ./build-mac.sh --universal --dmg
+      - name: Install Velopack's packer
+        # The same version as the velopack crate in Cargo.toml.
+        run: dotnet tool install -g vpk --version 1.2.161 && echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
 
-      - name: Attach the .dmg to the release
-        run: gh release upload "$TAG" dist/*.dmg --clobber
+      - name: Build MatLivre.app and the .dmg
+        run: ./build-mac.sh --universal --dmg --velopack
+
+      - name: Check the app
+        run: |
+          app=dist/MatLivre.app
+          ls -la "$app/Contents/MacOS" "$app/Contents/Resources"
+          lipo -info "$app/Contents/MacOS/matlivre"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          codesign -dv "$app" 2>&1 | head -8
+          plutil -p "$app/Contents/Info.plist" | head -40
+          ls -la dist dist/velopack
+
+      - name: Attach the files to the release
+        if: ${{ inputs.upload }}
+        # --clobber: running again for the same tag replaces the files. The portable zip stays out.
+        run: |
+          shopt -s nullglob
+          gh release upload "$TAG" dist/*.dmg dist/velopack/releases.osx.json dist/velopack/RELEASES-os[x] dist/velopack/*.nupkg --clobber
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
