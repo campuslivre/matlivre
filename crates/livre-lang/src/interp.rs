@@ -462,19 +462,27 @@ impl Interpreter {
     }
 
     fn get_var_mut(&mut self, name: &str) -> Option<&mut Value> {
-        if self.frame().globals.contains(name) {
+        let v = if self.frame().globals.contains(name) {
             self.global_vars.get_mut(name)
         } else {
             self.frame_mut().vars.get_mut(name)
+        };
+        if let Some(Value::Num(m)) = v {
+            m.csc.clear();
         }
+        v
     }
 
     fn take_var(&mut self, name: &str) -> Option<Value> {
-        if self.frame().globals.contains(name) {
+        let mut v = if self.frame().globals.contains(name) {
             self.global_vars.remove(name)
         } else {
             self.frame_mut().vars.remove(name)
+        };
+        if let Some(Value::Num(m)) = &mut v {
+            m.csc.clear();
         }
+        v
     }
 
     pub(crate) fn remove_var(&mut self, name: &str) {
@@ -1189,7 +1197,12 @@ impl Interpreter {
             rhs
         } else {
             match self.frame_mut().vars.get_mut(name.as_str()) {
-                Some(target) => match assign_in_place(target, &resolved, rhs)? {
+                Some(target) => match {
+                    if let Value::Num(m) = target {
+                        m.csc.clear();
+                    }
+                    assign_in_place(target, &resolved, rhs)?
+                } {
                     None => return Ok(()),
                     Some(rhs) => rhs,
                 },

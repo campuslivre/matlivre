@@ -148,3 +148,21 @@ fn iterative_solvers_on_a_larger_sparse_system_match_matlab() {
     let out: Vec<String> = shown(src).into_iter().map(|s| s.trim_end().to_string()).collect();
     assert_eq!(out, ["pcg 0 74 1 99117.6", "bicgstab 0 53.5 1 99117.6", "gmres 0 6 30 1 99117.6", "lsqr 0 267 1"]);
 }
+
+/// Products with a sparse matrix use cached compressed columns; the cache must not survive a
+/// change of the matrix (element assignment, in a loop or not) and must agree with the dense path.
+#[test]
+fn sparse_products_follow_changes_to_the_matrix() {
+    let src = concat!(
+        "n = 100; A = spdiags([-ones(n,1) 2*ones(n,1) -ones(n,1)], -1:1, n, n); v = (1:n)';\n",
+        "y1 = A*v; d1 = norm(y1 - full(A)*v); fprintf('P1 %d\\n', d1 < 1e-9);\n",
+        "A(3,7) = 5; y2 = A*v; fprintf('P2 %d %d\\n', norm(y2 - full(A)*v) < 1e-9, norm(y2 - y1) > 1);\n",
+        "for k = 1:3, A(k,k+2) = k; y3 = A*v; if norm(y3 - full(A)*v) > 1e-9, disp('bad loop'); end, end\n",
+        "z = v'*A; fprintf('P3 %d\\n', norm(z' - full(A)'*v) < 1e-9);\n",
+        "B = A; B(1,1) = 100; fprintf('P4 %d %d\\n', norm(A*v - full(A)*v) < 1e-9, norm(B*v - full(B)*v) < 1e-9);\n",
+        "x = A \\ v; fprintf('P5 %d\\n', norm(A*x - v) < 1e-8); A(2,2) = 9; x = A \\ v; fprintf('P6 %d\\n', norm(A*x - v) < 1e-8);\n",
+        "C = A*[v 2*v]; fprintf('P7 %d\\n', norm(C - full(A)*[v 2*v]) < 1e-9);\n",
+    );
+    let out: Vec<String> = shown(src).into_iter().map(|s| s.trim_end().to_string()).collect();
+    assert_eq!(out, ["P1 1", "P2 1 1", "P3 1", "P4 1 1", "P5 1", "P6 1", "P7 1"]);
+}

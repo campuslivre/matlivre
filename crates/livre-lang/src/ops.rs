@@ -443,7 +443,7 @@ pub fn unary(op: UnOp, v: &Value) -> R<Value> {
         (UnOp::CTranspose | UnOp::Transpose, Value::Func(_) | Value::Object(_)) => Ok(v.clone()),
         (UnOp::Neg, Value::Num(m)) => {
             let kind = if matches!(m.kind, Kind::Logical | Kind::Char) { Kind::Double } else { m.kind };
-            let mut out = Matrix { dims: m.dims.clone(), data: m.data.iter().map(|x| -x).collect(), im: m.im.as_ref().map(|im| im.iter().map(|x| -x).collect()), kind: Kind::Double, sparse: m.sparse };
+            let mut out = Matrix { dims: m.dims.clone(), data: m.data.iter().map(|x| -x).collect(), im: m.im.as_ref().map(|im| im.iter().map(|x| -x).collect()), kind: Kind::Double, sparse: m.sparse, csc: Default::default() };
             out = out.cast_to(kind);
             Ok(Value::Num(out))
         }
@@ -576,6 +576,64 @@ pub fn csc_from_dense(data: &[f64], rows: usize, cols: usize, max_nnz: usize, fi
     Some((ptr, idx, val))
 }
 
+/// Compressed columns of a real 2-D matrix, kept in the matrix itself so that repeated products
+/// and solves with the same variable scan it once. `None` when it is small, complex, or has
+/// more than a fifth of its elements nonzero.
+pub fn csc_of(m: &Matrix) -> Option<std::sync::Arc<crate::value::Csc>> {
+    let (rows, cols) = (m.rows(), m.cols());
+    if rows * cols < 4096 || m.is_complex() || m.dims.len() != 2 {
+        return None;
+    }
+    m.csc.get_or_init(|| {
+        let (ptr, idx, val) = csc_from_dense(&m.data, rows, cols, rows * cols / 5, false)?;
+        Some(std::sync::Arc::new(crate::value::Csc { rows, cols, ptr, idx, val }))
+    })
+}
+
+/// `a * b` for a sparse `a` and a dense `b` with a few columns: the cost is the nonzeros of `a`
+/// per column of `b`.
+fn sparse_times(a: &Matrix, b: &Matrix) -> Option<Matrix> {
+    if b.cols() > 16 || b.is_complex() || b.dims.len() != 2 {
+        return None;
+    }
+    let c = csc_of(a)?;
+    let (k, m) = (b.cols(), c.cols);
+    let mut out = vec![0.0; c.rows * k];
+    for col in 0..k {
+        let x = &b.data[col * m..(col + 1) * m];
+        let y = &mut out[col * c.rows..(col + 1) * c.rows];
+        for j in 0..m {
+            let xj = x[j];
+            if xj != 0.0 {
+                for e in c.ptr[j]..c.ptr[j + 1] {
+                    y[c.idx[e] as usize] += c.val[e] * xj;
+                }
+            }
+        }
+    }
+    Some(Matrix::new(c.rows, k, out))
+}
+
+/// `x * b` for a dense `x` with a few rows and a sparse `b`.
+fn times_sparse(x: &Matrix, b: &Matrix) -> Option<Matrix> {
+    if x.rows() > 16 || x.is_complex() || x.dims.len() != 2 {
+        return None;
+    }
+    let c = csc_of(b)?;
+    let r = x.rows();
+    let mut out = vec![0.0; r * c.cols];
+    for j in 0..c.cols {
+        for row in 0..r {
+            let mut s = 0.0;
+            for e in c.ptr[j]..c.ptr[j + 1] {
+                s += c.val[e] * x.data[c.idx[e] as usize * r + row];
+            }
+            out[j * r + row] = s;
+        }
+    }
+    Some(Matrix::new(r, c.cols, out))
+}
+
 /// `a \ b` for a square matrix flagged sparse, through a sparse LU with Markowitz pivoting
 /// (`sparse_lu`). Returns `None` when the matrix is not sparse enough, holds non-finite values,
 /// is (numerically) singular, or the result fails a residual check; the caller then takes the
@@ -584,11 +642,15 @@ fn sparse_solve(a: &Matrix, b: &Matrix) -> Option<Matrix> {
     use crate::sparse_lu::LuFactor;
     let (n, k) = (a.rows(), b.cols());
     let max_nnz = (SPARSE_MAX_DENSITY * (n * n) as f64) as usize;
-    let (ptr, idx, val) = csc_from_dense(&a.data, n, n, max_nnz, true)?;
+    let csc = csc_of(a)?;
+    if csc.val.len() > max_nnz || csc.val.iter().any(|v| !v.is_finite()) {
+        return None;
+    }
+    let (ptr, idx, val) = (&csc.ptr, &csc.idx, &csc.val);
     if b.data.iter().any(|v| !v.is_finite()) {
         return None;
     }
-    let lu = LuFactor::factorize_csc(n, &ptr, &idx, &val).ok()?;
+    let lu = LuFactor::factorize_csc(n, ptr, idx, val).ok()?;
     let anorm = (0..n).map(|j| val[ptr[j]..ptr[j + 1]].iter().map(|v| v.abs()).sum::<f64>()).fold(0.0, f64::max);
     let mut out = vec![0.0; n * k];
     let (mut s1, mut s2, mut r) = (Vec::new(), Vec::new(), vec![0.0; n]);
@@ -647,6 +709,12 @@ pub fn matmul(a: &Matrix, b: &Matrix) -> R<Matrix> {
         return rt("Incorrect dimensions for matrix multiplication. Check that the number of columns in the first matrix matches the number of rows in the second matrix. To operate on each element of the matrix individually, use TIMES (.*) for elementwise multiplication.");
     }
     let (n, m, p) = (a.rows(), a.cols(), b.cols());
+    if a.kind == Kind::Double && b.kind == Kind::Double {
+        let fast = if a.sparse { sparse_times(a, b) } else if b.sparse { times_sparse(a, b) } else { None };
+        if let Some(r) = fast {
+            return Ok(r);
+        }
+    }
     if n * m * p >= FAER_MIN_WORK {
         let mut out = vec![0.0; n * p];
         let lhs = faer::MatRef::from_column_major_slice(&a.data, n, m);

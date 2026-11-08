@@ -146,6 +146,41 @@ pub struct Matrix {
     /// MATLAB's sparse attribute: the values are stored densely, but the array displays,
     /// reports `issparse` and propagates through operations as a sparse matrix.
     pub sparse: bool,
+    /// Compressed-column copy of `data`, built on first use by sparse products and solves.
+    /// Copies of the matrix start without one; the interpreter clears it before any in-place
+    /// change of a variable (`get_var_mut`, `take_var`).
+    pub csc: CscCache,
+}
+
+/// Compressed sparse columns: column pointers, ascending row indices and values.
+#[derive(Debug)]
+pub struct Csc {
+    pub rows: usize,
+    pub cols: usize,
+    pub ptr: Vec<usize>,
+    pub idx: Vec<u32>,
+    pub val: Vec<f64>,
+}
+
+/// Lazily built, shareable compressed-column form of a matrix (`None` inside means the matrix
+/// is not sparse enough for it to pay off). Cloning a matrix does not clone the cache.
+#[derive(Debug, Default)]
+pub struct CscCache(std::sync::OnceLock<Option<std::sync::Arc<Csc>>>);
+
+impl Clone for CscCache {
+    fn clone(&self) -> Self {
+        CscCache::default()
+    }
+}
+
+impl CscCache {
+    pub fn get_or_init(&self, f: impl FnOnce() -> Option<std::sync::Arc<Csc>>) -> Option<std::sync::Arc<Csc>> {
+        self.0.get_or_init(f).clone()
+    }
+
+    pub fn clear(&mut self) {
+        self.0.take();
+    }
 }
 
 /// Equality of values (sparse and full arrays with the same elements are equal).
@@ -158,13 +193,13 @@ impl PartialEq for Matrix {
 impl Matrix {
     pub fn new(rows: usize, cols: usize, data: Vec<f64>) -> Self {
         debug_assert_eq!(rows * cols, data.len());
-        Self { dims: vec![rows, cols], data, im: None, kind: Kind::Double, sparse: false }
+        Self { dims: vec![rows, cols], data, im: None, kind: Kind::Double, sparse: false, csc: Default::default() }
     }
 
     pub fn from_dims(dims: Dims, data: Vec<f64>) -> Self {
         let dims = nd::normalize(dims);
         debug_assert_eq!(nd::numel(&dims), data.len());
-        Self { dims, data, im: None, kind: Kind::Double, sparse: false }
+        Self { dims, data, im: None, kind: Kind::Double, sparse: false, csc: Default::default() }
     }
 
     pub fn complex(dims: Dims, re: Vec<f64>, im: Vec<f64>) -> Self {
@@ -317,7 +352,7 @@ impl Matrix {
         };
         let out = tiled(&self.data);
         let out_im = self.im.as_ref().map(|im| tiled(im));
-        Matrix { dims: vec![cols, rows], data: out, im: out_im, kind: self.kind, sparse: self.sparse }
+        Matrix { dims: vec![cols, rows], data: out, im: out_im, kind: self.kind, sparse: self.sparse, csc: Default::default() }
     }
 
     pub fn to_string_lossy(&self) -> String {
@@ -351,7 +386,7 @@ impl Matrix {
     pub fn gather(&self, pos: &[usize], dims: Dims) -> Matrix {
         let data = pos.iter().map(|&p| self.data[p]).collect();
         let im = self.im.as_ref().map(|im| pos.iter().map(|&p| im[p]).collect());
-        let mut m = Matrix { dims: nd::normalize(dims), data, im, kind: self.kind, sparse: self.sparse };
+        let mut m = Matrix { dims: nd::normalize(dims), data, im, kind: self.kind, sparse: self.sparse, csc: Default::default() };
         m.narrow();
         m
     }

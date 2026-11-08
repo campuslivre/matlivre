@@ -383,7 +383,7 @@ fn swap12(m: &Matrix) -> Matrix {
     order.swap(0, 1);
     let (dims, data) = nd::permute(&m.dims, &m.data, &order).expect("valid permutation");
     let im = m.im.as_ref().map(|im| nd::permute(&m.dims, im, &order).expect("valid permutation").1);
-    Matrix { dims, data, im, kind: m.kind, sparse: false }
+    Matrix { dims, data, im, kind: m.kind, sparse: false, csc: Default::default() }
 }
 
 /// Method name and extrapolation value after the numeric arguments.

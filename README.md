@@ -120,22 +120,23 @@ tridiagonal system in 23 ms; MatLivre cannot hold it). On large dense arrays it 
 
 | Case | MATLAB (ms) | Scilab (ms) | MatLivre (ms) | vs MATLAB | vs Scilab |
 |---|---:|---:|---:|---|---|
-| sparse tridiagonal solve, n = 3,000 | 0.07 | 0.32 | 3.80 | 51.4x slower | 11.8x slower |
-| 2-D Poisson solve, 2,500 unknowns | 1.69 | 87.5 | 9.67 | 5.7x slower | 9.0x faster |
-| 200 sparse matrix-vector products, n = 3,000 | 2.10 | 6.99 | 595.8 | 284x slower | 85.2x slower |
-| 20 builds with `sparse(i,j,s,n,n)`, n = 2,000 | 2.57 | 3.10 | 34.5 | 13.4x slower | 11.1x slower |
-| conjugate gradients on the Poisson matrix | 3.02 | 2.87 | 17.6 | 5.8x slower | 6.1x slower |
-| elementwise math, 1e7 elements | 139.8 | 485.2 | 45.9 | 3.0x faster | 10.6x faster |
-| `cumsum`, 1e7 elements | 45.6 | 59.3 | 88.6 | 1.9x slower | 1.5x slower |
-| `find` on a logical mask, 1e7 | 25.4 | 183.6 | 70.1 | 2.8x slower | 2.6x faster |
-| broadcast arithmetic, 2000 x 2000 | 10.2 | 41.2 | 34.6 | 3.4x slower | 1.2x faster |
-| row and column reductions, 2000 x 2000 | 8.18 | 102.6 | 19.7 | 2.4x slower | 5.2x faster |
-| `sort`, 4e6 elements | 66.7 | 334.2 | 35.4 | 1.9x faster | 9.4x faster |
-| `M*M`, 2000 x 2000 | 126.2 | 78.5 | 61.6 | 2.0x faster | 1.3x faster |
+| sparse tridiagonal solve, n = 3,000 | 0.07 | 0.32 | 0.44 | 6.0x slower | 1.4x slower |
+| 2-D Poisson solve, 2,500 unknowns | 1.69 | 87.5 | 6.99 | 4.1x slower | 12.5x faster |
+| 200 sparse matrix-vector products, n = 3,000 | 2.10 | 6.99 | 13.0 | 6.2x slower | 1.9x slower |
+| 20 builds with `sparse(i,j,s,n,n)`, n = 2,000 | 2.57 | 3.10 | 28.7 | 11.2x slower | 9.2x slower |
+| conjugate gradients on the Poisson matrix | 3.02 | 2.87 | 16.4 | 5.4x slower | 5.7x slower |
+| elementwise math, 1e7 elements | 139.8 | 485.2 | 43.2 | 3.2x faster | 11.2x faster |
+| `cumsum`, 1e7 elements | 45.6 | 59.3 | 62.0 | 1.4x slower | about equal |
+| `find` on a logical mask, 1e7 | 25.4 | 183.6 | 61.2 | 2.4x slower | 3.0x faster |
+| broadcast arithmetic, 2000 x 2000 | 10.2 | 41.2 | 30.4 | 3.0x slower | 1.4x faster |
+| row and column reductions, 2000 x 2000 | 8.18 | 102.6 | 18.2 | 2.2x slower | 5.6x faster |
+| `sort`, 4e6 elements | 66.7 | 334.2 | 33.5 | 2.0x faster | 10.0x faster |
+| `M*M`, 2000 x 2000 | 126.2 | 78.5 | 56.2 | 2.2x faster | 1.4x faster |
 
 Square sparse systems of order 100 and up are solved with a sparse LU (Markowitz pivoting, taken
 from the SolverLivre project) with a residual check and a fallback to the dense solver, and the
-iterative solvers multiply with compressed columns. Chains of elementwise operators on large
+iterative solvers and the sparse products (`A*x`, `x'*A`) multiply with compressed columns,
+which are built once per matrix and kept until it changes. Chains of elementwise operators on large
 arrays (`exp(-x.^2) .* sin(20*x) + sqrt(x+1)`) are evaluated fused, in cache-sized blocks on
 several threads, so only the result is written to memory; reductions, `cumsum`, `find`, `max`,
 `min` and implicit expansion work on the arrays in place and in parallel when they are large.

@@ -842,8 +842,8 @@ fn compan(a: &[Value]) -> R<Matrix> {
     if n <= 1 {
         return Ok(Matrix::empty().with_kind(u.kind));
     }
-    let tail = Matrix { dims: vec![1, n - 1], data: u.data[1..].iter().map(|x| -x).collect(), im: u.im.as_ref().map(|im| im[1..].iter().map(|x| -x).collect()), kind: u.kind, sparse: false };
-    let head = Matrix { dims: vec![1, 1], data: vec![u.data[0]], im: u.im.as_ref().map(|im| vec![im[0]]), kind: u.kind, sparse: false };
+    let tail = Matrix { dims: vec![1, n - 1], data: u.data[1..].iter().map(|x| -x).collect(), im: u.im.as_ref().map(|im| im[1..].iter().map(|x| -x).collect()), kind: u.kind, sparse: false, csc: Default::default() };
+    let head = Matrix { dims: vec![1, 1], data: vec![u.data[0]], im: u.im.as_ref().map(|im| vec![im[0]]), kind: u.kind, sparse: false, csc: Default::default() };
     let row = ops::num_binary(BinOp::Div, &tail, &head)?;
     let m = n - 1;
     let mut out = Matrix::zeros(m, m);
@@ -1090,7 +1090,7 @@ fn pascal(n: usize, k: u8) -> Matrix {
 
 fn vander(v: &Matrix) -> R<Matrix> {
     let n = v.numel();
-    let col = Matrix { dims: vec![n, 1], data: v.data.clone(), im: v.im.clone(), kind: v.kind, sparse: false };
+    let col = Matrix { dims: vec![n, 1], data: v.data.clone(), im: v.im.clone(), kind: v.kind, sparse: false, csc: Default::default() };
     let mut cols = vec![Matrix::filled(n, 1, 1.0).with_kind(v.kind); n];
     for j in (0..n.saturating_sub(1)).rev() {
         cols[j] = ops::num_binary(BinOp::Mul, &col, &cols[j + 1])?;

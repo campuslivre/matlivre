@@ -458,7 +458,7 @@ fn delsq(a: &[Value]) -> Ret {
 enum Op {
     M(Matrix),
     /// A matrix with few nonzeros, in compressed sparse column form (rows sorted in each column).
-    S { rows: usize, cols: usize, ptr: Vec<usize>, idx: Vec<u32>, val: Vec<f64> },
+    S(std::sync::Arc<crate::value::Csc>),
     F(Value),
 }
 
@@ -471,22 +471,21 @@ impl Op {
 
     /// As `from_matrix`, without copying the matrix when it becomes compressed columns.
     fn from_ref(m: &Matrix) -> Op {
-        let (rows, cols) = (m.rows(), m.cols());
-        if rows * cols < 4096 || m.is_complex() || m.dims.len() != 2 {
-            return Op::M(m.clone());
+        match crate::ops::csc_of(m) {
+            Some(c) => Op::S(c),
+            None => Op::M(m.clone()),
         }
-        let limit = rows * cols / 5;
-        let Some((ptr, idx, val)) = crate::ops::csc_from_dense(&m.data, rows, cols, limit, false) else { return Op::M(m.clone()) };
-        Op::S { rows, cols, ptr, idx, val }
     }
 
     fn apply(&self, it: &mut Interpreter, x: &[f64], transpose: bool) -> R<Vec<f64>> {
         match self {
-            Op::S { rows, cols, ptr, idx, val } => Ok(if transpose {
-                (0..*cols).map(|j| (ptr[j]..ptr[j + 1]).map(|e| val[e] * x[idx[e] as usize]).sum()).collect()
+            Op::S(c) => Ok(if transpose {
+                let (cols, ptr, idx, val) = (c.cols, &c.ptr, &c.idx, &c.val);
+                (0..cols).map(|j| (ptr[j]..ptr[j + 1]).map(|e| val[e] * x[idx[e] as usize]).sum()).collect()
             } else {
-                let mut y = vec![0.0; *rows];
-                for j in 0..*cols {
+                let (rows, cols, ptr, idx, val) = (c.rows, c.cols, &c.ptr, &c.idx, &c.val);
+                let mut y = vec![0.0; rows];
+                for j in 0..cols {
                     let xj = x[j];
                     if xj != 0.0 {
                         for e in ptr[j]..ptr[j + 1] {
