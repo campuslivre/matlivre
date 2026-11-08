@@ -1200,6 +1200,137 @@ fn ldl_rook(a0: &M, from_upper: bool) -> (M, M, Vec<usize>) {
 // ---- SVD and eigenvalues through faer ------------------------------------------------------
 
 /// (U, singular values, V); `thin` gives the economy-size factors.
+/// The first argument as a plain real double 2-D array, for the direct paths below, which skip
+/// the complex working type `M` (and its copies) altogether.
+fn real_arg(a: &[Value]) -> Option<&Matrix> {
+    match a.first() {
+        Some(Value::Num(m)) if m.kind == Kind::Double && !m.is_complex() && m.dims.len() == 2 && !m.sparse => Some(m),
+        _ => None,
+    }
+}
+
+/// `chol` of a real positive definite matrix through faer; `None` when it is small or not
+/// positive definite (the general routine then reports where it fails).
+fn chol_real(m: &Matrix, lower: bool) -> Option<Matrix> {
+    let n = m.rows();
+    if n < 64 || m.cols() != n {
+        return None;
+    }
+    let f = faer::MatRef::from_column_major_slice(&m.data, n, n);
+    let llt = f.llt(if lower { faer::Side::Lower } else { faer::Side::Upper }).ok()?;
+    let l = llt.L();
+    let mut out = vec![0.0; n * n];
+    for j in 0..n {
+        if lower {
+            for i in j..n {
+                out[j * n + i] = l[(i, j)];
+            }
+        } else {
+            for i in 0..=j {
+                out[j * n + i] = l[(j, i)];
+            }
+        }
+    }
+    Some(Matrix::new(n, n, out))
+}
+
+/// `lu` of a large real matrix through faer's blocked LU, with the outputs built directly.
+fn lu_real(m: &Matrix, nargout: usize, vector: bool) -> Option<Vec<Value>> {
+    use faer::dyn_stack::{MemBuffer, MemStack};
+    use faer::linalg::lu::partial_pivoting::factor;
+    let (r, c) = (m.rows(), m.cols());
+    if r * c < 16384 || m.data.iter().any(|x| !x.is_finite()) {
+        return None;
+    }
+    let mut f = m.data.clone();
+    let (mut fwd, mut bwd) = (vec![0usize; r], vec![0usize; r]);
+    let par = faer::Par::Seq;
+    let mut buf = MemBuffer::new(factor::lu_in_place_scratch::<usize, f64>(r, c, par, Default::default()));
+    factor::lu_in_place(faer::MatMut::from_column_major_slice_mut(&mut f, r, c), &mut fwd, &mut bwd, par, MemStack::new(&mut buf), Default::default());
+    if nargout <= 1 {
+        return Some(vec![Value::Num(Matrix::new(r, c, f))]);
+    }
+    let k = r.min(c);
+    let mut l = vec![0.0; r * k];
+    for j in 0..k {
+        l[j * r + j] = 1.0;
+        l[j * r + j + 1..(j + 1) * r].copy_from_slice(&f[j * r + j + 1..(j + 1) * r]);
+    }
+    let mut u = vec![0.0; k * c];
+    for j in 0..c {
+        for i in 0..=j.min(k - 1) {
+            u[j * k + i] = f[j * r + i];
+        }
+    }
+    let uv = Value::Num(Matrix::new(k, c, u));
+    if nargout == 2 {
+        // P transposed times L: row kk of L goes to row fwd[kk].
+        let mut pl = vec![0.0; r * k];
+        for (kk, &pk) in fwd.iter().enumerate() {
+            for j in 0..k {
+                pl[j * r + pk] = l[j * r + kk];
+            }
+        }
+        return Some(vec![Value::Num(Matrix::new(r, k, pl)), uv]);
+    }
+    let pv = if vector {
+        Value::Num(Matrix::row(fwd.iter().map(|&i| (i + 1) as f64).collect()))
+    } else {
+        let mut pm = vec![0.0; r * r];
+        for (i, &k2) in fwd.iter().enumerate() {
+            pm[k2 * r + i] = 1.0;
+        }
+        Value::Num(Matrix::new(r, r, pm))
+    };
+    Some(vec![Value::Num(Matrix::new(r, k, l)), uv, pv])
+}
+
+/// `qr` (R, or Q and R) of a real matrix without column pivoting, through faer's blocked
+/// Householder QR, which follows MATLAB's conventions.
+fn qr_real(m: &Matrix, nargout: usize, econ: bool) -> Option<Vec<Value>> {
+    let (r, c) = (m.rows(), m.cols());
+    if nargout >= 3 || r * c < 4096 || m.data.iter().any(|x| !x.is_finite()) {
+        return None;
+    }
+    let k = r.min(c);
+    let rows = if econ { k } else { r };
+    let qr = faer::MatRef::from_column_major_slice(&m.data, r, c).qr();
+    let rf = qr.R();
+    let mut rd = vec![0.0; rows * c];
+    for j in 0..c {
+        for i in 0..=j.min(k - 1) {
+            rd[j * rows + i] = rf[(i, j)];
+        }
+    }
+    let rv = Value::Num(Matrix::new(rows, c, rd));
+    if nargout <= 1 {
+        return Some(vec![rv]);
+    }
+    let qf = if econ { qr.compute_thin_Q() } else { qr.compute_Q() };
+    let (qr_rows, qc) = (qf.nrows(), qf.ncols());
+    let mut qd = Vec::with_capacity(qr_rows * qc);
+    for j in 0..qc {
+        for i in 0..qr_rows {
+            qd.push(qf[(i, j)]);
+        }
+    }
+    Some(vec![Value::Num(Matrix::new(qr_rows, qc, qd)), rv])
+}
+
+/// The singular values alone (no vectors), largest first.
+fn svd_values(a: &M, real: bool) -> R<Vec<f64>> {
+    if a.has_nonfinite() {
+        return rt("SVD did not converge.");
+    }
+    if a.r == 0 || a.c == 0 {
+        return Ok(Vec::new());
+    }
+    let fail = |_| LangError::new("SVD did not converge.", 0);
+    let mut s = if real { a.faer_re().as_ref().singular_values().map_err(fail)? } else { a.faer().as_ref().singular_values().map_err(fail)? };
+    s.sort_by(|x, y| y.total_cmp(x));
+    Ok(s)
+}
+
 fn svd_of(a: &M, real: bool, thin: bool) -> R<(M, Vec<f64>, M)> {
     if a.has_nonfinite() {
         return rt("SVD did not converge.");
@@ -1224,7 +1355,7 @@ fn svd_of(a: &M, real: bool, thin: bool) -> R<(M, Vec<f64>, M)> {
 }
 
 fn singular_values(a: &M) -> R<Vec<f64>> {
-    Ok(svd_of(a, a.is_real(), true)?.1)
+    svd_values(a, a.is_real())
 }
 
 /// Eigenvalues and unit-norm eigenvectors of a general square matrix.
@@ -2488,6 +2619,33 @@ fn null_of(a: &M, tol: Option<f64>) -> R<M> {
     Ok(v.block(0, v.r, r, v.c))
 }
 
+/// `pinv` of a finite real matrix: the thin SVD from faer and one real product.
+fn pinv_real(m: &Matrix, tol: Option<f64>) -> Option<Matrix> {
+    let (r, c) = (m.rows(), m.cols());
+    if r * c < 64 || m.data.iter().any(|x| !x.is_finite()) {
+        return None;
+    }
+    let svd = faer::MatRef::from_column_major_slice(&m.data, r, c).thin_svd().ok()?;
+    let k = r.min(c);
+    let s: Vec<f64> = (0..k).map(|i| svd.S().column_vector()[i]).collect();
+    let rk = rank_tol(&s, r, c, tol);
+    let (u, v) = (svd.U(), svd.V());
+    // V(:, 1:rk) scaled by 1 ./ s, times U(:, 1:rk)'
+    let mut w = Vec::with_capacity(c * rk);
+    for j in 0..rk {
+        for i in 0..c {
+            w.push(v[(i, j)] / s[j]);
+        }
+    }
+    let mut ut = Vec::with_capacity(rk * r);
+    for j in 0..r {
+        for i in 0..rk {
+            ut.push(u[(j, i)]);
+        }
+    }
+    crate::ops::matmul(&Matrix::new(c, rk, w), &Matrix::new(rk, r, ut)).ok()
+}
+
 fn pinv_of(a: &M, tol: Option<f64>) -> R<M> {
     let (u, s, v) = svd_of(a, a.is_real(), true)?;
     let r = rank_tol(&s, a.r, a.c, tol);
@@ -3040,6 +3198,16 @@ pub fn call(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
             one(Value::num(nrm(&m)? * nrm(&inv)?))
         }
         "chol" => {
+            if let Some(m) = real_arg(a) {
+                let lower = match opt_text(a.get(1)).as_deref() {
+                    None | Some("upper") => Some(false),
+                    Some("lower") => Some(true),
+                    Some(_) => None,
+                };
+                if let Some(out) = lower.and_then(|lw| chol_real(m, lw)) {
+                    return vals(vec![Value::Num(out), Value::num(0.0)]);
+                }
+            }
             let (m, c) = arg2d(a, 0, name, "Input array has too many dimensions. The array must be 2-dimensional.")?;
             if !m.is_square() {
                 return rt("Matrix must be square.");
@@ -3086,6 +3254,12 @@ pub fn call(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
             vals(vec![l.val(c), d.val(c), pv])
         }
         "lu" => {
+            if let Some(m) = real_arg(a) {
+                let vector = texts(&a[1..]).iter().any(|o| o == "vector");
+                if let Some(out) = lu_real(m, nargout, vector) {
+                    return vals(out);
+                }
+            }
             let (m, c) = arg2d(a, 0, name, "The array must be 2-dimensional.")?;
             let vector = texts(&a[1..]).iter().any(|o| o == "vector");
             let (f, p) = lu_packed(&m);
@@ -3106,6 +3280,12 @@ pub fn call(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
             vals(vec![l.val(c), u.val(c), pv])
         }
         "qr" => {
+            if let Some(m) = real_arg(a) {
+                let econ = is_num_zero(a.get(1)) || texts(&a[1..]).iter().any(|o| o == "econ");
+                if let Some(out) = qr_real(m, nargout, econ) {
+                    return vals(out);
+                }
+            }
             let (m, c) = arg2d(a, 0, name, "Input array must be 2-dimensional.")?;
             let zero = is_num_zero(a.get(1));
             let opts = texts(&a[1..]);
@@ -3142,6 +3322,11 @@ pub fn call(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
             vals(vec![q.val(c), r.val(c), pv])
         }
         "pinv" => {
+            if let Some(m) = real_arg(a) {
+                if let Some(out) = pinv_real(m, scalar_at(a, 1)) {
+                    return one(Value::Num(out));
+                }
+            }
             let (m, c) = arg2d(a, 0, name, SVD_2D)?;
             one(pinv_of(&m, scalar_at(a, 1))?.val(c))
         }
@@ -3199,7 +3384,8 @@ pub fn call(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
             let opts = texts(&a[1..]);
             let econ = (zero && m.r > m.c) || opts.iter().any(|o| o == "econ");
             let vector = if opts.iter().any(|o| o == "vector") { true } else if opts.iter().any(|o| o == "matrix") { false } else { nargout <= 1 };
-            let (u, s, v) = svd_of(&m, !c, econ || nargout <= 1)?;
+            // Values alone need no vectors.
+            let (u, s, v) = if nargout <= 1 { (M::zeros(0, 0), svd_values(&m, !c)?, M::zeros(0, 0)) } else { svd_of(&m, !c, econ)? };
             let sv = if vector {
                 col_vec(s.clone())
             } else {

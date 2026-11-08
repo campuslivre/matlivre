@@ -141,3 +141,12 @@ fn long_fft_vectors_match_matlab() {
 fn real_expm_and_complex_trace_match_matlab() {
     assert_eq!(script_output(include_str!("data/expm_real.m")).trim_end(), include_str!("data/expm_real_matlab.txt").trim_end());
 }
+
+/// `chol`, `lu`, `qr` and `svd` of real 300 x 300 matrices take the direct real paths and give
+/// MATLAB R2023b's results in every output form (`data/factor_real.m`), including the pivot
+/// vector and permutation matrix of `lu`, economy `qr`, a matrix that is not positive definite,
+/// and singular values without vectors.
+#[test]
+fn real_factorizations_match_matlab() {
+    assert_eq!(script_output(include_str!("data/factor_real.m")).trim_end(), include_str!("data/factor_real_matlab.txt").trim_end());
+}

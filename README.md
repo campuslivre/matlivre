@@ -166,28 +166,28 @@ in parallel when they are large, and `sum(A(:))` does not copy `A`.
 [`benchmarks/bench_more.m`](benchmarks/bench_more.m) times 34 everyday operations (linear algebra
 factorizations, FFT, convolution, lookups, sorting, strings, function handles, structs and maps)
 in MATLAB R2023b and MatLivre, best of 3, checksums recorded. MatLivre is faster in 9 of them,
-within 3.7x of MATLAB in all of them, and 1.10x slower on the geometric mean; a selection:
+within 3.7x of MATLAB in all of them, and 1.03x slower on the geometric mean; a selection:
 
 | Case | MATLAB (ms) | MatLivre (ms) | MatLivre vs MATLAB |
 |---|---:|---:|---|
 | `rand(1,1e7)` and `randn(1000)` | 67.51 | 253.1 | 3.7x slower |
-| `fft`, 2^20 points | 6.62 | 10.00 | 1.5x slower |
-| `chol`, 300 x 300 | 0.24 | 0.76 | 3.1x slower |
-| `[Q,R] = qr`, 300 x 300 | 1.45 | 4.17 | 2.9x slower |
-| `svd`, 300 x 300 | 5.55 | 13.80 | 2.5x slower |
-| `[L,U,P] = lu`, 300 x 300 | 0.62 | 1.34 | 2.2x slower |
+| `[Q,R] = qr`, 300 x 300 | 1.45 | 3.73 | 2.6x slower |
 | `eig`, symmetric 300 x 300 | 2.45 | 4.56 | 1.9x slower |
-| `inv`, 300 x 300 | 2.17 | 1.88 | 1.2x faster |
-| `expm`, 150 x 150 | 3.44 | 0.93 | 3.7x faster |
-| `unique`, 1e6 elements | 48.56 | 46.04 | 1.1x faster |
-| `ismember`, 1e5 in 1e5 | 3.38 | 4.37 | 1.3x slower |
+| `fft`, 2^20 points | 6.62 | 10.00 | 1.5x slower |
+| `chol`, 300 x 300 | 0.24 | 0.37 | 1.5x slower |
+| `svd`, 300 x 300 | 5.55 | 8.25 | 1.5x slower |
 | `[s,i] = sort`, 1e6 | 35.37 | 53.76 | 1.5x slower |
+| `ismember`, 1e5 in 1e5 | 3.38 | 4.37 | 1.3x slower |
+| `[L,U,P] = lu`, 300 x 300 | 0.62 | 0.70 | 1.1x slower |
+| `unique`, 1e6 elements | 48.56 | 46.04 | 1.1x faster |
+| `inv`, 300 x 300 | 2.17 | 1.88 | 1.2x faster |
 | `mean`, `std`, `median`, `var`, 1e6 | 14.07 | 11.03 | 1.3x faster |
 | `cellfun` with an anonymous function, 1e5 | 161.5 | 47.04 | 3.4x faster |
-| `num2str` in a loop, 1e4 | 147.0 | 19.52 | 7.5x faster |
-| `containers.Map`, 5,000 inserts and lookups | 71.77 | 8.13 | 8.8x faster |
-| 20,000 calls of a user function | 0.64 | 0.08 | 8.2x faster |
+| `expm`, 150 x 150 | 3.44 | 0.93 | 3.7x faster |
 | `strjoin` and `strsplit`, 2e4 words | 14.27 | 3.51 | 4.1x faster |
+| `num2str` in a loop, 1e4 | 147.0 | 19.52 | 7.5x faster |
+| 20,000 calls of a user function | 0.64 | 0.08 | 8.2x faster |
+| `containers.Map`, 5,000 inserts and lookups | 71.77 | 8.13 | 8.8x faster |
 
 ### Why it is fast
 
