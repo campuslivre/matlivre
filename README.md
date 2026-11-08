@@ -131,18 +131,18 @@ measure toolbox breadth or plotting. Details and the per-case Octave comparison 
 agree; Scilab has no `spdiags`, implicit expansion or `pcg`, so those parts are written out).
 Sparse matrices of 4,096 elements or more are held as compressed columns, so they cost
 O(nonzeros) and can be far larger than memory would allow densely: a 1,000,000-unknown
-tridiagonal system is built in about 60 ms and solved in about 65 ms (MATLAB: 23 ms for the
+tridiagonal system is built in about 55 ms and solved in about 60 ms (MATLAB: 23 ms for the
 solve). Operations without a native sparse version expand the matrix, run, and compress the
 result again, and fail with "Out of memory" when the dense form would not fit. Smaller sparse
 matrices are dense arrays with a sparse flag. On large dense arrays MatLivre is ahead.
 
 | Case | MATLAB (ms) | Scilab (ms) | MatLivre (ms) | vs MATLAB | vs Scilab |
 |---|---:|---:|---:|---|---|
-| sparse tridiagonal solve, n = 3,000 | 0.07 | 0.32 | 0.14 | 1.8x slower | 2.4x faster |
-| 2-D Poisson solve, 2,500 unknowns | 1.69 | 87.5 | 7.75 | 4.6x slower | 11.3x faster |
-| 200 sparse matrix-vector products, n = 3,000 | 2.10 | 6.99 | 4.21 | 2.0x slower | 1.7x faster |
-| 20 builds with `sparse(i,j,s,n,n)`, n = 2,000 | 2.57 | 3.10 | 2.28 | 1.1x faster | 1.4x faster |
-| conjugate gradients on the Poisson matrix | 3.02 | 2.87 | 4.15 | 1.4x slower | 1.4x slower |
+| sparse tridiagonal solve, n = 3,000 | 0.07 | 0.32 | 0.13 | 1.7x slower | 2.5x faster |
+| 2-D Poisson solve, 2,500 unknowns | 1.69 | 87.5 | 1.52 | 1.1x faster | 57.5x faster |
+| 200 sparse matrix-vector products, n = 3,000 | 2.10 | 6.99 | 4.09 | 1.9x slower | 1.7x faster |
+| 20 builds with `sparse(i,j,s,n,n)`, n = 2,000 | 2.57 | 3.10 | 2.25 | 1.1x faster | 1.4x faster |
+| conjugate gradients on the Poisson matrix | 3.02 | 2.87 | 4.16 | 1.4x slower | 1.5x slower |
 | elementwise math, 1e7 elements | 139.8 | 485.2 | 31.9 | 4.4x faster | 15.2x faster |
 | `cumsum`, 1e7 elements | 45.6 | 59.3 | 37.4 | 1.2x faster | 1.6x faster |
 | `find` on a logical mask, 1e7 | 25.4 | 183.6 | 61.3 | 2.4x slower | 3.0x faster |
