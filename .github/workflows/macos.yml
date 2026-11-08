@@ -44,6 +44,12 @@ jobs:
           TAG: ${{ inputs.tag }}
 
       - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
 
       - name: Install Velopack's packer
         # The same version as the velopack crate in Cargo.toml.
