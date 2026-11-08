@@ -67,6 +67,7 @@ pub(crate) fn arg<'a>(args: &'a [Value], i: usize, fname: &str) -> R<&'a Value> 
 pub(crate) fn m_arg(args: &[Value], i: usize, fname: &str) -> R<Matrix> {
     match arg(args, i, fname)? {
         Value::Num(m) => Ok(m.clone()),
+        Value::Sparse(c) => c.to_dense(),
         Value::Sym(s) => s.to_matrix(),
         other => rt(format!("Undefined function '{fname}' for input arguments of type '{}'.", other.class_name())),
     }
@@ -76,6 +77,7 @@ pub(crate) fn m_arg(args: &[Value], i: usize, fname: &str) -> R<Matrix> {
 pub(crate) fn m_cow<'a>(args: &'a [Value], i: usize, fname: &str) -> R<std::borrow::Cow<'a, Matrix>> {
     match arg(args, i, fname)? {
         Value::Num(m) => Ok(std::borrow::Cow::Borrowed(m)),
+        Value::Sparse(c) => Ok(std::borrow::Cow::Owned(c.to_dense()?)),
         Value::Sym(s) => Ok(std::borrow::Cow::Owned(s.to_matrix()?)),
         other => rt(format!("Undefined function '{fname}' for input arguments of type '{}'.", other.class_name())),
     }
@@ -771,6 +773,24 @@ pub fn call_ref(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize
     // rows; products and solves pass their own parallelism explicitly.
     static FAER_INIT: std::sync::Once = std::sync::Once::new();
     FAER_INIT.call_once(|| faer::set_global_parallelism(faer::Par::Seq));
+    // Sparse matrices held as compressed columns: native builders and operations first, then the
+    // expanded array for everything else (the result is compressed again if it is sparse).
+    if matches!(name, "sparse" | "speye" | "spdiags" | "kron") {
+        if let Some(r) = crate::sparse_ops::build(name, args)? {
+            return Ok(Some(r));
+        }
+    }
+    if args.iter().any(Value::is_compressed) {
+        if let Some(r) = crate::sparse_ops::call(it, name, args, nargout)? {
+            return Ok(Some(r));
+        }
+        if crate::builtins_sparse::native_solver(name) {
+            return call_dense(it, name, args, nargout);
+        }
+        let expanded = args.iter().map(|a| a.clone().densify()).collect::<R<Vec<Value>>>()?;
+        let r = call_ref(it, name, &expanded, nargout)?;
+        return Ok(r.map(|v| v.into_iter().map(crate::builtins_sparse::compress).collect()));
+    }
     if args.first().is_some_and(crate::builtins_sparse::is_sparse) {
         let mut r = call_dense(it, name, args, nargout)?;
         if let Some(out) = r.as_mut() {
@@ -2476,7 +2496,22 @@ fn call_dense(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize) 
             mat(Matrix::new(r, c, out))
         }
         "norm" => {
-            let m = m_arg(a, 0, name)?;
+            let m = m_cow(a, 0, name)?;
+            // Real vector 2-norm: a plain sum of squares (rescaled when it could overflow or
+            // underflow) instead of a power function per element.
+            if a.len() == 1 && !m.is_complex() && m.is_vector() && m.numel() > 0 {
+                let big = m.data.iter().fold(0.0f64, |acc, x| acc.max(x.abs()));
+                if big.is_nan() || m.data.iter().any(|x| x.is_nan()) {
+                    return num(f64::NAN);
+                }
+                if big == 0.0 || big.is_infinite() {
+                    return num(big);
+                }
+                if big > 1e-150 && big < 1e150 {
+                    return num(m.data.iter().map(|x| x * x).sum::<f64>().sqrt());
+                }
+                return num(big * m.data.iter().map(|x| (x / big) * (x / big)).sum::<f64>().sqrt());
+            }
             let mag: Vec<f64> = (0..m.numel()).map(|i| C::new(m.data[i], m.im_at(i)).abs()).collect();
             let p = a.get(1);
             if m.is_vector() || m.is_empty() {
@@ -2519,7 +2554,7 @@ fn call_dense(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize) 
                 return rt("The only matrix norms available are 1, 2, inf, and 'fro'.");
             }
             if m.is_complex() {
-                let s = it.call_function("svd", vec![Value::Num(m.clone())], 1)?.remove(0);
+                let s = it.call_function("svd", vec![Value::Num(m.clone().into_owned())], 1)?.remove(0);
                 return num(s.to_matrix()?.data.iter().copied().fold(0.0, f64::max));
             }
             num(crate::builtins_matfun::two_norm(&m)?)

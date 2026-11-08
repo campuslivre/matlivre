@@ -186,3 +186,79 @@ fn large_variables_survive_builtin_calls() {
     let out: Vec<String> = shown(src).into_iter().map(|s| s.trim_end().to_string()).collect();
     assert_eq!(out, ["L1 298 100 100 1 0", "L2 1 298", "L3 4 2 1", "L4 298 10000", "L5 298", "L6 598 298", "L7 596", "L8 298 7"]);
 }
+
+/// Sparse matrices of 4096 elements or more are held as compressed columns; every operation that
+/// runs on them natively must agree with the same computation on dense arrays.
+#[test]
+fn compressed_sparse_matrices_agree_with_dense_arrays() {
+    let src = concat!(
+        "n = 100; e = ones(n,1); T = spdiags([-e 2*e -e], -1:1, n, n); D = 2*eye(n) - diag(ones(n-1,1),1) - diag(ones(n-1,1),-1);\n",
+        "x = (1:n)'; b = sin(x);\n",
+        "ok = @(a, b) norm(full(a) - full(b), 1) < 1e-9 * (1 + norm(full(b), 1));\n",
+        "fprintf('C1 %d %d %d %d\\n', issparse(T), nnz(T), ok(T, D), isequal(size(T), [n n]));\n",
+        "fprintf('C2 %d %d %d %d %d\\n', ok(T', D'), ok(T + T, 2*D), ok(T - 0.5*T, 0.5*D), ok(2*T, 2*D), ok(T/4, D/4));\n",
+        "fprintf('C3 %d %d %d %d\\n', ok(T*T, D*D), ok(T*x, D*x), ok(x'*T, x'*D), ok(T\\b, D\\b));\n",
+        "fprintf('C4 %d %d %d %d %d\\n', ok(T.*T, D.*D), ok(-T, -D), ok(sum(T), sum(D)), ok(sum(T,2), sum(D,2)), ok(diag(T), diag(D)));\n",
+        "[i, j, v] = find(T); fprintf('C5 %d %d %d %d %d\\n', numel(i), trace(T) == trace(D), norm(T,1) == norm(D,1), norm(T,inf) == norm(D,inf), abs(norm(T,'fro') - norm(D,'fro')) < 1e-9);\n",
+        "fprintf('C6 %d %d %d %d %d %d\\n', full(T(3,4)), full(T(5,5)), ok(T(:,7), D(:,7)), ok(T(2:5,3:9), D(2:5,3:9)), ok(T([1 3 3],:), D([1 3 3],:)), ok(T(:,[4 2]), D(:,[4 2])));\n",
+        "K = kron(T, speye(3)); fprintf('C7 %d %d %d\\n', issparse(K), isequal(size(K), [3*n 3*n]), ok(K, kron(D, eye(3))));\n",
+        "S = sparse([1 2 2 5 5], [1 2 2 7 7], [3 4 5 1 -1], n, n); fprintf('C8 %d %d %d %d\\n', nnz(S), full(S(2,2)), full(S(5,7)), issparse(S));\n",
+        "I = speye(n); fprintf('C9 %d %d %d\\n', nnz(I), ok(I, eye(n)), ok(I*T, D));\n",
+        "A = T; A(2,5) = 3; A(1,1) = 0; B = D; B(2,5) = 3; B(1,1) = 0; fprintf('C10 %d %d %d\\n', ok(A, B), nnz(A), ok(T, D));\n",
+        "P = T + speye(n); [u, fl] = pcg(P, b, 1e-10, 300); fprintf('C11 %d %d\\n', fl, norm(P*u - b) < 1e-7);\n",
+        "fprintf('C12 %d %d %d %d\\n', nnz(T > 0), nnz(abs(T)), class(T(1,1)) == \"double\", numel(T(:)));\n",
+        "H = [T T]; V = [T; T]; fprintf('C13 %d %d %d %d\\n', isequal(size(H), [n 2*n]), isequal(size(V), [2*n n]), ok(H, [D D]), ok(V, [D; D]));\n",
+        "L = T > 0; fprintf('C14 %d %d %s\\n', issparse(L), nnz(L), class(L));\n",
+        "Z = sparse(200, 300); fprintf('C15 %d %d %d\\n', nnz(Z), size(Z, 1), size(Z, 2));\n",
+        "fprintf('C16 %d %d\\n', ok(T^2, D^2), ok(T.^2, D.^2));\n",
+    );
+    let out: Vec<String> = shown(src).into_iter().map(|s| s.trim_end().to_string()).collect();
+    assert_eq!(
+        out,
+        [
+            "C1 1 298 1 1",
+            "C2 1 1 1 1 1",
+            "C3 1 1 1 1",
+            "C4 1 1 1 1 1",
+            "C5 298 1 1 1 1",
+            "C6 -1 2 1 1 1 1",
+            "C7 1 1 1",
+            "C8 2 9 0 1",
+            "C9 100 1 1",
+            "C10 1 298 1",
+            "C11 0 1",
+            "C12 100 298 1 10000",
+            "C13 1 1 1 1",
+            "C14 1 100 logical",
+            "C15 0 200 300",
+            "C16 1 1",
+        ]
+    );
+}
+
+/// A tridiagonal system of 200,000 unknowns (the dense form would need 320 GB).
+#[test]
+fn huge_sparse_systems_are_held_compressed() {
+    let src = concat!(
+        "n = 200000; e = ones(n,1); A = spdiags([-e 2*e -e], -1:1, n, n); b = A*ones(n,1); x = A\\b;\n",
+        "fprintf('H1 %d %d %d %d\\n', nnz(A), issparse(A), norm(x - 1, inf) < 1e-6, size(A, 1));\n",
+        "B = A'; C = A*A; fprintf('H2 %d %d %d\\n', nnz(B), nnz(C), full(C(1,1)));\n",
+        "[u, fl] = pcg(A + speye(n), b, 1e-8, 2000); fprintf('H3 %d\\n', fl);\n",
+        "w = whos('A'); fprintf('H4 %d\\n', w.bytes < 1e8);\n",
+        "s = sparse(1:n, 1:n, 1:n, n, n); fprintf('H5 %d %d\\n', nnz(s), full(s(n, n)));\n",
+        "try, F = full(A); catch err, disp(err.message(1:11)); end\n",
+    );
+    let out: Vec<String> = shown(src).into_iter().map(|s| s.trim_end().to_string()).collect();
+    assert_eq!(out, ["H1 599998 1 1 200000", "H2 599998 999994 5", "H3 0", "H4 1", "H5 200000 200000", "Out of memo"]);
+}
+
+/// The real vector 2-norm avoids overflow and underflow like MATLAB's.
+#[test]
+fn vector_two_norm_is_scaled() {
+    let src = concat!(
+        "fprintf('N1 %g %g %g %g\\n', norm([3 4]), norm([1e200 1e200]), norm([1e-200 1e-200]), norm([0 0]));\n",
+        "fprintf('N2 %g %g %g %g\\n', norm([NaN 1]), norm([Inf 1]), norm([3; 4]), norm([1 -2 2]));\n",
+    );
+    let out: Vec<String> = shown(src).into_iter().map(|s| s.trim_end().to_string()).collect();
+    assert_eq!(out, ["N1 5 1.41421e+200 1.41421e-200 0", "N2 NaN Inf 5 3"]);
+}

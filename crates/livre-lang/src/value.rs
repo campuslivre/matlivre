@@ -153,13 +153,41 @@ pub struct Matrix {
 }
 
 /// Compressed sparse columns: column pointers, ascending row indices and values.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Csc {
     pub rows: usize,
     pub cols: usize,
     pub ptr: Vec<usize>,
     pub idx: Vec<u32>,
     pub val: Vec<f64>,
+    /// A logical sparse matrix (all values 1).
+    pub logical: bool,
+}
+
+impl Csc {
+    pub fn nnz(&self) -> usize {
+        self.val.len()
+    }
+
+    /// The dense array, flagged sparse. Fails when it would not fit in memory.
+    pub fn to_dense(&self) -> Result<Matrix, LangError> {
+        const MAX: usize = 200_000_000;
+        if self.rows.saturating_mul(self.cols) > MAX {
+            return rt(format!("Out of memory. The operation needs the full {}-by-{} matrix, which is too large; keep the matrix sparse.", self.rows, self.cols));
+        }
+        let mut data = vec![0.0; self.rows * self.cols];
+        for j in 0..self.cols {
+            for e in self.ptr[j]..self.ptr[j + 1] {
+                data[j * self.rows + self.idx[e] as usize] = self.val[e];
+            }
+        }
+        let mut m = Matrix::new(self.rows, self.cols, data);
+        m.sparse = true;
+        if self.logical {
+            m.kind = Kind::Logical;
+        }
+        Ok(m)
+    }
 }
 
 /// Lazily built, shareable compressed-column form of a matrix (`None` inside means the matrix
@@ -575,9 +603,25 @@ pub enum Value {
     Time(TimeArray),
     Table(Box<Table>),
     Sym(SymArray),
+    /// A real sparse matrix held as compressed columns (only matrices of 4096 or more elements
+    /// are held this way; smaller ones are dense arrays flagged sparse). Generic code never sees
+    /// it: the interpreter converts it with [`Value::densify`] unless the operation is native.
+    Sparse(std::sync::Arc<Csc>),
 }
 
 impl Value {
+    /// The dense (sparse-flagged) form of a compressed-column value; other values unchanged.
+    pub fn densify(self) -> Result<Value, LangError> {
+        match self {
+            Value::Sparse(c) => Ok(Value::Num(c.to_dense()?)),
+            v => Ok(v),
+        }
+    }
+
+    pub fn is_compressed(&self) -> bool {
+        matches!(self, Value::Sparse(_))
+    }
+
     pub fn num(v: f64) -> Value {
         Value::Num(Matrix::scalar(v))
     }
@@ -611,6 +655,7 @@ impl Value {
             Value::Table(_) => "table".into(),
             Value::Sym(s) if !s.args.is_empty() => "symfun".into(),
             Value::Sym(_) => "sym".into(),
+            Value::Sparse(c) => if c.logical { "logical" } else { "double" }.into(),
         }
     }
 
@@ -623,6 +668,7 @@ impl Value {
             Value::Time(t) => t.dims.clone(),
             Value::Table(t) => vec![t.nrows, t.vars.len()],
             Value::Sym(s) => s.dims.clone(),
+            Value::Sparse(c) => vec![c.rows, c.cols],
             Value::Object(o) if crate::gfx::is_gfx_class(&o.class.name) => match crate::gfx::ids_of(self).map(|i| i.len()) {
                 Some(1) => vec![1, 1],
                 Some(0) => vec![0, 0],
@@ -665,6 +711,7 @@ impl Value {
     pub fn to_matrix(&self) -> Result<Matrix, LangError> {
         match self {
             Value::Num(m) => Ok(m.clone()),
+            Value::Sparse(c) => c.to_dense(),
             other => rt(format!("Expected a numeric value but got a value of class '{}'.", other.class_name())),
         }
     }

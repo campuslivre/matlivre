@@ -46,6 +46,12 @@ pub fn index(v: &Value, idx: &[IndexArg]) -> R<Value> {
     if crate::containers::is_categorical(v) {
         return crate::containers::cat_index(v, idx);
     }
+    if let Value::Sparse(c) = v {
+        if let Some(r) = sparse_index(c, idx)? {
+            return Ok(r);
+        }
+        return index(&Value::Num(c.to_dense()?), idx).map(crate::builtins_sparse::compress);
+    }
     let (pos, dims) = nd::index_plan(&v.dims(), idx)?;
     Ok(match v {
         Value::Num(m) => Value::Num(m.gather(&pos, dims)),
@@ -54,7 +60,7 @@ pub fn index(v: &Value, idx: &[IndexArg]) -> R<Value> {
         Value::Struct(s) => Value::Struct(StructArray { dims: nd::normalize(dims), fields: s.fields.clone(), elems: pos.iter().map(|&p| s.elems[p].clone()).collect() }),
         Value::Time(t) => Value::Time(t.gather(&pos, dims)),
         Value::Sym(s) => Value::Sym(s.gather(&pos, dims)),
-        Value::Func(_) | Value::Object(_) => v.clone(),
+        Value::Func(_) | Value::Object(_) | Value::Sparse(_) => v.clone(),
         Value::Table(_) => return rt("Use T(rows, vars) with two subscripts to index a table."),
     })
 }
@@ -78,7 +84,7 @@ fn empty_like(like: &Value) -> Value {
 }
 
 /// `base(idx) = rhs` (including deletion with `[]`).
-pub fn assign(base: Option<Value>, idx: &[IndexArg], rhs: Value) -> R<Value> {
+fn assign_dense(base: Option<Value>, idx: &[IndexArg], rhs: Value) -> R<Value> {
     let base = match base {
         Some(b) => b,
         None => {
@@ -163,6 +169,7 @@ pub fn assign(base: Option<Value>, idx: &[IndexArg], rhs: Value) -> R<Value> {
             nd::assign(&mut s.dims, &mut s.data, idx, &r.dims.clone(), r.data, zero)?;
             Ok(Value::Sym(s))
         }
+        Value::Sparse(_) => unreachable!("expanded by assign"),
         b @ Value::Object(_) if crate::gfx::is_gfx(&b) && crate::gfx::is_gfx(&rhs) => crate::gfx::assign_handles(&b, idx, &rhs),
         b @ (Value::Func(_) | Value::Object(_)) => {
             let (pos, _) = nd::assign_plan(&[1, 1], idx, &rd)?;
@@ -240,6 +247,10 @@ pub fn concat(items: Vec<Value>, dim: usize) -> R<Value> {
     }
     if items.is_empty() {
         return Ok(Value::empty());
+    }
+    if items.iter().any(Value::is_compressed) {
+        let expanded = items.into_iter().map(Value::densify).collect::<R<Vec<Value>>>()?;
+        return concat(expanded, dim).map(crate::builtins_sparse::compress);
     }
     if items.iter().any(|v| matches!(v, Value::Table(_))) {
         return crate::table::concat(items, dim);
@@ -348,4 +359,131 @@ pub fn concat(items: Vec<Value>, dim: usize) -> R<Value> {
         out.im = Some(im);
     }
     Ok(Value::Num(out.cast_to(kind)))
+}
+
+/// Sparse value from compressed columns: held compressed from 4096 elements up, as a dense
+/// sparse-flagged array below that.
+pub fn sparse_value(rows: usize, cols: usize, ptr: Vec<usize>, idx: Vec<u32>, val: Vec<f64>, logical: bool) -> R<Value> {
+    let c = crate::value::Csc { rows, cols, ptr, idx, val, logical };
+    if rows.saturating_mul(cols) >= crate::builtins_sparse::COMPRESS_MIN {
+        Ok(Value::Sparse(std::sync::Arc::new(c)))
+    } else {
+        Ok(Value::Num(c.to_dense()?))
+    }
+}
+
+/// `c(rows, cols)` for compressed columns; `None` when the subscripts need the dense path.
+fn sparse_index(c: &crate::value::Csc, idx: &[IndexArg]) -> R<Option<Value>> {
+    let pick = |a: &IndexArg, n: usize| -> Option<Vec<usize>> {
+        match a {
+            IndexArg::All => Some((0..n).collect()),
+            IndexArg::List { ix, .. } if ix.iter().all(|&k| k < n) => Some(ix.clone()),
+            _ => None,
+        }
+    };
+    let find = |col: usize, row: usize| -> f64 {
+        let s = &c.idx[c.ptr[col]..c.ptr[col + 1]];
+        match s.binary_search(&(row as u32)) {
+            Ok(k) => c.val[c.ptr[col] + k],
+            Err(_) => 0.0,
+        }
+    };
+    let scalar_value = |v: f64| -> R<Value> {
+        let mut m = Matrix::new(1, 1, vec![v]);
+        m.sparse = true;
+        if c.logical {
+            m.kind = Kind::Logical;
+        }
+        Ok(Value::Num(m))
+    };
+    match idx {
+        [IndexArg::List { ix: r, .. }, IndexArg::List { ix: k, .. }] if r.len() == 1 && k.len() == 1 && r[0] < c.rows && k[0] < c.cols => Ok(Some(scalar_value(find(k[0], r[0]))?)),
+        [IndexArg::List { ix, .. }] if ix.len() == 1 && ix[0] < c.rows * c.cols => Ok(Some(scalar_value(find(ix[0] / c.rows, ix[0] % c.rows))?)),
+        [ri, ci] => {
+            let (Some(rows), Some(cols)) = (pick(ri, c.rows), pick(ci, c.cols)) else { return Ok(None) };
+            // Output positions of each source row (a row may be picked several times).
+            let identity = matches!(ri, IndexArg::All);
+            let mut at: Vec<Vec<u32>> = Vec::new();
+            if !identity {
+                at = vec![Vec::new(); c.rows];
+                for (o, &r) in rows.iter().enumerate() {
+                    at[r].push(o as u32);
+                }
+            }
+            let (mut ptr, mut oi, mut ov) = (Vec::with_capacity(cols.len() + 1), Vec::new(), Vec::new());
+            ptr.push(0);
+            let mut col: Vec<(u32, f64)> = Vec::new();
+            for &j in &cols {
+                col.clear();
+                for e in c.ptr[j]..c.ptr[j + 1] {
+                    if identity {
+                        col.push((c.idx[e], c.val[e]));
+                    } else {
+                        for &o in &at[c.idx[e] as usize] {
+                            col.push((o, c.val[e]));
+                        }
+                    }
+                }
+                if !identity {
+                    col.sort_by_key(|p| p.0);
+                }
+                for &(r, v) in &col {
+                    oi.push(r);
+                    ov.push(v);
+                }
+                ptr.push(oi.len());
+            }
+            Ok(Some(sparse_value(rows.len(), cols.len(), ptr, oi, ov, c.logical)?))
+        }
+        _ => Ok(None),
+    }
+}
+
+/// `base(i, j) = x` for a compressed matrix and real scalars; `None` for anything else.
+fn sparse_assign(base: &mut Value, idx: &[IndexArg], rhs: &Value) -> bool {
+    let Value::Sparse(arc) = base else { return false };
+    let [IndexArg::List { ix: r, .. }, IndexArg::List { ix: k, .. }] = idx else { return false };
+    let Value::Num(x) = rhs else { return false };
+    if r.len() != 1 || k.len() != 1 || x.numel() != 1 || x.is_complex() || arc.logical || x.kind != Kind::Double || !x.data[0].is_finite() {
+        return false;
+    }
+    if r[0] >= arc.rows || k[0] >= arc.cols {
+        return false;
+    }
+    let (row, col, v) = (r[0] as u32, k[0], x.data[0]);
+    let c = std::sync::Arc::make_mut(arc);
+    let (lo, hi) = (c.ptr[col], c.ptr[col + 1]);
+    match c.idx[lo..hi].binary_search(&row) {
+        Ok(p) if v != 0.0 => c.val[lo + p] = v,
+        Ok(p) => {
+            c.idx.remove(lo + p);
+            c.val.remove(lo + p);
+            c.ptr[col + 1..].iter_mut().for_each(|q| *q -= 1);
+        }
+        Err(_) if v == 0.0 => {}
+        Err(p) => {
+            c.idx.insert(lo + p, row);
+            c.val.insert(lo + p, v);
+            c.ptr[col + 1..].iter_mut().for_each(|q| *q += 1);
+        }
+    }
+    true
+}
+
+/// `base(idx) = rhs`. Compressed sparse matrices take scalar assignments natively; for any other
+/// assignment they are expanded, assigned into, and compressed again.
+pub fn assign(base: Option<Value>, idx: &[IndexArg], rhs: Value) -> R<Value> {
+    let mut base = base;
+    if let Some(b) = base.as_mut() {
+        if sparse_assign(b, idx, &rhs) {
+            return Ok(base.unwrap());
+        }
+    }
+    let was_sparse = matches!(base, Some(Value::Sparse(_)));
+    let base = match base {
+        Some(b) => Some(b.densify()?),
+        None => None,
+    };
+    let out = assign_dense(base, idx, rhs.densify()?)?;
+    Ok(if was_sparse { crate::builtins_sparse::compress(out) } else { out })
 }

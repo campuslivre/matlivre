@@ -339,6 +339,7 @@ pub fn summary(v: &Value, f: NumFormat) -> String {
         Value::Time(t) => t.summary(),
         Value::Table(t) => format!("{}×{} table", t.nrows, t.vars.len()),
         Value::Sym(s) => s.summary(),
+        Value::Sparse(c) => format!("{}x{} sparse {}", c.rows, c.cols, if c.logical { "logical" } else { "double" }),
     }
 }
 
@@ -504,6 +505,7 @@ fn struct_names_body(s: &StructArray) -> String {
 /// The text shown for an unsuppressed statement: `name = value`.
 pub fn display_value(name: &str, v: &Value, f: NumFormat) -> String {
     match v {
+        Value::Sparse(c) => crate::builtins_sparse::csc_display(name, c, f),
         Value::Num(m) if m.sparse => crate::builtins_sparse::display(name, m, f),
         Value::Num(m) => {
             if m.kind == Kind::Char && m.is_2d() && m.rows() == 1 && m.cols() > 0 {
@@ -581,6 +583,7 @@ pub fn display_value(name: &str, v: &Value, f: NumFormat) -> String {
 /// Text produced by `disp(v)`.
 pub fn disp_value(v: &Value, f: NumFormat) -> String {
     match v {
+        Value::Sparse(c) => crate::builtins_sparse::csc_body(c, f),
         Value::Num(m) if m.sparse => crate::builtins_sparse::body(m, f),
         Value::Num(m) => {
             if m.kind == Kind::Char {

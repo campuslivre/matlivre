@@ -38,7 +38,7 @@ fn check_size(m: usize, n: usize) -> R<()> {
 }
 
 pub fn is_sparse(v: &Value) -> bool {
-    matches!(v, Value::Num(m) if m.sparse)
+    matches!(v, Value::Sparse(_)) || matches!(v, Value::Num(m) if m.sparse)
 }
 
 fn sp(mut m: Matrix) -> Value {
@@ -88,12 +88,37 @@ pub fn display(name: &str, m: &Matrix, f: crate::display::NumFormat) -> String {
 pub fn body(m: &Matrix, f: crate::display::NumFormat) -> String {
     let (r, c) = (m.rows(), m.cols());
     let nz: Vec<usize> = (0..m.data.len()).filter(|&k| m.data[k] != 0.0 || m.im.as_ref().is_some_and(|im| im[k] != 0.0)).collect();
-    if nz.is_empty() {
+    let entries: Vec<(usize, usize, f64)> = nz.iter().map(|&k| (k % r, k / r, m.data[k])).collect();
+    body_entries(r, c, m.kind == Kind::Logical, &entries, f)
+}
+
+/// `body` for compressed columns.
+pub fn csc_body(c: &crate::value::Csc, f: crate::display::NumFormat) -> String {
+    let mut entries = Vec::with_capacity(c.val.len());
+    for j in 0..c.cols {
+        for e in c.ptr[j]..c.ptr[j + 1] {
+            entries.push((c.idx[e] as usize, j, c.val[e]));
+        }
+    }
+    body_entries(c.rows, c.cols, c.logical, &entries, f)
+}
+
+pub fn csc_display(name: &str, c: &crate::value::Csc, f: crate::display::NumFormat) -> String {
+    let body = csc_body(c, f);
+    if c.logical {
+        return format!("{name} = {}x{} sparse logical array\n\n{body}", c.rows, c.cols);
+    }
+    format!("{name} = \n\n{body}")
+}
+
+/// Nonzeros `(row, col, value)` in column order, zero-based.
+fn body_entries(r: usize, c: usize, logical: bool, entries: &[(usize, usize, f64)], f: crate::display::NumFormat) -> String {
+    if entries.is_empty() {
         return format!("   All zero sparse: {r}x{c}");
     }
     let iw = format!("({r},{c})").len().max(6);
-    let vals: Vec<f64> = nz.iter().map(|&k| m.data[k]).collect();
-    let (texts, vf) = if m.kind == Kind::Logical {
+    let vals: Vec<f64> = entries.iter().map(|e| e.2).collect();
+    let (texts, vf) = if logical {
         (vals.iter().map(|_| "1".to_string()).collect::<Vec<_>>(), 7)
     } else {
         // Values formatted as one column, the line 9 wider than that column.
@@ -103,10 +128,11 @@ pub fn body(m: &Matrix, f: crate::display::NumFormat) -> String {
         let texts = if lines.len() == vals.len() { lines.iter().map(|l| l.trim().to_string()).collect() } else { vals.iter().map(|v| num2str_scalar(*v)).collect() };
         (texts, 9 + width - iw)
     };
-    nz.iter()
+    entries
+        .iter()
         .zip(texts)
-        .map(|(&k, t)| {
-            let idx = format!("({},{})", k % r + 1, k / r + 1);
+        .map(|(&(ri, ci, _), t)| {
+            let idx = format!("({},{})", ri + 1, ci + 1);
             format!("  {idx:>iw$}{t:>vf$}")
         })
         .collect::<Vec<_>>()
@@ -583,6 +609,7 @@ fn report(it: &mut Interpreter, name: &str, s: &Solve, tol: f64, maxit: usize, n
 fn solver(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Ret {
     let op = match arg(a, 0, name)? {
         f @ Value::Func(_) => Op::F(f.clone()),
+        Value::Sparse(c) => Op::S(c.clone()),
         Value::Num(m) => Op::from_ref(m),
         v => Op::from_matrix(mat(v)?),
     };
@@ -1322,4 +1349,26 @@ pub fn call(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
         }
         _ => Ok(None),
     }
+}
+
+/// Smallest number of elements from which sparse matrices are held as compressed columns.
+pub const COMPRESS_MIN: usize = 4096;
+
+/// A sparse-flagged dense array with at most a fifth of its elements nonzero, as compressed
+/// columns; any other value unchanged.
+pub fn compress(v: Value) -> Value {
+    let Value::Num(m) = &v else { return v };
+    if !m.sparse || m.is_complex() || m.dims.len() != 2 || m.numel() < COMPRESS_MIN || !matches!(m.kind, Kind::Double | Kind::Logical) {
+        return v;
+    }
+    let (rows, cols) = (m.rows(), m.cols());
+    match crate::ops::csc_from_dense(&m.data, rows, cols, rows * cols / 5, false) {
+        Some((ptr, idx, val)) => Value::Sparse(std::sync::Arc::new(crate::value::Csc { rows, cols, ptr, idx, val, logical: m.kind == Kind::Logical })),
+        None => v,
+    }
+}
+
+/// Iterative solvers, which read compressed columns directly.
+pub fn native_solver(name: &str) -> bool {
+    matches!(name, "pcg" | "gmres" | "bicg" | "bicgstab" | "bicgstabl" | "cgs" | "minres" | "lsqr" | "qmr" | "tfqmr" | "symmlq")
 }

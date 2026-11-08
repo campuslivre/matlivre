@@ -9,6 +9,7 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 pub mod ast;
 pub mod sparse_lu;
+pub mod sparse_ops;
 pub mod fuse;
 pub mod builtins;
 pub mod containers;

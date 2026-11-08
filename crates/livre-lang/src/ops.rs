@@ -122,11 +122,15 @@ pub fn arith_kind(a: Kind, b: Kind) -> R<Kind> {
 }
 
 pub fn binary(op: BinOp, a: &Value, b: &Value) -> R<Value> {
+    if a.is_compressed() || b.is_compressed() {
+        return crate::sparse_ops::binary(op, a, b);
+    }
     let mut out = binary_dense(op, a, b)?;
     if crate::builtins_sparse::binary_sparse(op, a, b) {
         if let Value::Num(m) = &mut out {
             m.sparse = true;
         }
+        out = crate::builtins_sparse::compress(out);
     }
     Ok(out)
 }
@@ -413,6 +417,9 @@ pub fn ctranspose(m: &Matrix) -> Matrix {
 }
 
 pub fn unary(op: UnOp, v: &Value) -> R<Value> {
+    if v.is_compressed() {
+        return crate::sparse_ops::unary(op, v);
+    }
     match v {
         Value::Sym(_) => return crate::sym::unary(op, v),
         Value::Time(t) => return crate::time::unary(op, t),
@@ -586,7 +593,7 @@ pub fn csc_of(m: &Matrix) -> Option<std::sync::Arc<crate::value::Csc>> {
     }
     m.csc.get_or_init(|| {
         let (ptr, idx, val) = csc_from_dense(&m.data, rows, cols, rows * cols / 5, false)?;
-        Some(std::sync::Arc::new(crate::value::Csc { rows, cols, ptr, idx, val }))
+        Some(std::sync::Arc::new(crate::value::Csc { rows, cols, ptr, idx, val, logical: false }))
     })
 }
 
@@ -639,10 +646,18 @@ fn times_sparse(x: &Matrix, b: &Matrix) -> Option<Matrix> {
 /// is (numerically) singular, or the result fails a residual check; the caller then takes the
 /// dense path, which also produces MATLAB's singularity warnings.
 fn sparse_solve(a: &Matrix, b: &Matrix) -> Option<Matrix> {
-    use crate::sparse_lu::LuFactor;
-    let (n, k) = (a.rows(), b.cols());
-    let max_nnz = (SPARSE_MAX_DENSITY * (n * n) as f64) as usize;
     let csc = csc_of(a)?;
+    sparse_solve_csc(&csc, b)
+}
+
+/// `a  b` for a square sparse `a` given as compressed columns (see [`sparse_solve`]).
+pub fn sparse_solve_csc(csc: &crate::value::Csc, b: &Matrix) -> Option<Matrix> {
+    use crate::sparse_lu::LuFactor;
+    let (n, k) = (csc.rows, b.cols());
+    if csc.rows != csc.cols || b.rows() != n {
+        return None;
+    }
+    let max_nnz = (SPARSE_MAX_DENSITY * (n as f64) * (n as f64)) as usize;
     if csc.val.len() > max_nnz || csc.val.iter().any(|v| !v.is_finite()) {
         return None;
     }

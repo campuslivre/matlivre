@@ -2995,6 +2995,7 @@ fn approx_bytes(v: &Value) -> usize {
         Value::Time(t) => t.data.len() * 8,
         Value::Table(t) => t.vars.iter().map(approx_bytes).sum(),
         Value::Sym(s) => s.data.len() * 8,
+        Value::Sparse(c) => c.val.len() * 12 + c.ptr.len() * 8,
     }
 }
 
