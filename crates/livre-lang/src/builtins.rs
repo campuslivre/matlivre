@@ -36,7 +36,7 @@ const NAMES: &[&str] = &[
 pub fn exists(name: &str) -> bool {
     static ALL: std::sync::OnceLock<std::collections::HashSet<&'static str>> = std::sync::OnceLock::new();
     ALL.get_or_init(|| {
-        [NAMES, crate::builtins_elfun::NAMES, crate::builtins_datafun::NAMES, crate::builtins_lang::NAMES, crate::builtins_strings::NAMES, crate::builtins_types::NAMES, crate::builtins_dates::NAMES, crate::builtins_files::NAMES, crate::builtins_textio::NAMES, crate::builtins_data::NAMES, crate::builtins_media::NAMES, crate::builtins_archive::NAMES, crate::builtins_structio::NAMES, crate::gfx::NAMES, crate::builtins_plotfmt::NAMES, crate::builtins_graph3d::NAMES, crate::builtins_funfun::NAMES, crate::builtins_matfun::NAMES, crate::builtins_elmat::NAMES, crate::builtins_ops::NAMES, crate::builtins_specfun::NAMES, crate::polyshape::NAMES, crate::builtins_polyfun::NAMES, crate::builtins_geom::NAMES, crate::polyfun_classes::NAMES, crate::builtins_text::NAMES, crate::builtins_plot::NAMES, crate::time::NAMES, crate::table::NAMES, crate::sym::NAMES, crate::sym::extra::NAMES, crate::sym::special::NAMES, crate::sym::tools::NAMES, crate::sym::units::NAMES, crate::sym::transforms::NAMES, crate::sym::forms::NAMES, crate::sym::ode::NAMES, crate::sym::formula::NAMES, crate::sym::dae::NAMES, crate::containers::NAMES, crate::table_ops::NAMES, crate::builtins_plotmore::NAMES, crate::patterns::NAMES, crate::builtins_validate::NAMES, crate::graphs::NAMES, crate::graphs::FUNCS, crate::builtins_excel::NAMES, crate::builtins_sparse::NAMES, crate::builtins_ode::NAMES, crate::timetable::NAMES, crate::io_more::NAMES, crate::lang_more::NAMES, crate::plot_extra::NAMES, crate::volume::NAMES, crate::timeseries::NAMES, crate::charts::NAMES, crate::images::NAMES, crate::math_more::NAMES, crate::func_objects::NAMES, crate::files_more::NAMES, crate::random::NAMES, crate::timers::NAMES, crate::session_more::NAMES, crate::settings::NAMES, crate::sysobj::NAMES, crate::tiff::NAMES, crate::decomp::NAMES, crate::messages::NAMES, crate::ode_objects::NAMES, crate::gfx_util::NAMES, crate::figfile::NAMES, crate::xml_dom::NAMES]
+        [NAMES, crate::builtins_elfun::NAMES, crate::builtins_datafun::NAMES, crate::builtins_lang::NAMES, crate::builtins_strings::NAMES, crate::builtins_types::NAMES, crate::builtins_dates::NAMES, crate::builtins_files::NAMES, crate::builtins_textio::NAMES, crate::builtins_data::NAMES, crate::builtins_media::NAMES, crate::builtins_archive::NAMES, crate::builtins_structio::NAMES, crate::gfx::NAMES, crate::builtins_plotfmt::NAMES, crate::builtins_graph3d::NAMES, crate::builtins_funfun::NAMES, crate::builtins_matfun::NAMES, crate::builtins_elmat::NAMES, crate::builtins_ops::NAMES, crate::builtins_specfun::NAMES, crate::polyshape::NAMES, crate::builtins_polyfun::NAMES, crate::builtins_geom::NAMES, crate::polyfun_classes::NAMES, crate::builtins_text::NAMES, crate::builtins_plot::NAMES, crate::time::NAMES, crate::table::NAMES, crate::sym::NAMES, crate::sym::extra::NAMES, crate::sym::special::NAMES, crate::sym::tools::NAMES, crate::sym::units::NAMES, crate::sym::transforms::NAMES, crate::sym::forms::NAMES, crate::sym::ode::NAMES, crate::sym::formula::NAMES, crate::sym::dae::NAMES, crate::containers::NAMES, crate::table_ops::NAMES, crate::builtins_plotmore::NAMES, crate::patterns::NAMES, crate::builtins_validate::NAMES, crate::graphs::NAMES, crate::graphs::FUNCS, crate::builtins_excel::NAMES, crate::builtins_sparse::NAMES, crate::builtins_ode::NAMES, crate::timetable::NAMES, crate::io_more::NAMES, crate::lang_more::NAMES, crate::plot_extra::NAMES, crate::volume::NAMES, crate::timeseries::NAMES, crate::charts::NAMES, crate::images::NAMES, crate::math_more::NAMES, crate::func_objects::NAMES, crate::files_more::NAMES, crate::random::NAMES, crate::timers::NAMES, crate::session_more::NAMES, crate::settings::NAMES, crate::sysobj::NAMES, crate::tiff::NAMES, crate::decomp::NAMES, crate::messages::NAMES, crate::ode_objects::NAMES, crate::gfx_util::NAMES, crate::figfile::NAMES, crate::xml_dom::NAMES, crate::gfx_defaults::NAMES]
             .iter()
             .flat_map(|n| n.iter().copied())
             .collect()
@@ -761,23 +761,34 @@ fn element(v: &Value, k: usize, unwrap_cells: bool) -> R<Value> {
 }
 
 pub fn call(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize) -> Ret {
+    call_ref(it, name, &args, nargout)
+}
+
+/// As [`call`], reading the arguments in place (the caller keeps them).
+pub fn call_ref(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize) -> Ret {
     // faer's factorizations (QR, SVD, eigenvalues, Cholesky) default to the global thread pool,
     // where they ran up to 100 times slower than single-threaded on matrices of a few hundred
     // rows; products and solves pass their own parallelism explicitly.
     static FAER_INIT: std::sync::Once = std::sync::Once::new();
     FAER_INIT.call_once(|| faer::set_global_parallelism(faer::Par::Seq));
     if args.first().is_some_and(crate::builtins_sparse::is_sparse) {
-        let first = args[0].clone();
         let mut r = call_dense(it, name, args, nargout)?;
         if let Some(out) = r.as_mut() {
-            crate::builtins_sparse::propagate(name, std::slice::from_ref(&first), out);
+            crate::builtins_sparse::propagate(name, &args[..1], out);
         }
         return Ok(r);
+    }
+    if crate::gfx::defaults_active() {
+        // Objects this call makes take the root defaults (set(groot, 'defaultAxesColor', ...)).
+        let before = crate::gfx::snapshot_ids(it);
+        let r = call_dense(it, name, args, nargout);
+        crate::gfx::apply_new_defaults(it, &before, args);
+        return r;
     }
     call_dense(it, name, args, nargout)
 }
 
-fn call_dense(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize) -> Ret {
+fn call_dense(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize) -> Ret {
     // patch with faces and vertices.
     if name == "patch" {
         if let Some(r) = crate::volume::patch_fv(it, &args, nargout)? {
@@ -822,7 +833,7 @@ fn call_dense(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize
         }
     }
     if args.iter().any(|a| matches!(a, Value::Sym(_))) || crate::sym::NAMES.contains(&name) || crate::sym::extra::NAMES.contains(&name) || crate::sym::special::NAMES.contains(&name) || crate::sym::tools::NAMES.contains(&name) || crate::sym::units::NAMES.contains(&name) || crate::sym::transforms::NAMES.contains(&name) || crate::sym::forms::NAMES.contains(&name) || crate::sym::ode::NAMES.contains(&name) || crate::sym::formula::NAMES.contains(&name) || crate::sym::dae::NAMES.contains(&name) {
-        if let Some(r) = crate::sym::call(it, name, args.clone(), nargout)? {
+        if let Some(r) = crate::sym::call(it, name, args.to_vec(), nargout)? {
             return Ok(Some(r));
         }
     }
@@ -884,6 +895,11 @@ fn call_dense(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize
     }
     if crate::xml_dom::NAMES.contains(&name) {
         if let Some(r) = crate::xml_dom::call(it, name, &args, nargout)? {
+            return Ok(Some(r));
+        }
+    }
+    if crate::gfx_defaults::NAMES.contains(&name) {
+        if let Some(r) = crate::gfx_defaults::call(it, name, &args, nargout)? {
             return Ok(Some(r));
         }
     }
@@ -1458,8 +1474,8 @@ fn call_dense(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize
             }
             mat(out)
         }
-        "horzcat" => one(hconcat(args)?),
-        "vertcat" => one(vconcat(args)?),
+        "horzcat" => one(hconcat(args.to_vec())?),
+        "vertcat" => one(vconcat(args.to_vec())?),
         "cat" => {
             let d = arg(a, 0, name)?.as_usize()?;
             if d == 0 {
@@ -2828,7 +2844,7 @@ fn call_dense(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize
             if nargout > a.len() {
                 return rt("The number of outputs should match the number of inputs.");
             }
-            Ok(Some(args.clone()))
+            Ok(Some(args.to_vec()))
         }
         "func2str" => match arg(a, 0, name)? {
             // A named handle gives its bare name (func2str(@sin) is 'sin'), an anonymous one its text.
@@ -2993,7 +3009,7 @@ fn call_dense(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize
             } else {
                 // Names, wildcards (`a*`), or regular expressions after `-regexp`.
                 let mut regexp = false;
-                for v in a {
+                for v in a.iter() {
                     let pat = v.text()?;
                     if pat == "-regexp" {
                         regexp = true;

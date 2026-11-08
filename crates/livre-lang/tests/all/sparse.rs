@@ -166,3 +166,23 @@ fn sparse_products_follow_changes_to_the_matrix() {
     let out: Vec<String> = shown(src).into_iter().map(|s| s.trim_end().to_string()).collect();
     assert_eq!(out, ["P1 1", "P2 1 1", "P3 1", "P4 1 1", "P5 1", "P6 1", "P7 1"]);
 }
+
+/// Large variables passed to numeric builtins are lent, not copied; they must be back afterwards,
+/// also when the call fails, and other arguments that read the same variable must still see it.
+#[test]
+fn large_variables_survive_builtin_calls() {
+    let src = concat!(
+        "n = 100; A = spdiags([-ones(n,1) 2*ones(n,1) -ones(n,1)], -1:1, n, n); b = ones(n,1);\n",
+        "k = nnz(A); s = size(A); t = issparse(A); m = norm(A*b - A*b); fprintf('L1 %d %d %d %d %d\\n', k, s(1), s(2), t, m);\n",
+        "[x, fl] = pcg(A, b, 1e-10, 200); fprintf('L2 %d %d\\n', norm(A*x - b) < 1e-8, nnz(A));\n",
+        "c = sum(A(:)) + sum(sum(A)); d = max(A, [], 'all'); fprintf('L3 %d %d %d\\n', c, d, exist('A'));\n",
+        "try, r = norm(A, 'bogus'); catch, end\n",
+        "fprintf('L4 %d %d\\n', nnz(A), numel(A));\n",
+        "w = norm(A*b - b, 1) + norm(b - A*b, 1); fprintf('L5 %d\\n', nnz(A));\n",
+        "z = dot(b, b) + trace(A) + nnz(A); fprintf('L6 %d %d\\n', z, nnz(A));\n",
+        "B = A; fprintf('L7 %d\\n', nnz(B) + nnz(A));\n",
+        "A(1, 1) = 7; fprintf('L8 %d %d\\n', nnz(A), A(1, 1));\n",
+    );
+    let out: Vec<String> = shown(src).into_iter().map(|s| s.trim_end().to_string()).collect();
+    assert_eq!(out, ["L1 298 100 100 1 0", "L2 1 298", "L3 4 2 1", "L4 298 10000", "L5 298", "L6 598 298", "L7 596", "L8 298 7"]);
+}

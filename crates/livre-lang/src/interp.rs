@@ -1702,6 +1702,9 @@ impl Interpreter {
                         if name == "table" || crate::table_ops::wants_arg_names(name) {
                             self.arg_names = args.iter().map(|a| if let Expr::Ident(n) = a { Some(n.clone()) } else { None }).collect();
                         }
+                        if let Some(r) = self.call_lending(name, args, nargout)? {
+                            return Ok(r);
+                        }
                         let argv = self.eval_args(args)?;
                         return self.call_function(name, argv, nargout);
                     }
@@ -1974,6 +1977,74 @@ impl Interpreter {
     }
 
     /// Function-call arguments with comma-list expansion of `c{:}` and `s.f`.
+    /// Calls a pure numeric builtin with large local variables passed by reference: the variables
+    /// are moved into the argument list for the call and put back afterwards, so `nnz(A)` or
+    /// `pcg(A, b)` does not copy `A`. Returns `None` (nothing evaluated, nothing moved) when the
+    /// call does not qualify.
+    fn call_lending(&mut self, name: &str, args: &[Expr], nargout: usize) -> R<Option<Vec<Value>>> {
+        /// Builtins that only read their arguments and never look variables up by name.
+        const LEND: &[&str] = &[
+            "issparse", "nnz", "size", "numel", "length", "ndims", "isempty", "isreal", "isnumeric", "class", "norm", "pcg", "gmres", "bicg", "bicgstab", "bicgstabl",
+            "cgs", "minres", "lsqr", "qmr", "tfqmr", "symmlq", "sum", "prod", "max", "min", "mean", "cumsum", "find", "any", "all", "abs", "full", "sparse", "nonzeros",
+            "diag", "trace", "det", "inv", "rank", "eig", "svd", "chol", "lu", "qr", "sort", "unique", "diff", "std", "var", "median", "dot", "kron", "transpose", "numnz",
+            "spones", "tril", "triu", "isfinite", "isnan", "floor", "round", "sqrt", "exp", "log",
+        ];
+        if !LEND.contains(&name) || self.functions.contains_key(name) || !crate::builtins::exists(name) {
+            return Ok(None);
+        }
+        let mut lent: Vec<(usize, &str)> = Vec::new();
+        for (k, a) in args.iter().enumerate() {
+            match a {
+                Expr::CellIndex(..) | Expr::Field(..) | Expr::Colon => return Ok(None),
+                Expr::Ident(n) if !self.frame().globals.contains(n.as_str()) => {
+                    if matches!(self.frame().vars.get(n.as_str()), Some(Value::Num(m)) if m.numel() >= 4096) {
+                        if lent.iter().any(|(_, o)| o == n) {
+                            return Ok(None);
+                        }
+                        lent.push((k, n.as_str()));
+                    }
+                }
+                _ => {}
+            }
+        }
+        if lent.is_empty() {
+            return Ok(None);
+        }
+        // Evaluate the other arguments first (they may read the lent variables), in order.
+        let mut slots: Vec<Option<Value>> = Vec::with_capacity(args.len());
+        for (k, a) in args.iter().enumerate() {
+            slots.push(if lent.iter().any(|(p, _)| *p == k) { None } else { Some(self.eval(a)?) });
+        }
+        if slots.iter().flatten().any(|v| matches!(v, Value::Object(_))) {
+            // An object argument may dispatch to a method: take the ordinary path with copies.
+            let mut argv = Vec::with_capacity(slots.len());
+            for (k, s) in slots.into_iter().enumerate() {
+                argv.push(match s {
+                    Some(v) => v,
+                    None => match lent.iter().find(|(p, _)| *p == k) {
+                        Some((_, n)) => self.get_var(n).cloned().unwrap_or_else(Value::empty),
+                        None => Value::empty(),
+                    },
+                });
+            }
+            return self.call_function(name, argv, nargout).map(Some);
+        }
+        for (k, n) in &lent {
+            slots[*k] = self.frame_mut().vars.remove(*n);
+        }
+        let argv: Vec<Value> = slots.into_iter().map(|s| s.unwrap_or_else(Value::empty)).collect();
+        let res = crate::builtins::call_ref(self, name, &argv, nargout);
+        let mut argv = argv;
+        for (k, n) in &lent {
+            let v = std::mem::replace(&mut argv[*k], Value::empty());
+            self.frame_mut().vars.insert((*n).to_string(), v);
+        }
+        match res? {
+            Some(r) => Ok(Some(r)),
+            None => rt(format!("Unrecognized function or variable '{name}'.")),
+        }
+    }
+
     pub(crate) fn eval_args(&mut self, args: &[Expr]) -> R<Vec<Value>> {
         let mut out = Vec::with_capacity(args.len());
         for a in args {

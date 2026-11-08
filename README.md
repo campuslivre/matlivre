@@ -18,8 +18,8 @@ of MATLAB, written in Rust: no MATLAB installation, license or Java runtime is n
 - **Runs live scripts fast.** A typical notebook with four figures runs in 0.11 s. MATLAB's
   Live Editor takes 4.9 s for the same file, and 14.3 s the first time: 43 to 100 times slower.
 - **Runs code fast.** On a 12-case benchmark of loops, recursion, array growth, linear
-  algebra, sorting, strings, structs and cells, MatLivre is 5.3x faster than MATLAB R2023b,
-  81x faster than GNU Octave and 80x faster than Scilab (geometric mean), with identical results
+  algebra, sorting, strings, structs and cells, MatLivre is 5.5x faster than MATLAB R2023b,
+  83x faster than GNU Octave and 83x faster than Scilab (geometric mean), with identical results
   in all four.
 - **Speaks MATLAB.** 1,879 MATLAB and Symbolic Math Toolbox functions, MATLAB's display format,
   error messages and semantics, checked against MATLAB R2023b output.
@@ -88,20 +88,20 @@ engines**. Run date: 2026-11-07 (MatLivre column re-measured after the allocator
 
 | Case | MATLAB (ms) | Octave (ms) | Scilab (ms) | MatLivre (ms) | MatLivre vs MATLAB | vs Scilab |
 |---|---:|---:|---:|---:|---|---|
-| scalar_loop (2M iterations) | 4.57 | 2,267.82 | 1,662.67 | 2.71 | 1.7x faster | 613x faster |
-| while_branch (Collatz, 2.9M steps) | 79.62 | 11,231.69 | 70,510.38 | 14.36 | 5.5x faster | 4,909x faster |
+| scalar_loop (2M iterations) | 4.57 | 2,267.82 | 1,662.67 | 2.69 | 1.7x faster | 619x faster |
+| while_branch (Collatz, 2.9M steps) | 79.62 | 11,231.69 | 70,510.38 | 14.30 | 5.6x faster | 4,929x faster |
 | fib_recursive (fib(20)) | 0.96 | 123.42 | 70.68 | 0.06 | 15.8x faster | 1,159x faster |
-| array_growth (100k appends) | 6.83 | 377.48 | 211.68 | 1.18 | 5.8x faster | 180x faster |
-| indexed_assign (1M writes) | 2.93 | 1,996.90 | 879.51 | 2.40 | 1.2x faster | 367x faster |
-| vector_math (2M elements) | 107.40 | 92.81 | 180.59 | 12.50 | 8.6x faster | 14.4x faster |
+| array_growth (100k appends) | 6.83 | 377.48 | 211.68 | 1.18 | 5.8x faster | 179x faster |
+| indexed_assign (1M writes) | 2.93 | 1,996.90 | 879.51 | 2.36 | 1.2x faster | 373x faster |
+| vector_math (2M elements) | 107.40 | 92.81 | 180.59 | 10.65 | 10.1x faster | 17.0x faster |
 | matmul_300 | 0.68 | 0.55 | 0.19 | 0.33 | 2.1x faster | 1.8x slower |
 | linsolve_300 | 0.53 | 1.54 | 0.48 | 0.59 | 1.1x slower | 1.2x slower |
-| sort_1e6 | 59.09 | 14.82 | 185.38 | 7.95 | 7.4x faster | 23.3x faster |
-| string_build (20k appends) | 207.04 | 249.86 | 491.80 | 35.42 | 5.8x faster | 13.9x faster |
-| struct_fields (500k updates) | 144.11 | 4,309.09 | 1,841.38 | 0.65 | 222x faster | 2,833x faster |
-| cell_ops (100k writes + reads) | 21.54 | 561.40 | 349.36 | 6.71 | 3.2x faster | 52.0x faster |
+| sort_1e6 | 59.09 | 14.82 | 185.38 | 6.97 | 8.5x faster | 26.6x faster |
+| string_build (20k appends) | 207.04 | 249.86 | 491.80 | 35.30 | 5.9x faster | 13.9x faster |
+| struct_fields (500k updates) | 144.11 | 4,309.09 | 1,841.38 | 0.65 | 223x faster | 2,846x faster |
+| cell_ops (100k writes + reads) | 21.54 | 561.40 | 349.36 | 6.70 | 3.2x faster | 52.1x faster |
 
-Geometric mean: **5.3x faster than MATLAB, 81x faster than Octave, 80x faster than Scilab**.
+Geometric mean: **5.5x faster than MATLAB, 83x faster than Octave, 83x faster than Scilab**.
 MatLivre is faster than MATLAB in 11 of 12 cases, than Octave in all 12 and than Scilab in 10.
 Where it is behind: `linsolve_300` (MATLAB by 13%, Scilab by 25%) and `matmul_300` (Scilab, which
 uses Intel MKL, by 1.7x). Cases under 1 ms vary by tens of percent
@@ -121,17 +121,17 @@ tridiagonal system in 23 ms; MatLivre cannot hold it). On large dense arrays it 
 | Case | MATLAB (ms) | Scilab (ms) | MatLivre (ms) | vs MATLAB | vs Scilab |
 |---|---:|---:|---:|---|---|
 | sparse tridiagonal solve, n = 3,000 | 0.07 | 0.32 | 0.44 | 6.0x slower | 1.4x slower |
-| 2-D Poisson solve, 2,500 unknowns | 1.69 | 87.5 | 6.99 | 4.1x slower | 12.5x faster |
-| 200 sparse matrix-vector products, n = 3,000 | 2.10 | 6.99 | 13.0 | 6.2x slower | 1.9x slower |
-| 20 builds with `sparse(i,j,s,n,n)`, n = 2,000 | 2.57 | 3.10 | 28.7 | 11.2x slower | 9.2x slower |
-| conjugate gradients on the Poisson matrix | 3.02 | 2.87 | 16.4 | 5.4x slower | 5.7x slower |
-| elementwise math, 1e7 elements | 139.8 | 485.2 | 43.2 | 3.2x faster | 11.2x faster |
-| `cumsum`, 1e7 elements | 45.6 | 59.3 | 62.0 | 1.4x slower | about equal |
-| `find` on a logical mask, 1e7 | 25.4 | 183.6 | 61.2 | 2.4x slower | 3.0x faster |
-| broadcast arithmetic, 2000 x 2000 | 10.2 | 41.2 | 30.4 | 3.0x slower | 1.4x faster |
-| row and column reductions, 2000 x 2000 | 8.18 | 102.6 | 18.2 | 2.2x slower | 5.6x faster |
-| `sort`, 4e6 elements | 66.7 | 334.2 | 33.5 | 2.0x faster | 10.0x faster |
-| `M*M`, 2000 x 2000 | 126.2 | 78.5 | 56.2 | 2.2x faster | 1.4x faster |
+| 2-D Poisson solve, 2,500 unknowns | 1.69 | 87.5 | 6.66 | 3.9x slower | 13.1x faster |
+| 200 sparse matrix-vector products, n = 3,000 | 2.10 | 6.99 | 13.1 | 6.2x slower | 1.9x slower |
+| 20 builds with `sparse(i,j,s,n,n)`, n = 2,000 | 2.57 | 3.10 | 30.6 | 11.9x slower | 9.8x slower |
+| conjugate gradients on the Poisson matrix | 3.02 | 2.87 | 3.96 | 1.3x slower | 1.4x slower |
+| elementwise math, 1e7 elements | 139.8 | 485.2 | 31.9 | 4.4x faster | 15.2x faster |
+| `cumsum`, 1e7 elements | 45.6 | 59.3 | 37.4 | 1.2x faster | 1.6x faster |
+| `find` on a logical mask, 1e7 | 25.4 | 183.6 | 61.3 | 2.4x slower | 3.0x faster |
+| broadcast arithmetic, 2000 x 2000 | 10.2 | 41.2 | 32.5 | 3.2x slower | 1.3x faster |
+| row and column reductions, 2000 x 2000 | 8.18 | 102.6 | 8.19 | about equal | 12.5x faster |
+| `sort`, 4e6 elements | 66.7 | 334.2 | 35.3 | 1.9x faster | 9.5x faster |
+| `M*M`, 2000 x 2000 | 126.2 | 78.5 | 59.2 | 2.1x faster | 1.3x faster |
 
 Square sparse systems of order 100 and up are solved with a sparse LU (Markowitz pivoting, taken
 from the SolverLivre project) with a residual check and a fallback to the dense solver, and the
