@@ -2648,7 +2648,8 @@ impl Interpreter {
             }
         };
         let Some(entry) = entry else { return Ok(None) };
-        let mut rt = Runtime { store: Vec::new(), error: None };
+        let rng = crate::random::global_stream(&mut self.rng);
+        let mut rt = Runtime { store: Vec::new(), error: None, rng };
         let cancel = match &self.cancel {
             Some(c) => c.as_ptr() as *const u8,
             None => &NO_CANCEL as *const u8,
@@ -2659,6 +2660,11 @@ impl Interpreter {
         self.jit_runs += 1;
         if status != 0 {
             let (msg, line) = rt.error.take().unwrap_or_else(|| ("Internal error in compiled code.".into(), 0));
+            // A value native code cannot represent: interpret the call (it has no side effects yet).
+            if msg == j::FALLBACK {
+                self.jit_entries.insert(key, None);
+                return Ok(None);
+            }
             return Err(LangError::new(msg, line));
         }
         Ok(Some(Value::num(out)))
@@ -2687,11 +2693,15 @@ impl Interpreter {
             None => {
                 let jit = self.jit.get_or_insert_with(j::Jit::new);
                 let k = jit.compile_kernel(s, &env).ok().map(Rc::new);
-                self.jit_cache.insert(cache_key, k.clone());
+                self.jit_cache.insert(cache_key.clone(), k.clone());
                 k
             }
         };
         let Some(k) = kernel else { return Ok(false) };
+        // A kernel that can hand the statement back keeps the arrays it changes, to restore them.
+        let may_fall_back = k.falls_back;
+        let snapshot: Vec<(String, Value)> = if may_fall_back { k.slots.iter().filter_map(|n| self.get_var(n).map(|v| (n.clone(), v.clone()))).collect() } else { Vec::new() };
+        let rng_state = (may_fall_back && names.iter().any(|n| n == "rand")).then(|| crate::random::save_global(&mut self.rng));
 
         // Marshal state in.
         let n = k.scalars.len();
@@ -2717,7 +2727,8 @@ impl Interpreter {
                 _ => unreachable!("kernel slot types are checked at compile time"),
             });
         }
-        let mut rt = Runtime { store, error: None };
+        let rng = crate::random::global_stream(&mut self.rng);
+        let mut rt = Runtime { store, error: None, rng };
         let mut slots: Vec<Slot> = rt.store.iter_mut().map(|s| match s {
             Storage::Mat(m) => Slot { data: m.data.as_mut_ptr(), len: m.numel() as i64, rows: m.rows() as i64, cols: m.cols() as i64 },
             Storage::Cell(c) => Slot { data: std::ptr::null_mut(), len: c.data.len() as i64, rows: c.rows() as i64, cols: c.cols() as i64 },
@@ -2729,6 +2740,18 @@ impl Interpreter {
         let mut ctx = Ctx { frame: frame.as_mut_ptr(), slots: slots.as_mut_ptr(), rt: &mut rt, cancel, depth: 0, status: 0 };
         let status = (k.ptr)(&mut ctx);
         self.jit_runs += 1;
+        if status != 0 && rt.error.as_ref().is_some_and(|(m, _)| m == j::FALLBACK) {
+            // Put the workspace back as it was and let the interpreter run the statement.
+            drop(std::mem::take(&mut rt.store));
+            for (name, v) in snapshot {
+                self.set_var(&name, v);
+            }
+            if let Some(st) = rng_state {
+                crate::random::restore_global(&mut self.rng, st);
+            }
+            self.jit_cache.insert(cache_key, None);
+            return Ok(false);
+        }
 
         // Marshal state out (also after an error, as the interpreter would leave it).
         for (name, st) in k.slots.iter().zip(std::mem::take(&mut rt.store)) {

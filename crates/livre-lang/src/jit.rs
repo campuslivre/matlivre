@@ -63,6 +63,8 @@ pub enum Storage {
 pub struct Runtime {
     pub store: Vec<Storage>,
     pub error: Option<(String, usize)>,
+    /// The global random stream, for compiled `rand` (null when the code draws none).
+    pub rng: *mut crate::random::Stream,
 }
 
 pub const MAX_DEPTH: i64 = 256;
@@ -104,6 +106,7 @@ extern "C" fn h_err(ctx: *mut Ctx, code: i64, a: f64, b: f64, line: i64) -> i32 
         5 => format!("Maximum recursion limit of {MAX_DEPTH} reached."),
         6 => "Execution stopped by user.".to_string(),
         7 => "NaN's cannot be converted to logicals.".to_string(),
+        8 => FALLBACK.to_string(),
         _ => "Internal error in compiled code.".to_string(),
     };
     set_err(ctx, msg, line)
@@ -217,6 +220,25 @@ extern "C" fn h_sin(x: f64) -> f64 { x.sin() }
 extern "C" fn h_cos(x: f64) -> f64 { x.cos() }
 extern "C" fn h_tan(x: f64) -> f64 { x.tan() }
 extern "C" fn h_exp(x: f64) -> f64 { x.exp() }
+extern "C" fn h_log(x: f64) -> f64 { x.ln() }
+/// nthroot as the interpreter computes it (odd roots of negatives are negative).
+extern "C" fn h_nthroot(v: f64, k: f64) -> f64 {
+    if v < 0.0 && k % 2.0 == 1.0 { -(-v).powf(1.0 / k) } else { v.powf(1.0 / k) }
+}
+extern "C" fn h_isprime(x: f64) -> f64 {
+    if crate::builtins::is_prime(x) { 1.0 } else { 0.0 }
+}
+/// A uniform draw from the global stream (the arguments fit an existing signature).
+extern "C" fn h_rand(ctx: *mut Ctx, _k: i64, _i: f64, _line: i64) -> f64 {
+    unsafe { crate::random::uniform_of(rt(ctx).rng) }
+}
+extern "C" fn h_log2(x: f64) -> f64 { x.log2() }
+extern "C" fn h_log10(x: f64) -> f64 { x.log10() }
+
+/// The error a kernel stops with when a value leaves what native code computes (a negative
+/// sqrt or log argument gives a complex result): the interpreter then runs the statement.
+pub const FALLBACK: &str = "\u{0}matlivre fallback";
+
 extern "C" fn h_atan(x: f64) -> f64 { x.atan() }
 extern "C" fn h_sinh(x: f64) -> f64 { x.sinh() }
 extern "C" fn h_cosh(x: f64) -> f64 { x.cosh() }
@@ -369,7 +391,8 @@ pub fn referenced_names(stmts: &[Stmt], out: &mut Vec<String>) {
 /// Builtins the compiler implements natively.
 pub const INTRINSICS: &[&str] = &[
     "abs", "floor", "ceil", "fix", "round", "sin", "cos", "tan", "exp", "atan", "sinh", "cosh", "tanh", "mod", "rem", "min", "max", "atan2", "hypot",
-    "sign", "isnan", "isinf", "isfinite", "pi", "Inf", "inf", "NaN", "nan", "eps", "true", "false", "numel", "length", "size",
+    "sign", "isnan", "isinf", "isfinite", "pi", "Inf", "inf", "NaN", "nan", "eps", "true", "false", "numel", "length", "size", "sqrt",
+    "log", "log2", "log10", "power", "nthroot", "isprime", "rand",
 ];
 
 // ---- compiler -------------------------------------------------------------------------------
@@ -419,6 +442,8 @@ pub struct KernelScalar {
 
 pub struct Kernel {
     pub ptr: extern "C" fn(*mut Ctx) -> i32,
+    /// The kernel can stop with FALLBACK and hand its statement back.
+    pub falls_back: bool,
     pub scalars: Vec<KernelScalar>,
     /// Workspace variables passed by slot (arrays and cells), in slot order.
     pub slots: Vec<String>,
@@ -484,6 +509,8 @@ struct Gen<'a, 'b> {
     /// Interned memory flags (trusted: aligned, non-trapping).
     tf: MemFlagsData,
     plain: MemFlagsData,
+    /// The code can stop with FALLBACK (the caller then keeps what it needs to undo the run).
+    falls_back: bool,
 }
 
 impl<'a, 'b> Gen<'a, 'b> {
@@ -515,6 +542,9 @@ impl<'a, 'b> Gen<'a, 'b> {
 
     /// Error exit with a coded message.
     fn fail(&mut self, code: i64, a: CVal, bv: CVal) {
+        if code == 8 {
+            self.falls_back = true;
+        }
         let codev = self.b.ins().iconst(types::I64, code);
         let line = self.b.ins().iconst(types::I64, self.line);
         let f = self.b.ins().iconst(types::I64, h_err as *const () as i64);
@@ -549,6 +579,17 @@ impl<'a, 'b> Gen<'a, 'b> {
         self.b.def_var(self.status, one);
         self.b.ins().jump(self.exit, &[]);
         self.b.switch_to_block(ok);
+    }
+
+    /// x^p, handing the statement back when the result would be complex.
+    fn real_pow(&mut self, x: CVal, p: CVal) -> CVal {
+        let z = self.fconst(0.0);
+        let neg = self.b.ins().fcmp(FloatCC::LessThan, x, z);
+        let fp = self.b.ins().floor(p);
+        let frac = self.b.ins().fcmp(FloatCC::NotEqual, fp, p);
+        let complex = self.b.ins().band(neg, frac);
+        self.fail_if(complex, 8, x, p);
+        self.call2(h_pow, x, p)
     }
 
     fn call1(&mut self, f: extern "C" fn(f64) -> f64, x: CVal) -> CVal {
@@ -713,14 +754,19 @@ impl<'a, 'b> Gen<'a, 'b> {
                 },
                 _ => None,
             };
-            let Some(p) = lit.filter(|p| p.fract() == 0.0) else { return reject("non-integer or variable exponent") };
             let x = self.expr(a)?;
             let x = self.to_f(x);
-            if p == 2.0 {
-                return Ok(V::F(self.b.ins().fmul(x, x)));
+            if let Some(p) = lit.filter(|p| p.fract() == 0.0) {
+                if p == 2.0 {
+                    return Ok(V::F(self.b.ins().fmul(x, x)));
+                }
+                let pv = self.fconst(p);
+                return Ok(V::F(self.call2(h_pow, x, pv)));
             }
-            let pv = self.fconst(p);
-            return Ok(V::F(self.call2(h_pow, x, pv)));
+            // Any other exponent: real unless a negative base meets a non-integer exponent.
+            let pv = self.expr(b)?;
+            let pv = self.to_f(pv);
+            return Ok(V::F(self.real_pow(x, pv)));
         }
         let av = self.expr(a)?;
         let bv = self.expr(b)?;
@@ -957,6 +1003,49 @@ impl<'a, 'b> Gen<'a, 'b> {
                         let eq = self.b.ins().fcmp(FloatCC::Equal, x, z);
                         self.b.ins().select(eq, z, s)
                     }
+                })
+            }
+            "power" => {
+                want(2)?;
+                let x = self.arg_f(args, 0)?;
+                let p = self.arg_f(args, 1)?;
+                V::F(self.real_pow(x, p))
+            }
+            "nthroot" => {
+                want(2)?;
+                let x = self.arg_f(args, 0)?;
+                let k = self.arg_f(args, 1)?;
+                V::F(self.call2(h_nthroot, x, k))
+            }
+            "isprime" => {
+                want(1)?;
+                let x = self.arg_f(args, 0)?;
+                let r = self.call1(h_isprime, x);
+                let z = self.fconst(0.0);
+                V::B(self.b.ins().fcmp(FloatCC::NotEqual, r, z))
+            }
+            "rand" => {
+                if !args.is_empty() {
+                    return reject("rand with arguments");
+                }
+                let p = self.b.ins().iconst(types::I64, h_rand as *const () as i64);
+                let zi = self.b.ins().iconst(types::I64, 0);
+                let zf = self.fconst(0.0);
+                let c = self.b.ins().call_indirect(self.h.cell_get, p, &[self.ctx, zi, zf, zi]);
+                V::F(self.b.inst_results(c)[0])
+            }
+            // Real for x >= 0 (and NaN); a negative argument hands the statement back.
+            "sqrt" | "log" | "log2" | "log10" => {
+                want(1)?;
+                let x = self.arg_f(args, 0)?;
+                let z = self.fconst(0.0);
+                let neg = self.b.ins().fcmp(FloatCC::LessThan, x, z);
+                self.fail_if(neg, 8, x, z);
+                V::F(match name {
+                    "sqrt" => self.b.ins().sqrt(x),
+                    "log" => self.call1(h_log, x),
+                    "log2" => self.call1(h_log2, x),
+                    _ => self.call1(h_log10, x),
                 })
             }
             "isnan" | "isinf" | "isfinite" => {
@@ -1525,6 +1614,7 @@ impl Jit {
                 end_ctx: Vec::new(),
                 tf,
                 plain,
+                falls_back: false,
             };
             // Recursion depth.
             let d = g.b.ins().load(types::I64, g.tf, g.ctx, CTX_DEPTH);
@@ -1720,6 +1810,7 @@ impl Jit {
             })
             .collect();
         let cfg = self.module.target_config();
+        let mut falls_back = false;
         let result = (|| -> CR<()> {
             let mut b = FunctionBuilder::new(&mut ctx.func, &mut self.fctx);
             let tf = MemFlagsData::trusted();
@@ -1784,6 +1875,7 @@ impl Jit {
                 end_ctx: Vec::new(),
                 tf,
                 plain,
+                falls_back: false,
             };
             // New scalars get their declared type from their first assignment: re-check by
             // compiling; a mismatch rejects.
@@ -1808,6 +1900,7 @@ impl Jit {
             let st = g.b.use_var(status);
             g.b.ins().return_(&[st]);
             g.b.seal_all_blocks();
+            falls_back = g.falls_back;
             g.b.finalize(cfg);
             Ok(())
         })();
@@ -1822,7 +1915,7 @@ impl Jit {
         self.module.finalize_definitions().map_err(|e| Reject(e.to_string()))?;
         let code = self.module.get_finalized_function(id);
         let ptr: extern "C" fn(*mut Ctx) -> i32 = unsafe { std::mem::transmute(code) };
-        Ok(Kernel { ptr, scalars, slots: slot_names })
+        Ok(Kernel { ptr, falls_back, scalars, slots: slot_names })
     }
 }
 

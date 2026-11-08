@@ -359,7 +359,7 @@ fn gcd(a: f64, b: f64) -> f64 {
     a
 }
 
-fn is_prime(n: f64) -> bool {
+pub(crate) fn is_prime(n: f64) -> bool {
     if n < 2.0 || n.fract() != 0.0 {
         return false;
     }

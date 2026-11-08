@@ -97,8 +97,33 @@ fn errors_match() {
 
 #[test]
 fn falls_back_when_not_compilable() {
-    // Display, strings, sqrt (may go complex) and whole-array use stay interpreted.
+    // Display, strings and whole-array use stay interpreted; a sqrt that goes complex starts
+    // compiled and hands the loop back (same results either way).
     assert_eq!(same("for k = 1:3\n  k\nend"), 0);
-    assert_eq!(same("s = 0;\nfor k = -2:2\n  s = s + sqrt(k);\nend\ns"), 0);
+    same("s = 0;\nfor k = -2:2\n  s = s + sqrt(k);\nend\ns");
     assert_eq!(same("x = [1 2 3];\nfor k = 1:2\n  y = sum(x);\nend\ny"), 0);
+}
+
+#[test]
+fn sqrt_and_log_compile_and_fall_back_to_complex() {
+    // Nested loops over sqrt/log run natively (the GitHub report of a nested loop freezing).
+    compiled("v = zeros(1, 100);\nfor i = 1:100\n  for j = 1:100\n    for k = 1:100\n      v(k) = v(k) + sqrt(i*j);\n    end\n  end\nend\nv(1:3)");
+    compiled("s = 0;\nfor i = 1:50\n  for j = 1:50\n    s = s + log(i*j) + log10(i) + log2(j);\n  end\nend\ns");
+    // A negative argument hands the statement back to the interpreter, from its start.
+    same("w = zeros(1, 4); x = 0;\nfor i = 1:4\n  for j = 1:3\n    x = x + 1;\n    w(i) = w(i) + sqrt(i - 3);\n  end\nend\nw, x");
+    same("z = 0;\nfor i = 1:3\n  z = z + log(i - 2);\nend\nz");
+    same("a = h(4), b = h(-4), c = h(9)\nfunction y = h(x)\ny = sqrt(x) + 1;\nend");
+}
+
+#[test]
+fn powers_rand_and_number_functions_compile() {
+    compiled("s = 0;\nfor i = 1:40\n  for j = 1:40\n    s = s + (i*j)^0.5 + power(i, 1.5) + nthroot(-27 * j, 3);\n  end\nend\ns");
+    compiled("c = 0;\nfor k = 1:200\n  if isprime(k), c = c + 1; end\nend\nc");
+    // rand draws the same numbers as the interpreter, from the global stream.
+    compiled("rng(7);\ns = 0;\nfor i = 1:30\n  for j = 1:30\n    s = s + rand;\n  end\nend\ns\nr = rand(1, 3)");
+    // A negative base with a fractional exponent goes complex: interpreted from the start,
+    // with the random draws of the compiled attempt undone.
+    same("q = 0;\nfor i = 1:4\n  for j = 1:3\n    q = q + (i - 2.5)^0.5;\n  end\nend\nq");
+    same("rng(3);\nt = 0;\nfor k = 1:5\n  t = t + rand + (k - 3)^0.5;\nend\nt\nu = rand");
+    same("y = 0; e = 2;\nfor k = 1:4\n  y = y + (-2)^e + k^e;\nend\ny");
 }

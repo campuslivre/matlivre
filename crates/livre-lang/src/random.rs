@@ -103,6 +103,32 @@ pub struct Stream {
     cached: Option<f64>,
 }
 
+/// The global stream, for compiled code that draws from it.
+pub(crate) fn global_stream(s: &mut Streams) -> *mut Stream {
+    let g = s.global;
+    s.get(g) as *mut Stream
+}
+
+/// A uniform draw from a stream (compiled `rand`).
+///
+/// # Safety
+/// `p` points to a live stream that nothing else uses during the call.
+pub(crate) unsafe fn uniform_of(p: *mut Stream) -> f64 {
+    (*p).uniform()
+}
+
+/// A copy of the global stream's state, and putting it back (a compiled loop that hands
+/// back undoes its draws).
+pub(crate) fn save_global(s: &mut Streams) -> Stream {
+    let g = s.global;
+    s.get(g).clone()
+}
+
+pub(crate) fn restore_global(s: &mut Streams, st: Stream) {
+    let g = s.global;
+    s.map.insert(g, st);
+}
+
 impl Stream {
     fn new(seed: u32, transform: Transform) -> Stream {
         // Seed 0 is the reference generator's default seed, 5489.
