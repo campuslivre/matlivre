@@ -17,6 +17,8 @@ title = "MatLivre"
 # Also released for Linux: built in WSL, packaged as an AppImage (the icon is a PNG).
 linux = true
 linux-icon = "assets/matlivre.png"
+# Also released for macOS: built by .github/workflows/macos.yml on a GitHub macOS runner (a .dmg on the release).
+macos = true
 file-types = [
     { extension = "mlx", description = "MATLAB Live Script", icon = "assets/mlx.ico" },
     { extension = "m", description = "MATLAB Script", icon = "assets/m.ico" },
