@@ -46,6 +46,8 @@ fn check_dims(it: &Interpreter, name: &str, dims: &[usize]) {
 }
 
 fn check(it: &Interpreter, name: &str, want: &[(f64, f64)], tol: f64) {
+    // Large-order cancellation (legendre(40, ..)) differs in the last digits between math libraries.
+    let tol = if cfg!(windows) { tol } else { tol.max(1e-11) };
     let Value::Num(m) = value(it, name) else { panic!("{name} is not numeric") };
     assert_eq!(m.numel(), want.len(), "{name}");
     for (k, &(wr, wi)) in want.iter().enumerate() {

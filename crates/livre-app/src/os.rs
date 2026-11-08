@@ -143,7 +143,12 @@ mod imp {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "macos")]
+mod imp {
+    pub use crate::macos::{cursor_pos, left_button_down, Under, Window};
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
 mod imp {
     use raw_window_handle::HasWindowHandle;
 
@@ -183,3 +188,19 @@ mod imp {
 }
 
 pub use imp::*;
+
+/// Shortcut text in the platform's style: `Ctrl+Shift+S` becomes `⇧⌘S` on macOS.
+pub fn keys(s: &str) -> String {
+    #[cfg(target_os = "macos")]
+    {
+        // Ctrl+` and Ctrl+Tab stay on the Control key (Cmd+` and Cmd+Tab belong to macOS).
+        if s.contains("Ctrl+`") || s.contains("Ctrl+Tab") {
+            return s.replace("Ctrl+", "⌃");
+        }
+        s.replace("Ctrl+Alt+", "⌥⌘").replace("Ctrl+Shift+", "⇧⌘").replace("Ctrl+C", "⌘.").replace("Ctrl+", "⌘").replace("Alt+", "⌥")
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        s.to_string()
+    }
+}

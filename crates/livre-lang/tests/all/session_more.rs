@@ -20,6 +20,22 @@ fn shown(src: &str) -> Vec<String> {
 
 #[test]
 fn environment_queries() {
+    // `memory` exists on Windows only, as in MATLAB.
+    let mut want: Vec<&str> = vec![
+            "g = logical\n   0",
+            "p = logical\n   0",
+            "ans = 'cell'",
+            "ans = 'cell'",
+            "ans = 'cell'",
+    ];
+    if cfg!(windows) {
+        want.extend([
+            "ans = 3×1 cell\n\n    {'MaxPossibleArrayBytes'}\n    {'MemAvailableAllArrays'}\n    {'MemUsedMATLAB'        }",
+            "ans = 3×1 cell\n\n    {'VirtualAddressSpace'}\n    {'SystemMemory'       }\n    {'PhysicalMemory'     }",
+            "ans = 2×1 cell\n\n    {'Available'}\n    {'Total'    }",
+        ]);
+    }
+    want.push("Function 'SUPERIORTO' can only be called from within a method.\n");
     assert_eq!(
         shown(concat!(
             "g = canUseGPU\np = canUseParallelPool\nmore on\nmore off\nmore(20)\n",
@@ -27,17 +43,7 @@ fn environment_queries() {
             "if ispc, [uv, sv] = memory; fieldnames(uv), fieldnames(sv), fieldnames(sv.PhysicalMemory), end\n",
             "try, superiorto('double'), catch e, disp(e.message), end\n",
         )),
-        [
-            "g = logical\n   0",
-            "p = logical\n   0",
-            "ans = 'cell'",
-            "ans = 'cell'",
-            "ans = 'cell'",
-            "ans = 3×1 cell\n\n    {'MaxPossibleArrayBytes'}\n    {'MemAvailableAllArrays'}\n    {'MemUsedMATLAB'        }",
-            "ans = 3×1 cell\n\n    {'VirtualAddressSpace'}\n    {'SystemMemory'       }\n    {'PhysicalMemory'     }",
-            "ans = 2×1 cell\n\n    {'Available'}\n    {'Total'    }",
-            "Function 'SUPERIORTO' can only be called from within a method.\n",
-        ]
+        want
     );
 }
 

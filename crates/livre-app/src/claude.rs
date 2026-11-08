@@ -13,6 +13,10 @@ pub fn find() -> Option<PathBuf> {
         dirs.push(PathBuf::from(&home).join(".local").join("bin"));
         dirs.push(PathBuf::from(&home).join(".claude").join("local"));
     }
+    #[cfg(target_os = "macos")]
+    for d in ["/opt/homebrew/bin", "/usr/local/bin"] {
+        dirs.push(PathBuf::from(d));
+    }
     if let Some(appdata) = std::env::var_os("APPDATA") {
         dirs.push(PathBuf::from(appdata).join("npm"));
     }
@@ -23,6 +27,12 @@ pub fn find() -> Option<PathBuf> {
 pub fn command(exe: &std::path::Path) -> Command {
     let mut c = Command::new(exe);
     c.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
+    #[cfg(target_os = "macos")]
+    {
+        // An app started from Finder has a minimal PATH; Claude Code needs node and git on it.
+        let path = std::env::var("PATH").unwrap_or_default();
+        c.env("PATH", format!("/opt/homebrew/bin:/usr/local/bin:{path}"));
+    }
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;

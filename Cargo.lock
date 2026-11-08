@@ -2558,13 +2558,14 @@ checksum = "4744e383959f0db86ede514b809b1c53251889093803c05267acc7d4e7030d70"
 
 [[package]]
 name = "livre-app"
-version = "0.1.4"
+version = "0.1.2"
 dependencies = [
  "arboard",
  "eframe",
  "embed-resource",
  "livre-doc",
  "livre-lang",
+ "objc2 0.5.3",
  "raw-window-handle",
  "resvg",
  "rfd",
@@ -2575,7 +2576,7 @@ dependencies = [
 
 [[package]]
 name = "livre-doc"
-version = "0.1.4"
+version = "0.1.2"
 dependencies = [
  "quick-xml 0.36.2",
  "zip 2.6.1",
@@ -2583,7 +2584,7 @@ dependencies = [
 
 [[package]]
 name = "livre-lang"
-version = "0.1.4"
+version = "0.1.2"
 dependencies = [
  "arboard",
  "calamine",

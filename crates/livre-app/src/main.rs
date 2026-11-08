@@ -9,6 +9,8 @@ mod files;
 mod highlight;
 mod icons;
 mod mcp;
+#[cfg(target_os = "macos")]
+mod macos;
 mod os;
 mod plot;
 mod theme;
@@ -57,8 +59,13 @@ fn main() -> eframe::Result<()> {
         .with_inner_size(app::DEFAULT_SIZE)
         .with_min_inner_size(app::MIN_SIZE)
         .with_icon(std::sync::Arc::new(icons::window_icon()))
-        .with_decorations(false)
+        .with_decorations(cfg!(target_os = "macos"))
         .with_resizable(true);
+    #[cfg(target_os = "macos")]
+    {
+        // Native macOS window: traffic lights drawn over our tab bar, no title text.
+        viewport = viewport.with_fullsize_content_view(true).with_title_shown(false).with_titlebar_shown(false);
+    }
     if let Some(p) = at {
         viewport = viewport.with_position(p);
     }

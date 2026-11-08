@@ -326,6 +326,9 @@ pub struct App {
     rounded: bool,
     /// Tabs dropped here from other instances.
     incoming: Option<Receiver<PathBuf>>,
+    /// Files opened from Finder or the Dock (macOS).
+    #[cfg(target_os = "macos")]
+    open_files: Receiver<PathBuf>,
     /// Where the tab headers are, to tell a reorder from a tear-off.
     tab_row: Rect,
     files_open: bool,
@@ -507,6 +510,8 @@ impl App {
             window,
             rounded,
             incoming,
+            #[cfg(target_os = "macos")]
+            open_files: crate::macos::receive_open_files(&cc.egui_ctx),
             tab_row: Rect::NOTHING,
             files_open: layout.files_open,
             cmd_open: layout.cmd_open,
@@ -1798,7 +1803,7 @@ impl App {
         if pressed(sc(Modifiers::ALT, Key::Backslash)) {
             self.completion.force = true;
         }
-        if pressed(sc(Modifiers::CTRL, Key::L)) {
+        if pressed(sc(Modifiers::COMMAND, Key::L)) {
             self.chat_open = !self.chat_open;
             if self.chat_open {
                 ctx.memory_mut(|m| m.request_focus(Id::new("chat-input")));
@@ -1808,31 +1813,31 @@ impl App {
             self.menu = None;
             self.control_edit = None;
         }
-        if pressed(sc(Modifiers::CTRL | Modifiers::ALT, Key::Enter)) {
+        if pressed(sc(Modifiers::COMMAND | Modifiers::ALT, Key::Enter)) {
             self.insert_block(BlockKind::SectionBreak);
         }
-        if pressed(sc(Modifiers::CTRL | Modifiers::SHIFT, Key::Enter)) {
+        if pressed(sc(Modifiers::COMMAND | Modifiers::SHIFT, Key::Enter)) {
             self.run_and_advance();
         }
-        if pressed(sc(Modifiers::CTRL, Key::Enter)) {
+        if pressed(sc(Modifiers::COMMAND, Key::Enter)) {
             self.run_current_section();
         }
         if pressed(sc(Modifiers::NONE, Key::F5)) {
             self.run_all();
         }
-        if pressed(sc(Modifiers::CTRL | Modifiers::SHIFT, Key::S)) {
+        if pressed(sc(Modifiers::COMMAND | Modifiers::SHIFT, Key::S)) {
             self.save(true);
         }
-        if pressed(sc(Modifiers::CTRL, Key::S)) {
+        if pressed(sc(Modifiers::COMMAND, Key::S)) {
             self.save(false);
         }
-        if pressed(sc(Modifiers::CTRL, Key::O)) {
+        if pressed(sc(Modifiers::COMMAND, Key::O)) {
             self.open_dialog();
         }
-        if pressed(sc(Modifiers::CTRL | Modifiers::ALT, Key::N)) {
+        if pressed(sc(Modifiers::COMMAND | Modifiers::ALT, Key::N)) {
             self.new_doc(Kind::Script);
         }
-        if pressed(sc(Modifiers::CTRL, Key::N)) {
+        if pressed(sc(Modifiers::COMMAND, Key::N)) {
             self.new_doc(Kind::Live);
         }
         if pressed(sc(Modifiers::CTRL, Key::Backtick)) {
@@ -1844,10 +1849,10 @@ impl App {
         if pressed(sc(Modifiers::CTRL, Key::Tab)) {
             self.active = (self.active + 1) % self.tabs.len();
         }
-        if pressed(sc(Modifiers::CTRL, Key::W)) {
+        if pressed(sc(Modifiers::COMMAND, Key::W)) {
             self.close_tab(ctx, self.active);
         }
-        if self.running && pressed(sc(Modifiers::CTRL, Key::C)) && !ctx.wants_keyboard_input() {
+        if self.running && pressed(sc(Modifiers::COMMAND, if cfg!(target_os = "macos") { Key::Period } else { Key::C })) && !ctx.wants_keyboard_input() {
             self.engine.stop();
         }
     }
@@ -1908,11 +1913,16 @@ impl App {
                     ui.spacing_mut().item_spacing.x = 0.0;
                     ui.add_space(12.0);
                     let start = ui.cursor().left();
-                    app_logo(ui, &skin);
-                    ui.add_space(10.0);
-                    // The program name in the Windows caption style (12 px).
-                    ui.label(RichText::new("MatLivre").size(12.0).color(skin.text));
-                    ui.add_space(16.0);
+                    if cfg!(target_os = "macos") {
+                        // Room for the native traffic lights.
+                        ui.add_space(72.0);
+                    } else {
+                        app_logo(ui, &skin);
+                        ui.add_space(10.0);
+                        // The program name in the Windows caption style (12 px).
+                        ui.label(RichText::new("MatLivre").size(12.0).color(skin.text));
+                        ui.add_space(16.0);
+                    }
                     // Like the empty part of the bar, the icon and name move the window.
                     let mark = Rect::from_x_y_ranges(start..=ui.cursor().left(), ui.max_rect().y_range());
                     let resp = ui.interact(mark, ui.id().with("mark-drag"), Sense::click_and_drag());
@@ -1924,7 +1934,7 @@ impl App {
                     }
                     // Tabs take their natural width, and shrink alike when they do not fit
                     // beside the + button, a grab area and the caption buttons.
-                    let room = (ui.available_width() - 34.0 - 120.0 - 3.0 * 46.0).max(0.0);
+                    let room = (ui.available_width() - 34.0 - 120.0 - if cfg!(target_os = "macos") { 0.0 } else { 3.0 * 46.0 }).max(0.0);
                     let natural: Vec<f32> = self
                         .tabs
                         .iter()
@@ -1963,12 +1973,13 @@ impl App {
                         rects.push(r.body.rect);
                         ui.add_space(4.0);
                     }
-                    if widgets::add_tab_button(ui, &skin).on_hover_text("New live script (Ctrl+N)").clicked() {
+                    if widgets::add_tab_button(ui, &skin).on_hover_text(crate::os::keys("New live script (Ctrl+N)")).clicked() {
                         add = true;
                     }
                     self.tab_row = Rect::from_x_y_ranges(row_left..=ui.cursor().left(), ui.max_rect().y_range());
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         let maximized = ctx.input(|i| i.viewport().maximized.unwrap_or(false));
+                        if !cfg!(target_os = "macos") {
                         if widgets::caption_button(ui, &skin, Caption::Close).on_hover_text("Close").clicked() {
                             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                         }
@@ -1978,6 +1989,7 @@ impl App {
                         }
                         if widgets::caption_button(ui, &skin, Caption::Minimize).on_hover_text("Minimize").clicked() {
                             ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+                        }
                         }
                         // The rest of the bar drags the window.
                         let rect = ui.available_rect_before_wrap();
@@ -2031,12 +2043,12 @@ impl App {
                     let open = |m: Menu| self.menu.is_some_and(|(o, _)| o == m);
                     let r = widgets::cmd_button(ui, &skin, Some(Ic::New), file_label("New"), true, true, open(Menu::New)).on_hover_text("New live script or script");
                     self.toggle_menu(Menu::New, &r);
-                    if widgets::cmd_button(ui, &skin, Some(Ic::Open), file_label("Open"), true, false, false).on_hover_text("Open .mlx or .m (Ctrl+O)").clicked() {
+                    if widgets::cmd_button(ui, &skin, Some(Ic::Open), file_label("Open"), true, false, false).on_hover_text(crate::os::keys("Open .mlx or .m (Ctrl+O)")).clicked() {
                         self.menu = None;
                         self.open_dialog();
                     }
                     let open = |m: Menu| self.menu.is_some_and(|(o, _)| o == m);
-                    let r = widgets::cmd_button(ui, &skin, Some(Ic::Save), file_label("Save"), true, true, open(Menu::Save)).on_hover_text("Save (Ctrl+S), Save as, Export");
+                    let r = widgets::cmd_button(ui, &skin, Some(Ic::Save), file_label("Save"), true, true, open(Menu::Save)).on_hover_text(crate::os::keys("Save (Ctrl+S), Save as, Export"));
                     self.toggle_menu(Menu::Save, &r);
                     if live {
                         widgets::bar_divider(ui, &skin);
@@ -2047,11 +2059,11 @@ impl App {
                     }
                     widgets::bar_divider(ui, &skin);
                     let idle = !self.running;
-                    if widgets::cmd_button(ui, &skin, Some(Ic::Run), run_label("Run section"), idle, false, false).on_hover_text("Run the current section (Ctrl+Enter)").clicked() {
+                    if widgets::cmd_button(ui, &skin, Some(Ic::Run), run_label("Run section"), idle, false, false).on_hover_text(crate::os::keys("Run the current section (Ctrl+Enter)")).clicked() {
                         self.run_current_section();
                     }
                     if widgets::cmd_button(ui, &skin, Some(Ic::Advance), run_label("Run and advance"), idle, false, false)
-                        .on_hover_text("Run the section and move to the next (Ctrl+Shift+Enter)")
+                        .on_hover_text(crate::os::keys("Run the section and move to the next (Ctrl+Shift+Enter)"))
                         .clicked()
                     {
                         self.run_and_advance();
@@ -2059,20 +2071,20 @@ impl App {
                     if widgets::cmd_button(ui, &skin, Some(Ic::RunAll), run_label("Run all"), idle, false, false).on_hover_text("Run the whole script (F5)").clicked() {
                         self.run_all();
                     }
-                    if widgets::cmd_button(ui, &skin, Some(Ic::Stop), run_label("Stop"), self.running, false, false).on_hover_text("Stop execution (Ctrl+C)").clicked() {
+                    if widgets::cmd_button(ui, &skin, Some(Ic::Stop), run_label("Stop"), self.running, false, false).on_hover_text(crate::os::keys("Stop execution (Ctrl+C)")).clicked() {
                         self.engine.stop();
                     }
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         let more = more_button(ui, &skin, self.menu.is_some_and(|(o, _)| o == Menu::More)).on_hover_text("More");
                         self.toggle_menu(Menu::More, &more);
-                        if widgets::cmd_button(ui, &skin, Some(Ic::Chat), "", true, false, self.chat_open).on_hover_text("Show or hide Claude (Ctrl+L)").clicked() {
+                        if widgets::cmd_button(ui, &skin, Some(Ic::Chat), "", true, false, self.chat_open).on_hover_text(crate::os::keys("Show or hide Claude (Ctrl+L)")).clicked() {
                             self.chat_open = !self.chat_open;
                         }
                         if widgets::cmd_button(ui, &skin, Some(Ic::Workspace), "", true, false, self.ws_open).on_hover_text("Show or hide the workspace").clicked() {
                             self.ws_open = !self.ws_open;
                         }
                         if widgets::cmd_button(ui, &skin, Some(Ic::CmdPanel), "", true, false, self.cmd_open)
-                            .on_hover_text("Show or hide the command window (Ctrl+`)")
+                            .on_hover_text(crate::os::keys("Show or hide the command window (Ctrl+`)"))
                             .clicked()
                         {
                             self.cmd_open = !self.cmd_open;
@@ -2113,12 +2125,12 @@ impl App {
             };
             match m {
                 Menu::New => {
-                    item(ui, MenuEntry::new(Ic::Mlx, "Live script (.mlx)").shortcut("Ctrl+N"), MenuCmd::NewLive);
-                    item(ui, MenuEntry::new(Ic::MFile, "Script (.m)").shortcut("Ctrl+Alt+N"), MenuCmd::NewScript);
+                    item(ui, MenuEntry::new(Ic::Mlx, "Live script (.mlx)").shortcut(&crate::os::keys("Ctrl+N")), MenuCmd::NewLive);
+                    item(ui, MenuEntry::new(Ic::MFile, "Script (.m)").shortcut(&crate::os::keys("Ctrl+Alt+N")), MenuCmd::NewScript);
                 }
                 Menu::Save => {
-                    item(ui, MenuEntry::new(Ic::Save, "Save").shortcut("Ctrl+S"), MenuCmd::Save);
-                    item(ui, MenuEntry::new(Ic::SaveAs, "Save as…").shortcut("Ctrl+Shift+S"), MenuCmd::SaveAs);
+                    item(ui, MenuEntry::new(Ic::Save, "Save").shortcut(&crate::os::keys("Ctrl+S")), MenuCmd::Save);
+                    item(ui, MenuEntry::new(Ic::SaveAs, "Save as…").shortcut(&crate::os::keys("Ctrl+Shift+S")), MenuCmd::SaveAs);
                     widgets::menu_separator(ui, &skin);
                     item(ui, MenuEntry::new(Ic::ExportM, "Export as script (.m)…").enabled(live), MenuCmd::ExportM);
                     let pdf = widgets::menu_item(ui, &skin, MenuEntry::new(Ic::Pdf, "Export as PDF…").enabled(false), false);
@@ -2139,7 +2151,7 @@ impl App {
                     }
                     control_item = Some(r.rect);
                     widgets::menu_separator(ui, &skin);
-                    item(ui, MenuEntry::new(Ic::SectionBreak, "Section break").shortcut("Ctrl+Alt+Enter"), MenuCmd::Insert(BlockKind::SectionBreak));
+                    item(ui, MenuEntry::new(Ic::SectionBreak, "Section break").shortcut(&crate::os::keys("Ctrl+Alt+Enter")), MenuCmd::Insert(BlockKind::SectionBreak));
                 }
                 Menu::More => {
                     item(ui, MenuEntry::new(Ic::ClearOutput, "Clear all output"), MenuCmd::ClearOutput);
@@ -2237,7 +2249,7 @@ impl App {
                         let path = match &t.path {
                             Some(p) => {
                                 let parts: Vec<String> = p.iter().rev().take(2).map(|s| s.to_string_lossy().into_owned()).collect();
-                                parts.into_iter().rev().collect::<Vec<_>>().join("\\")
+                                parts.into_iter().rev().collect::<Vec<_>>().join(std::path::MAIN_SEPARATOR_STR)
                             }
                             None => "Not saved".into(),
                         };
@@ -2443,7 +2455,7 @@ impl App {
             egui::Frame::none().inner_margin(Margin { left: 4.0, right: 4.0, top: 16.0, bottom: 0.0 }).show(&mut ui, |ui| {
                 ui.spacing_mut().item_spacing.y = 4.0;
                 ui.add(egui::Label::new(RichText::new("Variables appear here after you run code.").color(skin.text_secondary)).wrap());
-                ui.add(egui::Label::new(RichText::new("Press Ctrl+Enter to run the current section, or F5 to run all.").size(12.0).color(skin.text_tertiary)).wrap());
+                ui.add(egui::Label::new(RichText::new(crate::os::keys("Press Ctrl+Enter to run the current section, or F5 to run all.")).size(12.0).color(skin.text_tertiary)).wrap());
             });
             return;
         }
@@ -2693,6 +2705,9 @@ impl App {
 
     /// Resize handles for the borderless window.
     fn window_edges(&self, ctx: &egui::Context) {
+        if cfg!(target_os = "macos") {
+            return; // the native window resizes itself
+        }
         let maximized = ctx.input(|i| i.viewport().maximized.unwrap_or(false));
         if maximized {
             return;
@@ -2725,6 +2740,13 @@ impl App {
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.remember_layout(ctx);
+        #[cfg(target_os = "macos")]
+        {
+            let files: Vec<PathBuf> = self.open_files.try_iter().collect();
+            for p in files {
+                self.open_path(p);
+            }
+        }
         let received: Vec<PathBuf> = self.incoming.as_ref().map(|rx| rx.try_iter().collect()).unwrap_or_default();
         for m in received {
             self.receive(&m);
@@ -2762,7 +2784,7 @@ impl eframe::App for App {
         self.window_edges(ctx);
         self.confirm_dialog(ctx);
         // The window frame where DWM does not draw it (the window is borderless).
-        if !self.rounded && !ctx.input(|i| i.viewport().maximized.unwrap_or(false)) {
+        if !cfg!(target_os = "macos") && !self.rounded && !ctx.input(|i| i.viewport().maximized.unwrap_or(false)) {
             let r = ctx.screen_rect();
             ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, Id::new("border")))
                 .rect_stroke(r.shrink(0.5), Rounding::ZERO, Stroke::new(1.0_f32, self.skin.frame));
@@ -2778,6 +2800,12 @@ fn rgb(c: Color32) -> [u8; 3] {
 /// folder (`%APPDATA%\matlivre`) then records.
 /// The per-user app data folder (`%APPDATA%\matlivre`).
 pub(crate) fn app_dir() -> Option<PathBuf> {
+    #[cfg(target_os = "macos")]
+    if std::env::var_os("APPDATA").is_none() {
+        if let Some(h) = std::env::var_os("HOME") {
+            return Some(PathBuf::from(h).join("Library").join("Application Support").join("matlivre"));
+        }
+    }
     let base = std::env::var_os("APPDATA")
         .or_else(|| std::env::var_os("XDG_CONFIG_HOME"))
         .map(PathBuf::from)
@@ -2953,7 +2981,7 @@ fn live_view(ui: &mut Ui, tab: &mut Tab, v: &mut View) -> Vec<Action> {
         if has_code && !v.running && (v.hover_section == Some(si) || si == current_section) {
             let r = Rect::from_min_size(pos2(gutter_x + 2.0, top + 2.0), vec2(24.0, 24.0));
             let mut child = ui.new_child(UiBuilder::new().max_rect(r));
-            if widgets::tool_button(&mut child, &skin, Ic::RunSmall, 14.0, &format!("Run section {} (Ctrl+Enter)", si + 1)).clicked() {
+            if widgets::tool_button(&mut child, &skin, Ic::RunSmall, 14.0, &crate::os::keys(&format!("Run section {} (Ctrl+Enter)", si + 1))).clicked() {
                 actions.push(Action::RunSection(si));
                 if let Some(first) = range.clone().find(|&i| tab.doc.blocks[i].kind == BlockKind::Code) {
                     actions.push(Action::Focus(first));
@@ -3004,7 +3032,7 @@ fn block_ui(ui: &mut Ui, tab: &mut Tab, i: usize, content_w: f32, v: &mut View, 
         let mut child = ui.new_child(UiBuilder::new().max_rect(tb).layout(Layout::left_to_right(Align::Center)));
         toolbar_frame(&skin).show(&mut child, |ui| {
             ui.spacing_mut().item_spacing.x = 2.0;
-            if widgets::tool_button(ui, &skin, Ic::RunSmall, 14.0, "Run section (Ctrl+Enter)").clicked() && !v.running {
+            if widgets::tool_button(ui, &skin, Ic::RunSmall, 14.0, &crate::os::keys("Run section (Ctrl+Enter)")).clicked() && !v.running {
                 actions.push(Action::RunSection(section));
             }
             toolbar_separator(ui, &skin);
@@ -3614,7 +3642,7 @@ fn script_view(ui: &mut Ui, tab: &mut Tab, v: &mut View) -> Option<usize> {
                         if !v.running && (v.hover_section == Some(si) || si == current) {
                             let br = Rect::from_min_size(pos2(x0 + 6.0, r.top() - 2.0), vec2(24.0, 24.0));
                             let mut c = ui.new_child(UiBuilder::new().max_rect(br));
-                            if widgets::tool_button(&mut c, &skin, Ic::RunSmall, 14.0, &format!("Run section {} (Ctrl+Enter)", si + 1)).clicked() {
+                            if widgets::tool_button(&mut c, &skin, Ic::RunSmall, 14.0, &crate::os::keys(&format!("Run section {} (Ctrl+Enter)", si + 1))).clicked() {
                                 run = Some(si);
                                 tab.current = line;
                             }
