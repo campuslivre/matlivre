@@ -162,7 +162,7 @@ fn platform_and_java_queries() {
             "try, version('-foo'), catch e, disp(e.message), end\n",
         )),
         [
-            "m = logical\n   0",
+            &format!("m = logical\n   {}", if cfg!(target_os = "macos") { 1 } else { 0 }),
             &format!("p = logical\n   {}", if cfg!(windows) { 1 } else { 0 }),
             "st = logical\n   0",
             "uj = logical\n   0",

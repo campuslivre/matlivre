@@ -20,22 +20,24 @@ fn shown(src: &str) -> Vec<String> {
 
 #[test]
 fn search_path_functions() {
+    // A path with no pathsep character in it: ":" splits "C:\\..." on macOS and Linux.
+    let missing = if cfg!(windows) { "C:\\no\\such\\dir" } else { "/no/such/dir" };
     assert_eq!(
-        shown(concat!(
+        shown(&concat!(
             "d1 = tempname; d2 = tempname; mkdir(d1); mkdir(d2);\n",
             "addpath(d1); addpath(d2, '-end'); parts = strsplit(path, pathsep);\n",
             "isequal(parts{1}, d1), isequal(parts{end}, d2)\n",
             "rmpath(d1); any(strcmp(strsplit(path, pathsep), d1))\n",
-            "rmpath('C:\\no\\such\\dir')\n",
+            "rmpath('MISSING')\n",
             "p = path(d1, path); q = strsplit(path, pathsep); isequal(q{1}, d1), isequal(p, matlabpath)\n",
             "restoredefaultpath; isempty(path)\n",
             "rmdir(d1); rmdir(d2);\n",
-        )),
+        ).replace("MISSING", missing)),
         [
             "ans = logical\n   1",
             "ans = logical\n   1",
             "ans = logical\n   0",
-            "Warning: \"C:\\no\\such\\dir\" not found in path.",
+            &format!("Warning: \"{missing}\" not found in path."),
             "ans = logical\n   1",
             "ans = logical\n   1",
             "ans = logical\n   1",

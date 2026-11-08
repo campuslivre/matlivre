@@ -17,6 +17,8 @@ title = "MatLivre"
 # Also released for Linux: built in WSL, packaged as an AppImage (the icon is a PNG).
 linux = true
 linux-icon = "assets/matlivre.png"
+# Also released for macOS: built by .github/workflows/macos.yml on a GitHub macOS runner (a .dmg on the release).
+macos = true
 file-types = [
     { extension = "mlx", description = "MatLivre Live Script", icon = "assets/mlx.ico" },
     { extension = "m", description = "MatLivre Script", icon = "assets/m.ico" },
@@ -35,6 +37,9 @@ serde_json = "1"
 
 [build-dependencies]
 embed-resource = "3"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.5"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_UI_WindowsAndMessaging", "Win32_UI_Input_KeyboardAndMouse", "Win32_Storage_FileSystem", "Win32_Graphics_Dwm", "Win32_UI_Controls", "Win32_UI_HiDpi", "Win32_System_LibraryLoader"] }

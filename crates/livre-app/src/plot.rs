@@ -363,10 +363,16 @@ fn svg_document(ctx: &egui::Context, skin: &Skin, fig: &Figure, size: Vec2, hove
     c.clip(None);
     let (w, h) = (num(size.x), num(size.y));
     format!(
-        r#"<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}" font-family="Segoe UI" xml:space="preserve"><g transform="scale({s})">{}</g></svg>"#,
+        r#"<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}" font-family="{SANS}" xml:space="preserve"><g transform="scale({s})">{}</g></svg>"#,
         c.out
     )
 }
+
+/// The sans-serif family figures are drawn in.
+#[cfg(target_os = "macos")]
+const SANS: &str = "Helvetica Neue";
+#[cfg(not(target_os = "macos"))]
+const SANS: &str = "Segoe UI";
 
 fn fontdb() -> Arc<usvg::fontdb::Database> {
     static DB: OnceLock<Arc<usvg::fontdb::Database>> = OnceLock::new();
@@ -379,14 +385,14 @@ fn fontdb() -> Arc<usvg::fontdb::Database> {
             }
         }
         db.load_system_fonts();
-        db.set_sans_serif_family("Segoe UI");
+        db.set_sans_serif_family(SANS);
         Arc::new(db)
     })
     .clone()
 }
 
 fn rasterize(svg: &str, size: Vec2, scale: f32) -> Result<tiny_skia::Pixmap, String> {
-    let opt = usvg::Options { fontdb: fontdb(), font_family: "Segoe UI".into(), ..Default::default() };
+    let opt = usvg::Options { fontdb: fontdb(), font_family: SANS.into(), ..Default::default() };
     let tree = usvg::Tree::from_str(svg, &opt).map_err(|e| e.to_string())?;
     let (w, h) = ((size.x * scale).round() as u32, (size.y * scale).round() as u32);
     let mut pm = tiny_skia::Pixmap::new(w, h).ok_or("invalid figure size")?;

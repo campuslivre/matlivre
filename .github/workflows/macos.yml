@@ -1,0 +1,43 @@
+# Builds the macOS app (universal: Apple Silicon and Intel) and attaches the .dmg to a release.
+# Started by Release Manager after it publishes a release; can also be run by hand from the Actions tab.
+name: macOS release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to build and attach the .dmg to (for example v0.1.5)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  dmg:
+    runs-on: macos-14
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+
+      - name: Stamp the release version
+        # The tag may be on a commit from before the version was stamped; build-mac.sh names the app after Cargo.toml.
+        run: |
+          v="${TAG#v}"
+          perl -0pi -e 's/^version = "[^"]*"/version = "'"$v"'"/m' Cargo.toml
+          grep -m1 '^version' Cargo.toml
+        env:
+          TAG: ${{ inputs.tag }}
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build MatLivre.app and the .dmg
+        run: ./build-mac.sh --universal --dmg
+
+      - name: Attach the .dmg to the release
+        run: gh release upload "$TAG" dist/*.dmg --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}

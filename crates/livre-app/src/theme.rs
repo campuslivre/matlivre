@@ -340,6 +340,23 @@ pub fn install_fonts(ctx: &egui::Context) {
     let load = |names: &[&str]| -> Option<Vec<u8>> { names.iter().find_map(|n| std::fs::read(dir.join(n)).ok()) };
 
     let mut semibold_family = vec![];
+    #[cfg(target_os = "macos")]
+    {
+        // macOS: Menlo for code and Apple Symbols as a glyph fallback; the UI keeps egui's
+        // San Francisco system font.
+        if let Ok(mono) = std::fs::read("/System/Library/Fonts/Menlo.ttc") {
+            fonts.font_data.insert("code".into(), FontData::from_owned(mono));
+            fonts.families.entry(FontFamily::Monospace).or_default().insert(0, "code".into());
+        }
+        if let Ok(ui) = std::fs::read("/System/Library/Fonts/SFNS.ttf") {
+            fonts.font_data.insert("ui".into(), FontData::from_owned(ui));
+            fonts.families.entry(FontFamily::Proportional).or_default().insert(0, "ui".into());
+        }
+        if let Ok(sym) = std::fs::read("/System/Library/Fonts/Apple Symbols.ttf") {
+            fonts.font_data.insert("symbols".into(), FontData::from_owned(sym));
+            fonts.families.entry(FontFamily::Proportional).or_default().push("symbols".into());
+        }
+    }
     if let Some(ui) = load(&["SegUIVar.ttf", "segoeui.ttf"]) {
         fonts.font_data.insert("ui".into(), FontData::from_owned(ui));
         fonts.families.entry(FontFamily::Proportional).or_default().insert(0, "ui".into());

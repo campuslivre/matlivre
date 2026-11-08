@@ -85,6 +85,12 @@ pub(crate) fn pref_path() -> std::path::PathBuf {
     if let Ok(d) = std::env::var("MATLIVRE_PREFDIR") {
         return std::path::PathBuf::from(d).join("matlivreprefs.mat");
     }
+    #[cfg(target_os = "macos")]
+    if std::env::var_os("APPDATA").is_none() {
+        if let Ok(h) = std::env::var("HOME") {
+            return std::path::PathBuf::from(h).join("Library").join("Application Support").join("matlivre").join("matlivreprefs.mat");
+        }
+    }
     let base = std::env::var("APPDATA")
         .map(std::path::PathBuf::from)
         .or_else(|_| std::env::var("XDG_CONFIG_HOME").map(std::path::PathBuf::from))

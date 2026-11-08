@@ -26,6 +26,21 @@ of MATLAB, written in Rust: no MATLAB installation, license or Java runtime is n
 - **One small program.** A single 36 MB executable that depends only on DLLs shipped with
   Windows.
 
+## macOS
+
+MatLivre runs natively on macOS (Apple Silicon and Intel): a native window with traffic lights,
+San Francisco and Menlo fonts, ⌘ shortcuts (⌘↩ run section, ⇧⌘↩ run and advance, ⌘N / ⌘O / ⌘S,
+⌘L Claude panel, ⌘. stop), tabs dragged between windows, and files opened from Finder or the Dock.
+Install Rust from <https://rustup.rs>, then:
+
+```bash
+./build-mac.sh        # release build, creates dist/MatLivre.app
+open dist/MatLivre.app
+```
+
+`./build-mac.sh fast` builds quicker while developing. Settings live in
+`~/Library/Application Support/matlivre`.
+
 ## Performance
 
 All measurements on the same machine: Intel Core i5-10600K (6 cores / 12 threads), 24 GB RAM,
