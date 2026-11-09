@@ -1563,7 +1563,13 @@ fn object_title(it: &mut Interpreter, id: u64, t: Target) -> String {
         }
         // MATLAB names the object by its Tag, else its DisplayName: `Line (data1)`.
         _ => {
-            let label = ["Tag", "DisplayName"].iter().find_map(|p| get_prop(it, id, p).ok().and_then(|v| v.text().ok()).filter(|s| !s.is_empty()));
+            // The command window names an axes by its title: `Axes (Squares)`.
+            let titled = if it.command_window && class.ends_with(".Axes") {
+                get_prop(it, id + Part::Title as u64, "String").ok().and_then(|v| v.text().ok()).filter(|s| !s.is_empty())
+            } else {
+                None
+            };
+            let label = titled.or_else(|| ["Tag", "DisplayName"].iter().find_map(|p| get_prop(it, id, p).ok().and_then(|v| v.text().ok()).filter(|s| !s.is_empty())));
             match label {
                 Some(l) => format!("{} ({l})", short(class)),
                 None => short(class).to_string(),
@@ -1624,6 +1630,10 @@ pub fn display(it: &mut Interpreter, name: &str, v: &Value) -> R<String> {
         s.set(p, v);
     }
     let body = crate::display::struct_fields_body(&s, it.format);
+    if it.command_window {
+        // The command window: blank line first, `Show all properties` last (a link there).
+        return Ok(format!("\n{name} = \n\n  {title} with properties:\n\n{body}\n  Show all properties\n"));
+    }
     Ok(format!("{name} = \n  {title} with properties:\n\n{body}\n  Use GET to show all properties"))
 }
 

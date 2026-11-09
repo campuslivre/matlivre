@@ -8,14 +8,14 @@ use crate::lexer::{tokenize, Kw, Tok, Token};
 
 pub fn parse(src: &str) -> Result<Program, LangError> {
     let toks = tokenize(src)?;
-    let mut p = Parser { toks, pos: 0, index_depth: 0 };
+    let mut p = Parser { toks, pos: 0, index_depth: 0, anon_depth: 0 };
     p.program()
 }
 
 /// Parses a single expression (property defaults, `str2func`).
 pub fn parse_expr(src: &str) -> Result<Expr, LangError> {
     let toks = tokenize(src)?;
-    let mut p = Parser { toks, pos: 0, index_depth: 0 };
+    let mut p = Parser { toks, pos: 0, index_depth: 0, anon_depth: 0 };
     let e = p.expr()?;
     p.skip_newlines();
     if !matches!(p.peek(), Tok::Eof) {
@@ -29,6 +29,8 @@ struct Parser {
     pos: usize,
     /// > 0 while parsing index arguments, where `end` and bare `:` are values.
     index_depth: usize,
+    /// > 0 inside an anonymous function's body, where parentheses are kept as `Expr::Paren`.
+    anon_depth: usize,
 }
 
 type PResult<T> = Result<T, LangError>;
@@ -751,7 +753,7 @@ impl Parser {
                 self.expect_op(")")?;
                 // Parenthesized expressions are values: `(a)(1)` is not supported, but
                 // wrapping keeps `(x)'` correct.
-                Ok(e)
+                Ok(if self.anon_depth > 0 { Expr::Paren(Box::new(e)) } else { e })
             }
             Tok::Op("[") => Ok(Expr::Matrix(self.matrix_rows("]")?)),
             Tok::Op("{") => Ok(Expr::Cell(self.matrix_rows("}")?)),
@@ -769,9 +771,13 @@ impl Parser {
                     self.bump();
                     let saved = self.index_depth;
                     self.index_depth = 0;
-                    let body = self.expr()?;
+                    self.anon_depth += 1;
+                    let body = self.expr();
+                    self.anon_depth -= 1;
+                    let body = body?;
                     self.index_depth = saved;
                     let text = format!("@({}){}", params.join(","), unparse(&body));
+                    let body = strip_parens(body);
                     Ok(Expr::AnonFn(Rc::new(AnonFn { params, body, text })))
                 } else {
                     match self.bump() {
@@ -873,6 +879,26 @@ fn to_lvalue(e: Expr, line: usize) -> PResult<LValue> {
     Ok(LValue::Target { name, chain: acc })
 }
 
+/// The expression without its `Paren` nodes (they only serve to render an anonymous function's text).
+fn strip_parens(e: Expr) -> Expr {
+    let b = |x: Box<Expr>| Box::new(strip_parens(*x));
+    let l = |v: Vec<Expr>| v.into_iter().map(strip_parens).collect::<Vec<_>>();
+    let m = |r: Vec<Vec<Expr>>| r.into_iter().map(|row| row.into_iter().map(strip_parens).collect()).collect::<Vec<Vec<Expr>>>();
+    match e {
+        Expr::Paren(x) => strip_parens(*x),
+        Expr::Unary(op, x) => Expr::Unary(op, b(x)),
+        Expr::Binary(op, x, y) => Expr::Binary(op, b(x), b(y)),
+        Expr::Range(x, s, y) => Expr::Range(b(x), s.map(b), b(y)),
+        Expr::Index(x, a) => Expr::Index(b(x), l(a)),
+        Expr::CellIndex(x, a) => Expr::CellIndex(b(x), l(a)),
+        Expr::Field(x, f) => Expr::Field(b(x), f),
+        Expr::DynField(x, f) => Expr::DynField(b(x), b(f)),
+        Expr::Matrix(r) => Expr::Matrix(m(r)),
+        Expr::Cell(r) => Expr::Cell(m(r)),
+        other => other,
+    }
+}
+
 /// Source-like rendering of an expression (used to display anonymous functions).
 pub fn unparse(e: &Expr) -> String {
     fn list(v: &[Expr]) -> String {
@@ -898,13 +924,9 @@ pub fn unparse(e: &Expr) -> String {
             UnOp::CTranspose => format!("{}'", unparse(x)),
             UnOp::Transpose => format!("{}.'", unparse(x)),
         },
-        Expr::Binary(op, a, b) => {
-            let wrap = |x: &Expr| match x {
-                Expr::Binary(..) | Expr::Range(..) => format!("({})", unparse(x)),
-                _ => unparse(x),
-            };
-            format!("{}{}{}", wrap(a), op.symbol(), wrap(b))
-        }
+        // The parentheses that were typed are `Paren` nodes; none are added.
+        Expr::Binary(op, a, b) => format!("{}{}{}", unparse(a), op.symbol(), unparse(b)),
+        Expr::Paren(x) => format!("({})", unparse(x)),
         Expr::Range(a, s, b) => match s {
             Some(s) => format!("{}:{}:{}", unparse(a), unparse(s), unparse(b)),
             None => format!("{}:{}", unparse(a), unparse(b)),

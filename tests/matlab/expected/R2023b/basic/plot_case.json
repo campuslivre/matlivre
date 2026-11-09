@@ -1,0 +1,351 @@
+{
+  "header": {
+    "release": "2023b",
+    "version": "23.2.0.2409890 (R2023b) Update 3",
+    "computer": "PCWIN64",
+    "recorded": "2026-11-08"
+  },
+  "log": "",
+  "error": {
+    "identifier": "",
+    "message": ""
+  },
+  "lastwarn": {
+    "message": "",
+    "identifier": ""
+  },
+  "variables": {
+    "ax": {
+      "class": "matlab.graphics.axis.Axes",
+      "size": [
+        1,
+        1
+      ],
+      "value": {
+        "kind": "object",
+        "class": "matlab.graphics.axis.Axes",
+        "size": [
+          1,
+          1
+        ],
+        "text": "<Unrecognized function or variable 'v'.>"
+      },
+      "display": "\nax = \n\n  <a href=\"matlab:helpPopup matlab.graphics.axis.Axes\" style=\"font-weight:bold\">Axes</a> (Squares) with properties:\n\n             XLim: [0 2]\n             YLim: [0 4]\n           XScale: 'linear'\n           YScale: 'linear'\n    GridLineStyle: '-'\n         Position: [0.1300 0.1100 0.7750 0.8150]\n            Units: 'normalized'\n\n  Show <a href=\"matlab:if exist('ax', 'var'), matlab.graphics.internal.getForDisplay('ax', ax, 'matlab.graphics.axis.Axes'), else, matlab.graphics.internal.getForDisplay('ax'), end\">all properties</a>\n\n"
+    },
+    "h": {
+      "class": "matlab.graphics.chart.primitive.Line",
+      "size": [
+        1,
+        1
+      ],
+      "value": {
+        "kind": "object",
+        "class": "matlab.graphics.chart.primitive.Line",
+        "size": [
+          1,
+          1
+        ],
+        "text": "<Unrecognized function or variable 'v'.>"
+      },
+      "display": "\nh = \n\n  <a href=\"matlab:helpPopup matlab.graphics.chart.primitive.Line\" style=\"font-weight:bold\">Line</a> with properties:\n\n              Color: [0 0.4470 0.7410]\n          LineStyle: '-'\n          LineWidth: 0.5000\n             Marker: 'none'\n         MarkerSize: 6\n    MarkerFaceColor: 'none'\n              XData: [0 0.5000 1 1.5000 2]\n              YData: [0 0.2500 1 2.2500 4]\n\n  Show <a href=\"matlab:if exist('h', 'var'), matlab.graphics.internal.getForDisplay('h', h, 'matlab.graphics.chart.primitive.Line'), else, matlab.graphics.internal.getForDisplay('h'), end\">all properties</a>\n\n"
+    },
+    "x": {
+      "class": "double",
+      "size": [
+        1,
+        5
+      ],
+      "value": {
+        "kind": "numeric",
+        "class": "double",
+        "sparse": false,
+        "size": [
+          1,
+          5
+        ],
+        "real": [
+          "0000000000000000",
+          "3fe0000000000000",
+          "3ff0000000000000",
+          "3ff8000000000000",
+          "4000000000000000"
+        ]
+      },
+      "display": "\nx =\n\n         0    0.5000    1.0000    1.5000    2.0000\n\n"
+    }
+  },
+  "figures": [
+    {
+      "type": "figure",
+      "Name": {
+        "kind": "char",
+        "size": [
+          0,
+          0
+        ],
+        "rows": [
+          ""
+        ]
+      },
+      "NumberTitle": {
+        "kind": "char",
+        "size": [
+          1,
+          2
+        ],
+        "rows": [
+          "on"
+        ]
+      },
+      "Color": {
+        "kind": "numeric",
+        "class": "double",
+        "sparse": false,
+        "size": [
+          1,
+          3
+        ],
+        "real": [
+          "3fee147ae147ae14",
+          "3fee147ae147ae14",
+          "3fee147ae147ae14"
+        ]
+      },
+      "children": [
+        {
+          "type": "axes",
+          "XLim": {
+            "kind": "numeric",
+            "class": "double",
+            "sparse": false,
+            "size": [
+              1,
+              2
+            ],
+            "real": [
+              "0000000000000000",
+              "4000000000000000"
+            ]
+          },
+          "YLim": {
+            "kind": "numeric",
+            "class": "double",
+            "sparse": false,
+            "size": [
+              1,
+              2
+            ],
+            "real": [
+              "0000000000000000",
+              "4010000000000000"
+            ]
+          },
+          "ZLim": {
+            "kind": "numeric",
+            "class": "double",
+            "sparse": false,
+            "size": [
+              1,
+              2
+            ],
+            "real": [
+              "bff0000000000000",
+              "3ff0000000000000"
+            ]
+          },
+          "XScale": {
+            "kind": "char",
+            "size": [
+              1,
+              6
+            ],
+            "rows": [
+              "linear"
+            ]
+          },
+          "YScale": {
+            "kind": "char",
+            "size": [
+              1,
+              6
+            ],
+            "rows": [
+              "linear"
+            ]
+          },
+          "Visible": {
+            "kind": "char",
+            "size": [
+              1,
+              2
+            ],
+            "rows": [
+              "on"
+            ]
+          },
+          "Color": {
+            "kind": "numeric",
+            "class": "double",
+            "sparse": false,
+            "size": [
+              1,
+              3
+            ],
+            "real": [
+              "3ff0000000000000",
+              "3ff0000000000000",
+              "3ff0000000000000"
+            ]
+          },
+          "LineWidth": {
+            "kind": "numeric",
+            "class": "double",
+            "sparse": false,
+            "size": [
+              1,
+              1
+            ],
+            "real": [
+              "3fe0000000000000"
+            ]
+          },
+          "Title": {
+            "kind": "char",
+            "size": [
+              1,
+              7
+            ],
+            "rows": [
+              "Squares"
+            ]
+          },
+          "XLabel": {
+            "kind": "char",
+            "size": [
+              1,
+              1
+            ],
+            "rows": [
+              "x"
+            ]
+          },
+          "YLabel": {
+            "kind": "char",
+            "size": [
+              1,
+              1
+            ],
+            "rows": [
+              "y"
+            ]
+          },
+          "children": [
+            {
+              "type": "line",
+              "XData": {
+                "kind": "numeric",
+                "class": "double",
+                "sparse": false,
+                "size": [
+                  1,
+                  5
+                ],
+                "real": [
+                  "0000000000000000",
+                  "3fe0000000000000",
+                  "3ff0000000000000",
+                  "3ff8000000000000",
+                  "4000000000000000"
+                ]
+              },
+              "YData": {
+                "kind": "numeric",
+                "class": "double",
+                "sparse": false,
+                "size": [
+                  1,
+                  5
+                ],
+                "real": [
+                  "0000000000000000",
+                  "3fd0000000000000",
+                  "3ff0000000000000",
+                  "4002000000000000",
+                  "4010000000000000"
+                ]
+              },
+              "ZData": {
+                "kind": "numeric",
+                "class": "double",
+                "sparse": false,
+                "size": [
+                  1,
+                  0
+                ],
+                "real": []
+              },
+              "LineStyle": {
+                "kind": "char",
+                "size": [
+                  1,
+                  1
+                ],
+                "rows": [
+                  "-"
+                ]
+              },
+              "LineWidth": {
+                "kind": "numeric",
+                "class": "double",
+                "sparse": false,
+                "size": [
+                  1,
+                  1
+                ],
+                "real": [
+                  "3fe0000000000000"
+                ]
+              },
+              "Marker": {
+                "kind": "char",
+                "size": [
+                  1,
+                  4
+                ],
+                "rows": [
+                  "none"
+                ]
+              },
+              "Color": {
+                "kind": "numeric",
+                "class": "double",
+                "sparse": false,
+                "size": [
+                  1,
+                  3
+                ],
+                "real": [
+                  "0000000000000000",
+                  "3fdc9ba5e353f7cf",
+                  "3fe7b645a1cac083"
+                ]
+              },
+              "Visible": {
+                "kind": "char",
+                "size": [
+                  1,
+                  2
+                ],
+                "rows": [
+                  "on"
+                ]
+              },
+              "children": []
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "nfigures": 1
+}

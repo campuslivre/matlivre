@@ -3140,12 +3140,17 @@ fn call_dense(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize) 
             if !(v.numel() == 0 && matches!(v, Value::Num(_))) {
                 s.push('\n');
             }
+            // The command window ends the display of a number or matrix with a blank line.
+            if it.command_window && matches!(v, Value::Num(m) if m.kind != crate::value::Kind::Char && !m.is_empty()) {
+                s.push('\n');
+            }
             it.emit(OutputKind::Text(s));
             none()
         }
         "display" => {
             let v = arg(a, 0, name)?;
-            let text = crate::display::display_value("ans", v, it.format);
+            let cw = if it.command_window { crate::display::display_value_cw("ans", v, it.format) } else { None };
+            let text = cw.unwrap_or_else(|| crate::display::display_value("ans", v, it.format));
             it.emit(OutputKind::Value { name: "ans".into(), text });
             none()
         }
