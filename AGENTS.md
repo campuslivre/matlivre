@@ -49,6 +49,9 @@ runs each case in MatLivre and diffs it against them.
   does (`x =`, blank line, `     5`, blank line) instead of the Live Editor style (`x = 5`) the
   app uses. Types `display_value_cw` (`display.rs`) does not cover yet fall back to the Live
   Editor style and so fail until they are added.
+- `command_window` also selects the batch defaults of properties the Live Editor starts
+  differently (figure `Visible`, axes `Box`; see `default_value` and `Axes::box_on`). The app
+  keeps the Live Editor's.
 - The comparer drops only what is not behaviour: line endings, MATLAB's `<a href>` link markup
   and warning bold markers, call-stack lines, trailing blanks. Figure windows' display is left
   out (it shows the screen-dependent window position).

@@ -6,7 +6,7 @@ function difftest_run(dt__casefile, dt__outfile)
 %   it displays) and the graphics tree of the open figures. Names starting with dt__ are this
 %   function's own and are left out of the snapshot.
 dt__resetState();
-dt__code = fileread(dt__casefile);
+dt__code = fileread(dt__casefile, 'Encoding', 'UTF-8');
 dt__log = [dt__outfile '.log'];
 if exist(dt__log, 'file'), delete(dt__log); end
 dt__err = struct('identifier', '', 'message', '');
@@ -41,10 +41,11 @@ for dt__k = 1:numel(dt__names)
     dt__vars.(dt__n) = struct('class', class(dt__v), 'size', size(dt__v), ...
         'value', dt__enc(dt__v), 'display', '');
     try
-        if isa(dt__v, 'matlab.ui.Figure')
-            dt__vars.(dt__n).display = '<figure: its display shows the window position, which depends on the screen>';
-        else
-            dt__vars.(dt__n).display = evalc(dt__n);
+        dt__vars.(dt__n).display = evalc(dt__n);
+        % A graphics object's Position follows the screen (figures) or the size of its text
+        % (axes and legends, whose layout uses font metrics): leave that one line out.
+        if strncmp(class(dt__v), 'matlab.graphics', 15) || strncmp(class(dt__v), 'matlab.ui', 9)
+            dt__vars.(dt__n).display = regexprep(dt__vars.(dt__n).display, '\n *Position: [^\n]*', '');
         end
     catch dt__ME
         dt__vars.(dt__n).display = ['<' dt__ME.message '>'];
@@ -143,9 +144,13 @@ switch g.type
     case 'figure'
         props = {'Name', 'NumberTitle', 'Color'};   % not Visible: MatLivre shows figures inline
     case 'axes'
-        props = {'XLim', 'YLim', 'ZLim', 'XScale', 'YScale', 'Visible', 'Color', 'LineWidth'};
-    case {'line', 'scatter', 'stairs', 'stem', 'bar', 'area', 'surface', 'patch'}
+        props = {'XLim', 'YLim', 'ZLim', 'XScale', 'YScale', 'XGrid', 'YGrid', 'ZGrid', 'Box', 'Visible', 'Color', 'LineWidth'};
+    case {'line', 'stairs', 'stem', 'bar', 'area', 'surface', 'patch'}
         props = {'XData', 'YData', 'ZData', 'LineStyle', 'LineWidth', 'Marker', 'Color', 'Visible'};
+    case 'scatter'
+        props = {'XData', 'YData', 'ZData', 'SizeData', 'CData', 'Marker', 'MarkerFaceColor', 'MarkerEdgeColor', 'LineWidth', 'Visible'};
+    case 'legend'
+        props = {'String', 'Location', 'Orientation', 'Box', 'Visible'};
     case 'text'
         props = {'String', 'Position', 'Visible'};
     otherwise

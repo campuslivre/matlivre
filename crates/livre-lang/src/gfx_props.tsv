@@ -20,7 +20,7 @@ matlab.ui.Figure	InnerPosition	[680 458 560 420]
 matlab.ui.Figure	Units	'pixels'
 matlab.ui.Figure	Renderer	'opengl'
 matlab.ui.Figure	RendererMode	'auto'
-matlab.ui.Figure	Visible	'on'
+matlab.ui.Figure	Visible	'off'
 matlab.ui.Figure	Color	[0.94 0.94 0.94]
 matlab.ui.Figure	CloseRequestFcn	'closereq'
 matlab.ui.Figure	CurrentAxes	<matlab.graphics.axis.Axes [1 1]>

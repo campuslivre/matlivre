@@ -717,10 +717,18 @@ impl Parser {
         Ok(out)
     }
 
+    /// A number literal; inside an anonymous function it keeps the text as typed.
+    fn literal(&self, e: Expr) -> Expr {
+        match (&self.toks[self.pos - 1].text, self.anon_depth > 0) {
+            (Some(t), true) => Expr::Lit(Box::new(e), t.clone()),
+            _ => e,
+        }
+    }
+
     fn primary(&mut self) -> PResult<Expr> {
         match self.bump() {
-            Tok::Num(n) => Ok(Expr::Num(n)),
-            Tok::Imag(n) => Ok(Expr::Imag(n)),
+            Tok::Num(n) => Ok(self.literal(Expr::Num(n))),
+            Tok::Imag(n) => Ok(self.literal(Expr::Imag(n))),
             Tok::Chars(s) => Ok(Expr::Chars(s)),
             Tok::Str(s) => Ok(Expr::Str(s)),
             Tok::Ident(n) => {
@@ -886,6 +894,7 @@ fn strip_parens(e: Expr) -> Expr {
     let m = |r: Vec<Vec<Expr>>| r.into_iter().map(|row| row.into_iter().map(strip_parens).collect()).collect::<Vec<Vec<Expr>>>();
     match e {
         Expr::Paren(x) => strip_parens(*x),
+        Expr::Lit(x, _) => *x,
         Expr::Unary(op, x) => Expr::Unary(op, b(x)),
         Expr::Binary(op, x, y) => Expr::Binary(op, b(x), b(y)),
         Expr::Range(x, s, y) => Expr::Range(b(x), s.map(b), b(y)),
@@ -927,6 +936,7 @@ pub fn unparse(e: &Expr) -> String {
         // The parentheses that were typed are `Paren` nodes; none are added.
         Expr::Binary(op, a, b) => format!("{}{}{}", unparse(a), op.symbol(), unparse(b)),
         Expr::Paren(x) => format!("({})", unparse(x)),
+        Expr::Lit(_, text) => text.clone(),
         Expr::Range(a, s, b) => match s {
             Some(s) => format!("{}:{}:{}", unparse(a), unparse(s), unparse(b)),
             None => format!("{}:{}", unparse(a), unparse(b)),

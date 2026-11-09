@@ -1548,7 +1548,7 @@ impl Interpreter {
             },
             Expr::Colon => Ok(Value::chars(":")),
             Expr::Tilde => rt("'~' is only valid on the left side of an assignment."),
-            Expr::Paren(e) => self.eval(e),
+            Expr::Paren(e) | Expr::Lit(e, _) => self.eval(e),
             Expr::Matrix(rows) => self.eval_matrix(rows),
             Expr::Cell(rows) => self.eval_cell(rows),
             Expr::AnonFn(f) => {

@@ -89,7 +89,7 @@ fn normalize(v: &mut J, key: &str) {
 
 fn short(v: &J) -> String {
     let s = v.to_string();
-    if s.chars().count() > 140 { format!("{}...", s.chars().take(140).collect::<String>()) } else { s }
+    if s.chars().count() > 140 && std::env::var_os("MATLIVRE_DIFFTEST_ALL").is_none() { format!("{}...", s.chars().take(140).collect::<String>()) } else { s }
 }
 
 fn diff(path: &str, ours: &J, matlab: &J, out: &mut Vec<String>) {
@@ -183,8 +183,10 @@ fn cases_match_matlab_snapshots() {
         if diffs.is_empty() {
             passed += 1;
         } else {
-            let more = diffs.len().saturating_sub(12);
-            diffs.truncate(12);
+            // MATLIVRE_DIFFTEST_ALL=1 lists every difference, not the first 12.
+            let limit = if std::env::var_os("MATLIVRE_DIFFTEST_ALL").is_some() { usize::MAX } else { 12 };
+            let more = diffs.len().saturating_sub(limit);
+            diffs.truncate(limit);
             let mut msg = format!("{rel}:\n  {}", diffs.join("\n  "));
             if more > 0 {
                 msg.push_str(&format!("\n  ... and {more} more"));

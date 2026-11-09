@@ -48,7 +48,7 @@
         ],
         "text": "<Unrecognized function or variable 'v'.>"
       },
-      "display": "<figure: its display shows the window position, which depends on the screen>"
+      "display": "\nf = \n\n  <a href=\"matlab:helpPopup matlab.ui.Figure\" style=\"font-weight:bold\">Figure</a> (1) with properties:\n\n      Number: 1\n        Name: ''\n       Color: [0.9400 0.9400 0.9400]\n       Units: 'pixels'\n\n  Show <a href=\"matlab:if exist('f', 'var'), matlab.graphics.internal.getForDisplay('f', f, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('f'), end\">all properties</a>\n\n"
     },
     "isc": {
       "class": "logical",

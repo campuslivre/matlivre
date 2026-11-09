@@ -5,7 +5,7 @@
     "computer": "PCWIN64",
     "recorded": "2026-11-08"
   },
-  "log": "\nx =\n\n   Inf\n\n[\bWarning: Careful 7]\b \n[\b> In difftest_run (line 15)\nIn dt_driver (line 7)\nIn run (line 99)]\b \n\ny =\n\n     2\n\n",
+  "log": "\nx =\n\n   Inf\n\n[\bWarning: Careful 7]\b \n[\b> In difftest_run (line 15)\nIn dt_driver (line 8)\nIn run (line 99)]\b \n\ny =\n\n     2\n\n",
   "error": {
     "identifier": "",
     "message": ""
