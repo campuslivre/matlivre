@@ -915,10 +915,20 @@ impl Interpreter {
             }
             if let Some(m) = crate::class::enum_name(o) {
                 let short = o.class.name.rsplit('.').next().unwrap_or(&o.class.name);
-                let text = format!("{name} = 
+                let text = if self.command_window {
+                    format!("
+{name} =
+
   {short} enumeration
 
-    {m}");
+    {m}
+")
+                } else {
+                    format!("{name} = 
+  {short} enumeration
+
+    {m}")
+                };
                 self.emit(OutputKind::Value { name: name.to_string(), text });
                 return Ok(());
             }

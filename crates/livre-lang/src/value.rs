@@ -748,6 +748,7 @@ impl Value {
                 Some(t) => Ok(t.clone()),
                 None => rt("Missing string values are not supported here."),
             },
+            Value::Object(o) if crate::class::on_off_text(o).is_some() => Ok(crate::class::on_off_text(o).unwrap_or_default()),
             _ => rt(format!("Expected text but got a value of class '{}'.", self.class_name())),
         }
     }
@@ -757,6 +758,7 @@ impl Value {
         match self {
             Value::Num(m) => Ok(!m.is_empty() && (0..m.numel()).all(|i| (m.data[i] != 0.0 && !m.data[i].is_nan()) || m.im_at(i) != 0.0)),
             Value::Sym(s) => s.truth(),
+            Value::Object(o) if crate::class::on_off_text(o).is_some() => Ok(crate::class::on_off_text(o).as_deref() == Some("on")),
             _ => rt(format!("Conversion to logical from {} is not possible.", self.class_name())),
         }
     }

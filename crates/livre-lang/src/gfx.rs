@@ -539,6 +539,11 @@ fn to_u8(c: [f64; 3]) -> [u8; 3] {
 }
 
 fn on_off(v: &Value) -> R<bool> {
+    if let Value::Object(o) = v {
+        if let Some(t) = crate::class::on_off_text(o) {
+            return Ok(t == "on");
+        }
+    }
     if v.is_text() || matches!(v, Value::Str(_)) {
         return match v.text()?.to_lowercase().as_str() {
             "on" => Ok(true),
@@ -677,8 +682,33 @@ pub fn format_tick(format: Option<&str>, v: f64) -> String {
     }
 }
 
+/// The graphics properties MATLAB holds as `matlab.lang.OnOffSwitchState` (the others that show
+/// `on`/`off`, such as `HandleVisibility`, are text).
+const ON_OFF_PROPS: &[&str] = &[
+    "AffectAutoLimits", "AlignVertexCenters", "AutoUpdate", "BeingDeleted", "Box", "Clipping", "DockControls", "Editing",
+    "FitBoxToText", "FontSmoothing", "GraphicsSmoothing", "HitTest", "Horizontal", "IntegerHandle", "Interruptible",
+    "InvertHardcopy", "NumberTitle", "Resize", "Scrollable", "Selected", "SelectionHighlight", "ShowBaseLine", "Visible",
+    "XGrid", "XMinorGrid", "XMinorTick", "YGrid", "YMinorGrid", "YMinorTick", "ZGrid", "ZMinorGrid", "ZMinorTick",
+];
+
 /// Property `name` (MATLAB's spelling) of handle `id`.
 pub(crate) fn get_prop(it: &mut Interpreter, id: u64, name: &str) -> R<Value> {
+    let v = get_prop_raw(it, id, name)?;
+    if ON_OFF_PROPS.contains(&name) {
+        if let Value::Num(m) = &v {
+            if m.kind == crate::value::Kind::Char {
+                match m.to_string_lossy().as_str() {
+                    "on" => return Ok(crate::class::on_off_switch(true)),
+                    "off" => return Ok(crate::class::on_off_switch(false)),
+                    _ => {}
+                }
+            }
+        }
+    }
+    Ok(v)
+}
+
+fn get_prop_raw(it: &mut Interpreter, id: u64, name: &str) -> R<Value> {
     let t = resolve(it, id).ok_or_else(|| LangError::new("Invalid or deleted object.", 0))?;
     let class = class_of(it, t);
     // Charts keep their own properties; their drawn parts are rebuilt from them.
@@ -731,10 +761,11 @@ fn computed(it: &mut Interpreter, id: u64, t: Target, name: &str) -> R<Option<Va
             "Number" => Value::num(it.figures[f].id as f64),
             "Colormap" => colormap_value(it.figures[f].colormap.clone().unwrap_or_else(|| graphics::colormap("parula", 256).unwrap_or_default())),
             "Children" => {
-                let n = it.figures[f].axes.len();
+                let n = if it.figures[f].has_axes() { it.figures[f].axes.len() } else { 0 };
                 let ids: Vec<u64> = (0..n).rev().map(|a| axes_id(it, f, a)).collect();
                 handles(it, &ids)
             }
+            "CurrentAxes" if !it.figures[f].has_axes() => handles(it, &[]),
             "CurrentAxes" => {
                 let a = it.figures[f].current_axes;
                 let id = axes_id(it, f, a);
