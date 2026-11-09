@@ -2,6 +2,7 @@
 
 pub mod algebra;
 pub mod calculus;
+pub mod codegen;
 pub mod dae;
 pub mod expr;
 pub mod forms;
@@ -481,7 +482,7 @@ pub fn unary(op: UnOp, v: &Value) -> R<Value> {
 /// Functions that exist only for symbolic inputs.
 pub const NAMES: &[&str] = &[
     "syms", "sym", "symvar", "subs", "int", "limit", "taylor", "simplify", "expand", "collect", "numden", "coeffs", "sym2poly", "poly2sym", "solve",
-    "vpa", "digits", "latex", "pretty", "matlabFunction", "fplot", "isAlways", "jacobian", "lhs", "rhs", "assume", "assumeAlso", "symfun", "children",
+    "vpa", "digits", "latex", "ccode", "fortran", "pretty", "matlabFunction", "fplot", "isAlways", "jacobian", "lhs", "rhs", "assume", "assumeAlso", "symfun", "children",
 ];
 
 /// Elementwise functions that also accept numbers (dispatched here only for sym inputs).
@@ -1012,6 +1013,15 @@ pub fn call(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize) 
             one(Value::Str(StrArray::from_dims(s.dims.clone(), s.data.iter().map(|e| Some(e.to_string())).collect())))
         }
         "latex" => one(Value::chars(&print::latex(&expr_of_scalar(&args[0])?))),
+        "ccode" | "fortran" => {
+            let s = sym_arg(&args, 0)?;
+            if args.len() > 1 {
+                return rt(format!("{name}(f, options) is not supported; use {name}(f)."));
+            }
+            let lang = if name == "ccode" { codegen::Lang::C } else { codegen::Lang::Fortran };
+            let (r, c) = (s.dims[0], s.dims.get(1).copied().unwrap_or(1));
+            one(Value::chars(&codegen::generate(&s.data, r, c, lang)))
+        }
         "pretty" => {
             let s = sym_arg(&args, 0)?;
             it.emit(crate::interp::OutputKind::Text(format!("{}\n", s.disp())));
