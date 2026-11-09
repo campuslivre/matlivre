@@ -69,19 +69,57 @@ fn degree(e: &Expr) -> f64 {
     }
 }
 
-/// The name that breaks ties between terms of one degree: the variable or function a term
-/// starts with (`-x+y`, `asin(y)+cosh(x)`).
-fn sort_name(e: &Expr) -> String {
-    match e {
-        Expr::Var(v) => v.clone(),
-        Expr::Fn(f, _) => f.clone(),
-        Expr::Pow(b, _) => sort_name(b),
-        Expr::Mul(f) => f.iter().find(|x| !is_numeric(x)).map(sort_name).unwrap_or_default(),
-        _ => String::new(),
+/// A term as its variables (or functions) and their powers, by name: `x*y^2` is
+/// [(x, 1), (y, 2)]. Terms of one degree compare by it (`x*y + x^2 + y^2`, `-x+y`).
+fn monomial(e: &Expr) -> Vec<(String, f64)> {
+    let mut out: Vec<(String, f64)> = Vec::new();
+    let mut add = |name: String, p: f64| match out.iter_mut().find(|(n, _)| *n == name) {
+        Some(e) => e.1 += p,
+        None => out.push((name, p)),
+    };
+    fn walk(e: &Expr, scale: f64, add: &mut dyn FnMut(String, f64)) {
+        match e {
+            Expr::Var(v) => add(v.clone(), scale),
+            Expr::Fn(f, _) => add(f.clone(), scale),
+            Expr::Pow(b, x) => match x.as_num() {
+                Some(n) => walk(b, scale * n.to_f64().abs(), add),
+                None => walk(b, scale, add),
+            },
+            Expr::Mul(f) => f.iter().for_each(|x| walk(x, scale, add)),
+            Expr::Add(t) => t.iter().take(1).for_each(|x| walk(x, scale, add)),
+            _ => {}
+        }
     }
+    walk(e, 1.0, &mut add);
+    out.sort_by(|a, b| a.0.cmp(&b.0));
+    out
 }
 
-fn is_numeric(e: &Expr) -> bool {
+fn cmp_monomial(a: &Expr, b: &Expr) -> std::cmp::Ordering {
+    let (ma, mb) = (monomial(a), monomial(b));
+    for (x, y) in ma.iter().zip(&mb) {
+        let o = x.0.cmp(&y.0).then(x.1.partial_cmp(&y.1).unwrap_or(std::cmp::Ordering::Equal));
+        if o != std::cmp::Ordering::Equal {
+            return o;
+        }
+    }
+    ma.len().cmp(&mb.len())
+}
+
+/// The terms of a sum in MATLAB's internal order (the order of `char` and generated code):
+/// by degree with functions between degree one and two, ties by their variables and powers,
+/// numbers last.
+pub(crate) fn internal_order(terms: &[Expr]) -> Vec<Expr> {
+    let mut ts: Vec<Expr> = terms.to_vec();
+    ts.sort_by(|a, b| {
+        let ka = (is_numeric(a), degree(a));
+        let kb = (is_numeric(b), degree(b));
+        ka.partial_cmp(&kb).unwrap_or(std::cmp::Ordering::Equal).then_with(|| cmp_monomial(a, b))
+    });
+    ts
+}
+
+pub(crate) fn is_numeric(e: &Expr) -> bool {
     match e {
         Expr::Num(_) | Expr::Const(_) => true,
         Expr::Pow(b, x) => is_numeric(b) && is_numeric(x),
@@ -240,12 +278,7 @@ impl Gen {
             Expr::Num(n) => num_text(n, self.lang),
             Expr::Var(_) | Expr::Const(_) => self.atom(e),
             Expr::Add(terms) => {
-                let mut ts: Vec<&Expr> = terms.iter().collect();
-                ts.sort_by(|a, b| {
-                    let ka = (is_numeric(a), degree(a));
-                    let kb = (is_numeric(b), degree(b));
-                    ka.partial_cmp(&kb).unwrap_or(std::cmp::Ordering::Equal).then_with(|| sort_name(a).cmp(&sort_name(b)))
-                });
+                let ts = internal_order(terms);
                 let mut s = String::new();
                 for (k, t) in ts.iter().enumerate() {
                     let (neg, body) = self.term(t, k == 0);

@@ -1007,10 +1007,26 @@ pub fn call(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize) 
             it.emit(crate::interp::OutputKind::Text(format!("\nDigits = {old}\n\n")));
             Ok(Some(Vec::new()))
         }
-        "char" => one(Value::chars(&sym_arg(&args, 0)?.disp())),
+        "char" => {
+            let s = sym_arg(&args, 0)?;
+            // A matrix is one line: [a, b; c, d].
+            let text = print::with_char_order(|| {
+                if s.data.len() == 1 {
+                    return s.data[0].to_string();
+                }
+                if s.data.is_empty() || s.dims.len() > 2 {
+                    return s.disp();
+                }
+                let (r, c) = (s.dims[0], s.dims.get(1).copied().unwrap_or(1));
+                let rows: Vec<String> = (0..r).map(|i| (0..c).map(|j| s.data[j * r + i].to_string()).collect::<Vec<_>>().join(", ")).collect();
+                format!("[{}]", rows.join("; "))
+            });
+            one(Value::chars(&text))
+        }
         "string" => {
             let s = sym_arg(&args, 0)?;
-            one(Value::Str(StrArray::from_dims(s.dims.clone(), s.data.iter().map(|e| Some(e.to_string())).collect())))
+            let texts = print::with_char_order(|| s.data.iter().map(|e| Some(e.to_string())).collect());
+            one(Value::Str(StrArray::from_dims(s.dims.clone(), texts)))
         }
         "latex" => one(Value::chars(&print::latex(&expr_of_scalar(&args[0])?))),
         "ccode" | "fortran" => {
