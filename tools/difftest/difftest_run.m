@@ -79,7 +79,6 @@ rng default
 warning('on', 'all');
 warning('off', 'MATLAB:hg:AutoSoftwareOpenGL');   % VM artifact, not part of the case
 lastwarn('');
-cd(tempdir);
 end
 
 function t = dt__try(f, expr)

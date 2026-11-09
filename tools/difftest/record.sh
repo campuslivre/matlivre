@@ -55,7 +55,7 @@ i=0
 for c in "${cases[@]}"; do
   i=$((i+1)); id=$(printf 'c%03d' "$i")
   scp -q "$root/$c" "$host:$scp_dir/$work/$id.m"
-  echo "try, difftest_run(fullfile(here,'$id.m'), fullfile(here,'$id.json')); catch ME, disp(['FAILED $id: ' ME.message]); end" >> "$driver"
+  echo "try, cd(tempdir); difftest_run(fullfile(here,'$id.m'), fullfile(here,'$id.json')); catch ME, disp(['FAILED $id: ' ME.message]); end" >> "$driver"
 done
 scp -q "$driver" "$host:$scp_dir/$work/dt_driver.m"
 
