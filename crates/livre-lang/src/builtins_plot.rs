@@ -94,6 +94,7 @@ impl Interpreter {
     /// The handle of the current axes.
     pub(crate) fn current_axes_handle(&mut self) -> Value {
         let f = self.current_figure_index();
+        self.figures[f].axes_made = true;
         let a = self.figures[f].current_axes;
         let id = crate::gfx::axes_id(self, f, a);
         crate::gfx::handle(self, id)

@@ -343,6 +343,7 @@ pub fn call(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize) ->
                 let items: Vec<String> = (0..t.data.len()).map(|i| t.format_elem(i)).collect();
                 one(char_matrix(&items))
             }
+            Value::Object(o) if crate::class::on_off_text(o).is_some() => one(Value::chars(&crate::class::on_off_text(o).unwrap_or_default())),
             _ => rt("Conversion to char is not possible."),
         },
         "cellstr" => {

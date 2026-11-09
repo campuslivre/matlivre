@@ -722,15 +722,24 @@ pub struct Figure {
     pub next_tile: usize,
     /// `colororder` of the figure: used by axes without their own.
     pub color_order: Option<Vec<[f64; 3]>>,
+    /// False for a new figure: MATLAB makes the first axes only when something needs them
+    /// (`plot`, `gca`, `axes`, `subplot`), so `Children` is empty until then.
+    pub axes_made: bool,
 }
 
 impl Figure {
     pub fn new(id: u32) -> Self {
-        Self { id, name: String::new(), grid: (1, 1), axes: vec![Axes::default()], current_axes: 0, colormap: None, flow: false, objects: Vec::new(), next_tile: 0, color_order: None }
+        Self { id, name: String::new(), grid: (1, 1), axes: vec![Axes::default()], current_axes: 0, colormap: None, flow: false, objects: Vec::new(), next_tile: 0, color_order: None, axes_made: false }
     }
 
     pub fn axes_mut(&mut self) -> &mut Axes {
+        self.axes_made = true;
         &mut self.axes[self.current_axes]
+    }
+
+    /// Whether the figure has axes yet (a grid of several always does).
+    pub fn has_axes(&self) -> bool {
+        self.axes_made || self.axes.len() != 1
     }
 }
 
