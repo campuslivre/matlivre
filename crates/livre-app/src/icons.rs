@@ -60,6 +60,15 @@ pub enum Ic {
     Md,
     File,
     BrazilFlag,
+    /// The flag of the United States (English in the language menu).
+    UsFlag,
+    SpainFlag,
+    FranceFlag,
+    GermanyFlag,
+    ItalyFlag,
+    RussiaFlag,
+    ChinaFlag,
+    JapanFlag,
     /// The MatLivre app icon (its 16 px variant, for the title bar).
     AppMark,
 }
@@ -265,9 +274,89 @@ fn body(ic: Ic, bg: &str, fg: &str) -> String {
                 + &circle(8.0, 8.0, 2.6, "#002776")
                 + &l("M5.6 7.4C7 7 8.9 7.2 10.4 8.3", "#FFFFFF", 0.6)
         }
+        Ic::UsFlag => us_flag(),
+        Ic::SpainFlag => bands_h("es", ["#AA151B", "#F1BF00", "#AA151B"], [1.0, 2.0, 1.0]),
+        Ic::FranceFlag => bands_v("fr", ["#002654", "#FFFFFF", "#CE1126"]),
+        Ic::GermanyFlag => bands_h("de", ["#000000", "#DD0000", "#FFCE00"], [1.0, 1.0, 1.0]),
+        Ic::ItalyFlag => bands_v("it", ["#009246", "#FFFFFF", "#CE2B37"]),
+        Ic::RussiaFlag => bands_h("ru", ["#FFFFFF", "#0039A6", "#D52B1E"], [1.0, 1.0, 1.0]),
+        Ic::ChinaFlag => china_flag(),
+        Ic::JapanFlag => japan_flag(),
         // Drawn from its own document in `paint_with`.
         Ic::AppMark => String::new(),
     }
+}
+
+/// Thirteen stripes and the blue canton with a grid of stars, in the Brazil flag's 15 × 11 box.
+fn us_flag() -> String {
+    let (x, y, w, h) = (0.5_f32, 2.5_f32, 15.0_f32, 11.0_f32);
+    let stripe = h / 13.0;
+    let mut s = format!(r##"<defs><clipPath id="us"><rect x="{x}" y="{y}" width="{w}" height="{h}" rx="1.2"/></clipPath></defs><g clip-path="url(#us)"><rect x="{x}" y="{y}" width="{w}" height="{h}" fill="#B22234"/>"##);
+    for k in 0..6 {
+        let top = y + stripe * (2 * k + 1) as f32;
+        s += &format!(r##"<rect x="{x}" y="{top}" width="{w}" height="{stripe}" fill="#FFFFFF"/>"##);
+    }
+    let (cw, ch) = (w * 0.42, stripe * 7.0);
+    s += &format!(r##"<rect x="{x}" y="{y}" width="{cw}" height="{ch}" fill="#3C3B6E"/>"##);
+    for row in 0..3 {
+        for col in 0..4 {
+            let cx = x + cw * (col as f32 + 0.5) / 4.0;
+            let cy = y + ch * (row as f32 + 0.5) / 3.0;
+            s += &circle(cx, cy, 0.42, "#FFFFFF");
+        }
+    }
+    s + "</g>"
+}
+
+/// A flag in the Brazil flag's 15 x 11 box, its corners rounded by a clip.
+fn flag(id: &str, inner: &str) -> String {
+    format!(
+        r##"<defs><clipPath id="{id}"><rect x="0.5" y="2.5" width="15" height="11" rx="1.2"/></clipPath></defs><g clip-path="url(#{id})">{inner}</g><rect x="0.75" y="2.75" width="14.5" height="10.5" rx="1.05" fill="none" stroke="#000000" stroke-opacity="0.18" stroke-width="0.5"/>"##
+    )
+}
+
+/// Three horizontal bands, top to bottom (`weights` give their relative heights).
+fn bands_h(id: &str, colors: [&str; 3], weights: [f32; 3]) -> String {
+    let total: f32 = weights.iter().sum();
+    let mut y = 2.5;
+    let mut s = String::new();
+    for (c, w) in colors.iter().zip(weights) {
+        let h = 11.0 * w / total;
+        s += &format!(r#"<rect x="0.5" y="{y}" width="15" height="{h}" fill="{c}"/>"#);
+        y += h;
+    }
+    flag(id, &s)
+}
+
+/// Three equal vertical bands, left to right.
+fn bands_v(id: &str, colors: [&str; 3]) -> String {
+    let s: String = colors.iter().enumerate().map(|(k, c)| format!(r#"<rect x="{}" y="2.5" width="5" height="11" fill="{c}"/>"#, 0.5 + 5.0 * k as f32)).collect();
+    flag(id, &s)
+}
+
+/// A five-pointed star centred on (`cx`, `cy`), outer radius `r`, one point up.
+fn star(cx: f32, cy: f32, r: f32, fill: &str) -> String {
+    let pts: Vec<String> = (0..10)
+        .map(|k| {
+            let a = std::f32::consts::PI * (k as f32 / 5.0 - 0.5);
+            let rr = if k % 2 == 0 { r } else { r * 0.382 };
+            format!("{:.2},{:.2}", cx + rr * a.cos(), cy + rr * a.sin())
+        })
+        .collect();
+    format!(r#"<polygon points="{}" fill="{fill}"/>"#, pts.join(" "))
+}
+
+fn china_flag() -> String {
+    let mut s = r##"<rect x="0.5" y="2.5" width="15" height="11" fill="#EE1C25"/>"##.to_string();
+    s += &star(3.0, 5.2, 1.65, "#FFFF00");
+    for (x, y) in [(5.6, 3.6), (6.6, 4.7), (6.6, 6.1), (5.6, 7.2)] {
+        s += &star(x, y, 0.55, "#FFFF00");
+    }
+    flag("cn", &s)
+}
+
+fn japan_flag() -> String {
+    flag("jp", &(r##"<rect x="0.5" y="2.5" width="15" height="11" fill="#FFFFFF"/>"##.to_string() + &circle(8.0, 8.0, 3.2, "#BC002D")))
 }
 
 fn hex(c: Color32) -> String {

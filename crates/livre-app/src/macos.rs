@@ -9,6 +9,26 @@ use std::sync::{Mutex, OnceLock};
 use objc2::ffi;
 use objc2::runtime::{AnyClass, AnyObject, Sel};
 use objc2::{class, msg_send, sel};
+
+/// The first of the user's preferred languages (`pt-BR`, `en-US`).
+pub fn preferred_language() -> Option<String> {
+    unsafe {
+        let langs: *mut AnyObject = msg_send![class!(NSLocale), preferredLanguages];
+        if langs.is_null() {
+            return None;
+        }
+        let count: usize = msg_send![langs, count];
+        if count == 0 {
+            return None;
+        }
+        let s: *mut AnyObject = msg_send![langs, objectAtIndex: 0usize];
+        if s.is_null() {
+            return None;
+        }
+        let c: *const c_char = msg_send![s, UTF8String];
+        (!c.is_null()).then(|| CStr::from_ptr(c).to_string_lossy().into_owned())
+    }
+}
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
 #[repr(C)]

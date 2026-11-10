@@ -19,6 +19,7 @@ use crate::suggest::{self, Suggest};
 use crate::engine::{Command, Engine, Event, COMMAND_ID};
 use crate::mcp::{self, ToolResult};
 use crate::files::FileTree;
+use crate::i18n::{self, tr, trf, Lang};
 use crate::icons::{self, Ic};
 use crate::os;
 use crate::theme::{semibold, Skin, RADIUS, RADIUS_LARGE, TITLE_BAR_HEIGHT};
@@ -153,6 +154,8 @@ struct Completion {
     force: bool,
 }
 
+/// The title bar's language button (flag and chevron) with the space around it.
+const LANGUAGE_BUTTON: f32 = 62.0;
 const COMPLETION_PAUSE: Duration = Duration::from_millis(600);
 
 impl Tab {
@@ -231,6 +234,7 @@ enum Menu {
     Save,
     Insert,
     More,
+    Language,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -258,6 +262,7 @@ enum MenuCmd {
     ToggleCompletions,
     ConnectClaude,
     GettingStarted,
+    Language(Lang),
 }
 
 /// What is running and where its output goes.
@@ -376,6 +381,8 @@ pub struct App {
     suggest_seen: Option<Caret>,
     /// When open files were last compared with the disk.
     watched: Instant,
+    /// The interface language the user picked; `None` follows the system's.
+    language: Option<Lang>,
 }
 
 /// The window layout remembered between runs (`%APPDATA%\matlivre\settings.txt`, one
@@ -395,6 +402,8 @@ struct SavedLayout {
     completions: bool,
     /// The project folder shown in the Files panel.
     folder: Option<PathBuf>,
+    /// The interface language picked in the title bar; `None` follows the system's.
+    language: Option<Lang>,
 }
 
 impl Default for SavedLayout {
@@ -412,6 +421,7 @@ impl Default for SavedLayout {
             chat_w: 380.0,
             completions: true,
             folder: None,
+            language: None,
         }
     }
 }
@@ -443,6 +453,7 @@ impl SavedLayout {
                 "claude_width" => l.chat_w = size.unwrap_or(l.chat_w),
                 "completions" => l.completions = flag,
                 "folder" => l.folder = Some(PathBuf::from(v)).filter(|p| !v.is_empty() && p.is_dir()),
+                "language" => l.language = Lang::from_code(v),
                 _ => {}
             }
         }
@@ -452,7 +463,7 @@ impl SavedLayout {
     fn save(&self) {
         let Some(path) = SavedLayout::path() else { return };
         let text = format!(
-            "files_open={}\ncommand_open={}\nworkspace_open={}\nfiles_width={}\nworkspace_width={}\ncommand_height={}\noutput={}\ntheme={}\nclaude_open={}\nclaude_width={}\ncompletions={}\nfolder={}\n",
+            "files_open={}\ncommand_open={}\nworkspace_open={}\nfiles_width={}\nworkspace_width={}\ncommand_height={}\noutput={}\ntheme={}\nclaude_open={}\nclaude_width={}\ncompletions={}\nfolder={}\nlanguage={}\n",
             self.files_open,
             self.cmd_open,
             self.ws_open,
@@ -465,6 +476,7 @@ impl SavedLayout {
             self.chat_w.round(),
             self.completions,
             self.folder.as_deref().map(|p| p.display().to_string()).unwrap_or_default(),
+            self.language.map_or("", Lang::code),
         );
         if let Some(dir) = path.parent() {
             let _ = std::fs::create_dir_all(dir);
@@ -500,6 +512,11 @@ impl App {
             rx
         });
         let layout = SavedLayout::load();
+        let lang = layout.language.unwrap_or_else(Lang::system);
+        i18n::set(lang);
+        if lang.cjk() {
+            crate::theme::use_cjk(&cc.egui_ctx, Some(lang == Lang::Ja));
+        }
         let tree = FileTree::new(layout.folder.clone());
         let mut app = Self {
             skin,
@@ -555,6 +572,7 @@ impl App {
             suggest_seen: None,
             completion: Completion { on: layout.completions, ghost: None, seen: None, edited_at: None, asked: None, next_key: 1, force: false },
             watched: Instant::now(),
+            language: layout.language,
         };
         if layout.dark {
             app.set_dark(&cc.egui_ctx, true);
@@ -590,6 +608,7 @@ impl App {
             chat_w: self.chat_w,
             completions: self.completion.on,
             folder: self.tree.root().map(Path::to_path_buf),
+            language: self.language,
         }
     }
 
@@ -700,9 +719,9 @@ impl App {
                 m.surrender_focus(f);
             }
         });
-        let title = format!("Save changes to {}?", self.tabs[i].title());
-        let buttons = ["Save", "Don't save", "Cancel"];
-        let Some(answer) = widgets::content_dialog(ctx, &self.skin, Id::new("confirm"), &title, "Your changes will be lost if you don't save them.", &buttons) else {
+        let title = trf("Save changes to {}?", &[&self.tabs[i].title()]);
+        let buttons = [tr("Save"), tr("Don't save"), tr("Cancel")];
+        let Some(answer) = widgets::content_dialog(ctx, &self.skin, Id::new("confirm"), &title, tr("Your changes will be lost if you don't save them."), &buttons) else {
             return;
         };
         let Some(c) = self.confirm.take() else { return };
@@ -750,7 +769,7 @@ impl App {
                 let doc = if p.script { script_doc(&p.doc.blocks.iter().map(|b| b.text.as_str()).collect::<Vec<_>>().join("\n")) } else { p.doc };
                 self.add_tab(kind, doc, p.path, name, p.dirty);
             }
-            Err(e) => self.notice = Some((format!("Could not take the tab: {e}"), true)),
+            Err(e) => self.notice = Some((trf("Could not take the tab: {}", &[&e]), true)),
         }
     }
 
@@ -832,7 +851,7 @@ impl App {
             return;
         }
         if self.is_running_tab(self.tabs[i].id) {
-            self.notice = Some(("A tab cannot move to another window while its code is running.".into(), false));
+            self.notice = Some((tr("A tab cannot move to another window while its code is running.").into(), false));
             return;
         }
         // The only tab, let go over nothing: moving it to a new window is moving this one.
@@ -846,7 +865,7 @@ impl App {
         let manifest = match transfer::write(&tab.doc, tab.path.as_deref(), tab.dirty, &tab.name, tab.kind == Kind::Script) {
             Ok(m) => m,
             Err(e) => {
-                self.notice = Some((format!("Could not move the tab: {e}"), true));
+                self.notice = Some((trf("Could not move the tab: {}", &[&e]), true));
                 return;
             }
         };
@@ -857,7 +876,7 @@ impl App {
         if moved {
             self.remove_tab(ctx, i);
         } else {
-            self.notice = Some(("Could not move the tab to the other window.".into(), true));
+            self.notice = Some((tr("Could not move the tab to the other window.").into(), true));
         }
     }
 
@@ -896,7 +915,7 @@ impl App {
                 }
                 self.notice = None;
             }
-            Err(e) => self.notice = Some((format!("Could not open {}: {e}", p.display()), true)),
+            Err(e) => self.notice = Some((trf("Could not open {}: {}", &[&p.display(), &e]), true)),
         }
     }
 
@@ -912,9 +931,9 @@ impl App {
 
     fn open_dialog(&mut self) {
         if let Some(p) = rfd::FileDialog::new()
-            .add_filter("Live scripts and scripts", &["mlx", "m"])
-            .add_filter("Live script", &["mlx"])
-            .add_filter("Script", &["m"])
+            .add_filter(tr("Live scripts and scripts"), &["mlx", "m"])
+            .add_filter(tr("Live script"), &["mlx"])
+            .add_filter(tr("Script"), &["m"])
             .pick_file()
         {
             self.open_path(p);
@@ -928,7 +947,7 @@ impl App {
             (Some(p), false) => Some(p.clone()),
             _ => {
                 let d = rfd::FileDialog::new().set_file_name(self.tab().title());
-                let d = if script { d.add_filter("Script", &["m"]) } else { d.add_filter("Live script", &["mlx"]).add_filter("Script", &["m"]) };
+                let d = if script { d.add_filter(tr("Script"), &["m"]) } else { d.add_filter(tr("Live script"), &["mlx"]).add_filter(tr("Script"), &["m"]) };
                 d.save_file()
             }
         };
@@ -955,7 +974,7 @@ impl App {
                 true
             }
             Err(e) => {
-                self.notice = Some((format!("Could not save: {e}"), true));
+                self.notice = Some((trf("Could not save: {}", &[&e]), true));
                 false
             }
         }
@@ -964,9 +983,9 @@ impl App {
     fn export_m(&mut self) {
         let stem = self.tab().title();
         let stem = stem.rsplit_once('.').map_or(stem.as_str(), |(s, _)| s).to_string();
-        if let Some(p) = rfd::FileDialog::new().add_filter("Script", &["m"]).set_file_name(format!("{stem}.m")).save_file() {
+        if let Some(p) = rfd::FileDialog::new().add_filter(tr("Script"), &["m"]).set_file_name(format!("{stem}.m")).save_file() {
             if let Err(e) = std::fs::write(&p, livre_doc::write_m(&self.tab().doc)) {
-                self.notice = Some((format!("Could not export: {e}"), true));
+                self.notice = Some((trf("Could not export: {}", &[&e]), true));
             }
         }
     }
@@ -1438,7 +1457,7 @@ impl App {
 
     fn chat_send(&mut self, ctx: &egui::Context, text: String) {
         let Some(url) = self.mcp.as_ref().map(|m| m.dock_url.clone()) else {
-            self.chat.items.push(chat::Item::Error("MatLivre could not start its MCP server, which Claude needs.".into()));
+            self.chat.items.push(chat::Item::Error(tr("MatLivre could not start its MCP server, which Claude needs.").into()));
             return;
         };
         let t = self.tab();
@@ -1461,7 +1480,7 @@ impl App {
         let mut clear = false;
         let has_items = !self.chat.items.is_empty();
         Self::drawer_header(&mut ui, &skin, Some(Ic::Chat), "Claude", |ui| {
-            if has_items && widgets::tool_button(ui, &skin, Ic::New, 16.0, "New conversation").clicked() {
+            if has_items && widgets::tool_button(ui, &skin, Ic::New, 16.0, tr("New conversation")).clicked() {
                 clear = true;
             }
         });
@@ -1473,8 +1492,8 @@ impl App {
         if self.chat.exe().is_none() {
             let mut c = ui.new_child(UiBuilder::new().max_rect(body).layout(Layout::top_down(Align::Min)));
             c.spacing_mut().item_spacing.y = 6.0;
-            c.add(egui::Label::new(RichText::new("Claude Code is not installed on this computer.").color(skin.text)).wrap());
-            c.add(egui::Label::new(RichText::new("Install it from claude.com/claude-code and run claude once in a terminal to sign in. The panel uses that installation; no API key is needed.").size(12.0).color(skin.text_secondary)).wrap());
+            c.add(egui::Label::new(RichText::new(tr("Claude Code is not installed on this computer.")).color(skin.text)).wrap());
+            c.add(egui::Label::new(RichText::new(tr("Install it from claude.com/claude-code and run claude once in a terminal to sign in. The panel uses that installation; no API key is needed.")).size(12.0).color(skin.text_secondary)).wrap());
             return;
         }
         let composer_h = 92.0;
@@ -1496,7 +1515,7 @@ impl App {
                 chat::Action::Send(text) => self.chat_send(ui.ctx(), text),
                 chat::Action::Run(code) => {
                     if self.running {
-                        self.notice = Some(("Wait for the current run to finish.".into(), false));
+                        self.notice = Some((tr("Wait for the current run to finish.").into(), false));
                     } else {
                         self.cmd_open = true;
                         self.eval_command(&code);
@@ -1717,7 +1736,7 @@ impl App {
         let t = &mut self.tabs[self.active];
         let target = t.caret.and_then(|(id, range)| t.doc.index_of(id).map(|i| (i, range))).filter(|(i, _)| t.doc.blocks[*i].kind == BlockKind::Code);
         let Some((bi, range)) = target else {
-            self.notice = Some(("Click in a code block where the control should go, then insert it.".into(), false));
+            self.notice = Some((tr("Click in a code block where the control should go, then insert it.").into(), false));
             return;
         };
         let block = &mut t.doc.blocks[bi];
@@ -1805,7 +1824,7 @@ impl App {
                 self.control_edit = Some(ControlEdit { block: block.id, index, at: None, fields });
             }
         } else {
-            self.notice = Some(("A control cannot go there: it would overlap another control.".into(), false));
+            self.notice = Some((tr("A control cannot go there: it would overlap another control.").into(), false));
         }
     }
 
@@ -1950,11 +1969,15 @@ impl App {
                 let exe = std::env::current_exe().map(|p| p.display().to_string()).unwrap_or_else(|_| "matlivre".into());
                 ctx.copy_text(format!("claude mcp add matlivre -- \"{exe}\" --mcp"));
                 self.notice = Some((
-                    "Copied a command that adds MatLivre to Claude Code. Run it once in a terminal: Claude Code then works in this window's workspace and documents, or in a MatLivre without a window when none is open.".into(),
+                    tr("Copied a command that adds MatLivre to Claude Code. Run it once in a terminal: Claude Code then works in this window's workspace and documents, or in a MatLivre without a window when none is open.").into(),
                     false,
                 ));
             }
             MenuCmd::GettingStarted => self.getting_started(),
+            MenuCmd::Language(l) => {
+                self.language = Some(l);
+                i18n::set(l);
+            }
         }
     }
 
@@ -1963,6 +1986,14 @@ impl App {
     /// The title bar: app mark, the document tabs (TabStrip) and the caption buttons.
     fn title_bar(&mut self, ctx: &egui::Context) {
         let skin = self.skin.clone();
+        // The CJK fonts load when a CJK language is in use or the language menu shows the
+        // Chinese and Japanese names.
+        let lang = i18n::lang();
+        if lang.cjk() {
+            crate::theme::use_cjk(ctx, Some(lang == Lang::Ja));
+        } else if self.menu.is_some_and(|(m, _)| m == Menu::Language) {
+            crate::theme::use_cjk(ctx, None);
+        }
         let mut select = None;
         let mut close = None;
         let mut add = false;
@@ -1997,7 +2028,7 @@ impl App {
                     }
                     // Tabs take their natural width, and shrink alike when they do not fit
                     // beside the + button, a grab area and the caption buttons.
-                    let room = (ui.available_width() - 34.0 - 120.0 - if cfg!(target_os = "macos") { 0.0 } else { 3.0 * 46.0 }).max(0.0);
+                    let room = (ui.available_width() - 34.0 - 120.0 - LANGUAGE_BUTTON - if cfg!(target_os = "macos") { 0.0 } else { 3.0 * 46.0 }).max(0.0);
                     let natural: Vec<f32> = self
                         .tabs
                         .iter()
@@ -2036,24 +2067,30 @@ impl App {
                         rects.push(r.body.rect);
                         ui.add_space(4.0);
                     }
-                    if widgets::add_tab_button(ui, &skin).on_hover_text(crate::os::keys("New live script (Ctrl+N)")).clicked() {
+                    if widgets::add_tab_button(ui, &skin).on_hover_text(crate::os::keys(tr("New live script (Ctrl+N)"))).clicked() {
                         add = true;
                     }
                     self.tab_row = Rect::from_x_y_ranges(row_left..=ui.cursor().left(), ui.max_rect().y_range());
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         let maximized = ctx.input(|i| i.viewport().maximized.unwrap_or(false));
                         if !cfg!(target_os = "macos") {
-                        if widgets::caption_button(ui, &skin, Caption::Close).on_hover_text("Close").clicked() {
+                        if widgets::caption_button(ui, &skin, Caption::Close).on_hover_text(tr("Close")).clicked() {
                             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                         }
-                        let (mk, tip) = if maximized { (Caption::Restore, "Restore") } else { (Caption::Maximize, "Maximize") };
+                        let (mk, tip) = if maximized { (Caption::Restore, tr("Restore")) } else { (Caption::Maximize, tr("Maximize")) };
                         if widgets::caption_button(ui, &skin, mk).on_hover_text(tip).clicked() {
                             ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!maximized));
                         }
-                        if widgets::caption_button(ui, &skin, Caption::Minimize).on_hover_text("Minimize").clicked() {
+                        if widgets::caption_button(ui, &skin, Caption::Minimize).on_hover_text(tr("Minimize")).clicked() {
                             ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
                         }
                         }
+                        // The interface language: the current one's flag and a menu of both.
+                        ui.add_space(4.0);
+                        let open = self.menu.is_some_and(|(o, _)| o == Menu::Language);
+                        let r = widgets::cmd_button(ui, &skin, Some(i18n::lang().flag()), "", true, true, open).on_hover_text(tr("Language"));
+                        self.toggle_menu(Menu::Language, &r);
+                        ui.add_space(4.0);
                         // The rest of the bar drags the window.
                         let rect = ui.available_rect_before_wrap();
                         let resp = ui.interact(rect, ui.id().with("drag"), Sense::click_and_drag());
@@ -2091,11 +2128,11 @@ impl App {
         let skin = self.skin.clone();
         // Narrow windows drop labels (tooltips still name every command): first on the run
         // commands, then on the file commands.
+        let live = self.tab().kind == Kind::Live;
         let room = ctx.screen_rect().width() - 24.0;
-        let (short_run, short_file) = (room < 1220.0, room < 900.0);
+        let (short_run, short_file) = (room < command_bar_width(ctx, live, true, true), room < command_bar_width(ctx, live, false, true));
         let run_label = |s: &'static str| if short_run { "" } else { s };
         let file_label = |s: &'static str| if short_file { "" } else { s };
-        let live = self.tab().kind == Kind::Live;
         egui::TopBottomPanel::top("commands")
             .exact_height(48.0)
             .frame(egui::Frame::none().fill(skin.window).inner_margin(Margin { left: 12.0, right: 12.0, top: 0.0, bottom: 4.0 }))
@@ -2104,63 +2141,63 @@ impl App {
                 ui.horizontal_centered(|ui| {
                     ui.spacing_mut().item_spacing.x = 4.0;
                     let open = |m: Menu| self.menu.is_some_and(|(o, _)| o == m);
-                    let r = widgets::cmd_button(ui, &skin, Some(Ic::New), file_label("New"), true, true, open(Menu::New)).on_hover_text("New live script or script");
+                    let r = widgets::cmd_button(ui, &skin, Some(Ic::New), file_label(tr("New")), true, true, open(Menu::New)).on_hover_text(tr("New live script or script"));
                     self.toggle_menu(Menu::New, &r);
                     let open = |m: Menu| self.menu.is_some_and(|(o, _)| o == m);
-                    let r = widgets::cmd_button(ui, &skin, Some(Ic::Open), file_label("Open"), true, true, open(Menu::Open)).on_hover_text(crate::os::keys("Open a file (Ctrl+O) or a folder"));
+                    let r = widgets::cmd_button(ui, &skin, Some(Ic::Open), file_label(tr("Open")), true, true, open(Menu::Open)).on_hover_text(crate::os::keys(tr("Open a file (Ctrl+O) or a folder")));
                     self.toggle_menu(Menu::Open, &r);
                     let open = |m: Menu| self.menu.is_some_and(|(o, _)| o == m);
-                    let r = widgets::cmd_button(ui, &skin, Some(Ic::Save), file_label("Save"), true, true, open(Menu::Save)).on_hover_text(crate::os::keys("Save (Ctrl+S), Save as, Export"));
+                    let r = widgets::cmd_button(ui, &skin, Some(Ic::Save), file_label(tr("Save")), true, true, open(Menu::Save)).on_hover_text(crate::os::keys(tr("Save (Ctrl+S), Save as, Export")));
                     self.toggle_menu(Menu::Save, &r);
                     if live {
                         widgets::bar_divider(ui, &skin);
                         let open = |m: Menu| self.menu.is_some_and(|(o, _)| o == m);
-                        let r = widgets::cmd_button(ui, &skin, Some(Ic::Add), file_label("Insert"), true, true, open(Menu::Insert))
-                            .on_hover_text("Insert text, code, a heading or a section break");
+                        let r = widgets::cmd_button(ui, &skin, Some(Ic::Add), file_label(tr("Insert")), true, true, open(Menu::Insert))
+                            .on_hover_text(tr("Insert text, code, a heading or a section break"));
                         self.toggle_menu(Menu::Insert, &r);
                     }
                     widgets::bar_divider(ui, &skin);
                     let idle = !self.running;
-                    if widgets::cmd_button(ui, &skin, Some(Ic::Run), run_label("Run section"), idle, false, false).on_hover_text(crate::os::keys("Run the current section (Ctrl+Enter)")).clicked() {
+                    if widgets::cmd_button(ui, &skin, Some(Ic::Run), run_label(tr("Run section")), idle, false, false).on_hover_text(crate::os::keys(tr("Run the current section (Ctrl+Enter)"))).clicked() {
                         self.run_current_section();
                     }
-                    if widgets::cmd_button(ui, &skin, Some(Ic::Advance), run_label("Run and advance"), idle, false, false)
-                        .on_hover_text(crate::os::keys("Run the section and move to the next (Ctrl+Shift+Enter)"))
+                    if widgets::cmd_button(ui, &skin, Some(Ic::Advance), run_label(tr("Run and advance")), idle, false, false)
+                        .on_hover_text(crate::os::keys(tr("Run the section and move to the next (Ctrl+Shift+Enter)")))
                         .clicked()
                     {
                         self.run_and_advance();
                     }
-                    if widgets::cmd_button(ui, &skin, Some(Ic::RunAll), run_label("Run all"), idle, false, false).on_hover_text("Run the whole script (F5)").clicked() {
+                    if widgets::cmd_button(ui, &skin, Some(Ic::RunAll), run_label(tr("Run all")), idle, false, false).on_hover_text(tr("Run the whole script (F5)")).clicked() {
                         self.run_all();
                     }
-                    if widgets::cmd_button(ui, &skin, Some(Ic::Stop), run_label("Stop"), self.running, false, false).on_hover_text(crate::os::keys("Stop execution (Ctrl+C)")).clicked() {
+                    if widgets::cmd_button(ui, &skin, Some(Ic::Stop), run_label(tr("Stop")), self.running, false, false).on_hover_text(crate::os::keys(tr("Stop execution (Ctrl+C)"))).clicked() {
                         self.engine.stop();
                     }
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        let more = more_button(ui, &skin, self.menu.is_some_and(|(o, _)| o == Menu::More)).on_hover_text("More");
+                        let more = more_button(ui, &skin, self.menu.is_some_and(|(o, _)| o == Menu::More)).on_hover_text(tr("More"));
                         self.toggle_menu(Menu::More, &more);
-                        if widgets::cmd_button(ui, &skin, Some(Ic::Chat), "", true, false, self.chat_open).on_hover_text(crate::os::keys("Show or hide Claude (Ctrl+L)")).clicked() {
+                        if widgets::cmd_button(ui, &skin, Some(Ic::Chat), "", true, false, self.chat_open).on_hover_text(crate::os::keys(tr("Show or hide Claude (Ctrl+L)"))).clicked() {
                             self.chat_open = !self.chat_open;
                         }
-                        if widgets::cmd_button(ui, &skin, Some(Ic::Workspace), "", true, false, self.ws_open).on_hover_text("Show or hide the workspace").clicked() {
+                        if widgets::cmd_button(ui, &skin, Some(Ic::Workspace), "", true, false, self.ws_open).on_hover_text(tr("Show or hide the workspace")).clicked() {
                             self.ws_open = !self.ws_open;
                         }
                         if widgets::cmd_button(ui, &skin, Some(Ic::CmdPanel), "", true, false, self.cmd_open)
-                            .on_hover_text(crate::os::keys("Show or hide the command window (Ctrl+`)"))
+                            .on_hover_text(crate::os::keys(tr("Show or hide the command window (Ctrl+`)")))
                             .clicked()
                         {
                             self.cmd_open = !self.cmd_open;
                         }
-                        if widgets::cmd_button(ui, &skin, Some(Ic::FilesPanel), "", true, false, self.files_open).on_hover_text("Show or hide files").clicked() {
+                        if widgets::cmd_button(ui, &skin, Some(Ic::FilesPanel), "", true, false, self.files_open).on_hover_text(tr("Show or hide files")).clicked() {
                             self.files_open = !self.files_open;
                         }
                         if live {
                             widgets::bar_divider(ui, &skin);
-                            if let Some(i) = widgets::segmented(ui, &skin, &["Inline", "Right"], usize::from(self.output_right)) {
+                            if let Some(i) = widgets::segmented(ui, &skin, &[tr("Inline"), tr("Right")], usize::from(self.output_right)) {
                                 self.output_right = i == 1;
                             }
                             if !short_file {
-                                ui.label(RichText::new("Output").size(12.0).color(skin.text_secondary));
+                                ui.label(RichText::new(tr("Output")).size(12.0).color(skin.text_secondary));
                             }
                         }
                     });
@@ -2175,7 +2212,12 @@ impl App {
         let live = self.tab().kind == Kind::Live;
         let dark = skin.dark;
         let width = if m == Menu::Insert { 300.0 } else { 240.0 };
-        let pos = if m == Menu::More { pos2(anchor.right() - width, anchor.top() + 36.0) } else { pos2(anchor.left(), anchor.top() + 36.0) };
+        let width = if m == Menu::Language { 200.0 } else { width };
+        let pos = match m {
+            Menu::More => pos2(anchor.right() - width, anchor.top() + 36.0),
+            Menu::Language => pos2(anchor.right() - width, anchor.bottom() + 4.0),
+            _ => pos2(anchor.left(), anchor.top() + 36.0),
+        };
         let mut chosen = None;
         let mut control_item = None;
         let mut submenu_hot = false;
@@ -2187,47 +2229,52 @@ impl App {
             };
             match m {
                 Menu::New => {
-                    item(ui, MenuEntry::new(Ic::Mlx, "Live script (.mlx)").shortcut(&crate::os::keys("Ctrl+N")), MenuCmd::NewLive);
-                    item(ui, MenuEntry::new(Ic::MFile, "Script (.m)").shortcut(&crate::os::keys("Ctrl+Alt+N")), MenuCmd::NewScript);
+                    item(ui, MenuEntry::new(Ic::Mlx, tr("Live script (.mlx)")).shortcut(&crate::os::keys("Ctrl+N")), MenuCmd::NewLive);
+                    item(ui, MenuEntry::new(Ic::MFile, tr("Script (.m)")).shortcut(&crate::os::keys("Ctrl+Alt+N")), MenuCmd::NewScript);
                 }
                 Menu::Open => {
-                    item(ui, MenuEntry::new(Ic::OpenFile, "File…").shortcut("Ctrl+O"), MenuCmd::OpenFile);
-                    item(ui, MenuEntry::new(Ic::OpenFolder, "Folder…"), MenuCmd::OpenFolder);
+                    item(ui, MenuEntry::new(Ic::OpenFile, tr("File…")).shortcut("Ctrl+O"), MenuCmd::OpenFile);
+                    item(ui, MenuEntry::new(Ic::OpenFolder, tr("Folder…")), MenuCmd::OpenFolder);
                 }
                 Menu::Save => {
-                    item(ui, MenuEntry::new(Ic::Save, "Save").shortcut(&crate::os::keys("Ctrl+S")), MenuCmd::Save);
-                    item(ui, MenuEntry::new(Ic::SaveAs, "Save as…").shortcut(&crate::os::keys("Ctrl+Shift+S")), MenuCmd::SaveAs);
+                    item(ui, MenuEntry::new(Ic::Save, tr("Save")).shortcut(&crate::os::keys("Ctrl+S")), MenuCmd::Save);
+                    item(ui, MenuEntry::new(Ic::SaveAs, tr("Save as…")).shortcut(&crate::os::keys("Ctrl+Shift+S")), MenuCmd::SaveAs);
                     widgets::menu_separator(ui, &skin);
-                    item(ui, MenuEntry::new(Ic::ExportM, "Export as script (.m)…").enabled(live), MenuCmd::ExportM);
-                    let pdf = widgets::menu_item(ui, &skin, MenuEntry::new(Ic::Pdf, "Export as PDF…").enabled(false), false);
-                    pdf.on_hover_text("PDF export is not available yet.");
+                    item(ui, MenuEntry::new(Ic::ExportM, tr("Export as script (.m)…")).enabled(live), MenuCmd::ExportM);
+                    let pdf = widgets::menu_item(ui, &skin, MenuEntry::new(Ic::Pdf, tr("Export as PDF…")).enabled(false), false);
+                    pdf.on_hover_text(tr("PDF export is not available yet."));
                 }
                 Menu::Insert => {
-                    item(ui, MenuEntry::new(Ic::Text, "Text"), MenuCmd::Insert(BlockKind::Text));
-                    item(ui, MenuEntry::new(Ic::Code, "Code"), MenuCmd::Insert(BlockKind::Code));
+                    item(ui, MenuEntry::new(Ic::Text, tr("Text")), MenuCmd::Insert(BlockKind::Text));
+                    item(ui, MenuEntry::new(Ic::Code, tr("Code")), MenuCmd::Insert(BlockKind::Code));
                     widgets::menu_separator(ui, &skin);
-                    item(ui, MenuEntry::new(Ic::Title, "Title"), MenuCmd::Insert(BlockKind::Title));
-                    item(ui, MenuEntry::new(Ic::Heading, "Heading"), MenuCmd::Insert(BlockKind::Heading));
-                    item(ui, MenuEntry::new(Ic::Subheading, "Subheading"), MenuCmd::Insert(BlockKind::Heading2));
+                    item(ui, MenuEntry::new(Ic::Title, tr("Title")), MenuCmd::Insert(BlockKind::Title));
+                    item(ui, MenuEntry::new(Ic::Heading, tr("Heading")), MenuCmd::Insert(BlockKind::Heading));
+                    item(ui, MenuEntry::new(Ic::Subheading, tr("Subheading")), MenuCmd::Insert(BlockKind::Heading2));
                     widgets::menu_separator(ui, &skin);
                     let hot = self.submenu_rect.is_some();
-                    let r = widgets::menu_item(ui, &skin, MenuEntry::new(Ic::Control, "Control").submenu(), hot);
+                    let r = widgets::menu_item(ui, &skin, MenuEntry::new(Ic::Control, tr("Control")).submenu(), hot);
                     if r.hovered() || r.clicked() {
                         submenu_hot = true;
                     }
                     control_item = Some(r.rect);
                     widgets::menu_separator(ui, &skin);
-                    item(ui, MenuEntry::new(Ic::SectionBreak, "Section break").shortcut(&crate::os::keys("Ctrl+Alt+Enter")), MenuCmd::Insert(BlockKind::SectionBreak));
+                    item(ui, MenuEntry::new(Ic::SectionBreak, tr("Section break")).shortcut(&crate::os::keys("Ctrl+Alt+Enter")), MenuCmd::Insert(BlockKind::SectionBreak));
                 }
                 Menu::More => {
-                    item(ui, MenuEntry::new(Ic::ClearOutput, "Clear all output"), MenuCmd::ClearOutput);
+                    item(ui, MenuEntry::new(Ic::ClearOutput, tr("Clear all output")), MenuCmd::ClearOutput);
                     widgets::menu_separator(ui, &skin);
-                    item(ui, MenuEntry::new(Ic::Theme, "Dark theme").checked(dark), MenuCmd::ToggleTheme);
+                    item(ui, MenuEntry::new(Ic::Theme, tr("Dark theme")).checked(dark), MenuCmd::ToggleTheme);
                     widgets::menu_separator(ui, &skin);
-                    item(ui, MenuEntry::new(Ic::Code, "Code completions").checked(self.completion.on).shortcut("Alt+\\"), MenuCmd::ToggleCompletions);
-                    item(ui, MenuEntry::new(Ic::Chat, "Connect Claude Code…"), MenuCmd::ConnectClaude);
+                    item(ui, MenuEntry::new(Ic::Code, tr("Code completions")).checked(self.completion.on).shortcut("Alt+\\"), MenuCmd::ToggleCompletions);
+                    item(ui, MenuEntry::new(Ic::Chat, tr("Connect Claude Code…")), MenuCmd::ConnectClaude);
                     widgets::menu_separator(ui, &skin);
-                    item(ui, MenuEntry::new(Ic::Help, "Getting started"), MenuCmd::GettingStarted);
+                    item(ui, MenuEntry::new(Ic::Help, tr("Getting started")), MenuCmd::GettingStarted);
+                }
+                Menu::Language => {
+                    for l in Lang::ALL {
+                        item(ui, MenuEntry::new(l.flag(), l.name()).checked(l == i18n::lang()), MenuCmd::Language(l));
+                    }
                 }
             }
         });
@@ -2238,11 +2285,11 @@ impl App {
         if let (Some(item), true) = (control_item, submenu_hot || (self.submenu_rect.is_some() && (in_sub || !other_item))) {
             let r = widgets::menu_flyout(ctx, &skin, Id::new("submenu"), pos2(item.right() - 2.0, item.top() - 5.0), 240.0, |ui| {
                 for (ic, label, tag) in [
-                    (Ic::Slider, "Slider", ControlTag::Slider),
-                    (Ic::Dropdown, "Drop-down", ControlTag::DropDown),
-                    (Ic::Checkbox, "Check box", ControlTag::CheckBox),
-                    (Ic::EditField, "Edit field", ControlTag::EditField),
-                    (Ic::ButtonCtl, "Button", ControlTag::Button),
+                    (Ic::Slider, tr("Slider"), ControlTag::Slider),
+                    (Ic::Dropdown, tr("Drop-down"), ControlTag::DropDown),
+                    (Ic::Checkbox, tr("Check box"), ControlTag::CheckBox),
+                    (Ic::EditField, tr("Edit field"), ControlTag::EditField),
+                    (Ic::ButtonCtl, tr("Button"), ControlTag::Button),
                 ] {
                     if widgets::menu_item(ui, &skin, MenuEntry::new(ic, label), false).clicked() {
                         chosen = Some(MenuCmd::Control(tag));
@@ -2278,26 +2325,26 @@ impl App {
                     if self.running {
                         widgets::progress_ring(ui, &skin, 16.0);
                         let text = match self.origin {
-                            Some(Origin::Command) => "Running command…".to_string(),
-                            _ => format!("Running section {}…", self.running_section().map_or(1, |s| s + 1)),
+                            Some(Origin::Command) => tr("Running command…").to_string(),
+                            _ => trf("Running section {}…", &[&self.running_section().map_or(1, |s| s + 1)]),
                         };
                         ui.label(small(&text, skin.text));
                     } else if let (Some((false, _)), Some((s, l))) = (self.last_run, self.last_error) {
                         let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
                         widgets::error_glyph(ui.painter(), &skin, r.center());
-                        ui.label(small(&format!("Stopped with an error in section {s}, line {l}"), skin.text));
+                        ui.label(small(&trf("Stopped with an error in section {}, line {}", &[&s, &l]), skin.text));
                     } else {
                         let text = match self.last_run {
-                            Some((true, d)) => format!("Ready  ·  Last run completed in {:.2} s", d.as_secs_f64()),
-                            Some((false, _)) => "Ready  ·  Last run stopped".into(),
-                            None => "Ready".into(),
+                            Some((true, d)) => trf("Ready  ·  Last run completed in {} s", &[&crate::i18n::decimal2(d.as_secs_f64())]),
+                            Some((false, _)) => tr("Ready  ·  Last run stopped").into(),
+                            None => tr("Ready").into(),
                         };
                         ui.label(small(&text, skin.text));
                     }
                     if self.completion.ghost.is_some() {
-                        ui.label(small("·  Tab inserts the suggestion, Esc dismisses it", skin.text_secondary));
+                        ui.label(small(tr("·  Tab inserts the suggestion, Esc dismisses it"), skin.text_secondary));
                     } else if self.completion.asked.is_some() {
-                        ui.label(small("·  Claude is suggesting…", skin.text_tertiary));
+                        ui.label(small(tr("·  Claude is suggesting…"), skin.text_tertiary));
                     }
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         let divider = |ui: &mut Ui| {
@@ -2305,7 +2352,7 @@ impl App {
                             ui.painter().rect_filled(r, Rounding::ZERO, skin.separator);
                         };
                         // Made in Brazil, with the flag before the label.
-                        ui.label(small("Made in Brazil", skin.text_secondary));
+                        ui.label(small(tr("Made in Brazil"), skin.text_secondary));
                         ui.spacing_mut().item_spacing.x = 6.0;
                         let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
                         icons::paint(ui, &skin, Ic::BrazilFlag, r.center(), 16.0, false);
@@ -2317,16 +2364,16 @@ impl App {
                                 let parts: Vec<String> = p.iter().rev().take(2).map(|s| s.to_string_lossy().into_owned()).collect();
                                 parts.into_iter().rev().collect::<Vec<_>>().join(std::path::MAIN_SEPARATOR_STR)
                             }
-                            None => "Not saved".into(),
+                            None => tr("Not saved").into(),
                         };
                         let r = ui.label(small(&path, skin.text_secondary));
                         if let Some(p) = &t.path {
                             r.on_hover_text(p.display().to_string());
                         }
                         divider(ui);
-                        ui.label(small(&format!("Section {} of {}", t.current_section() + 1, t.section_count()), skin.text_secondary));
+                        ui.label(small(&trf("Section {} of {}", &[&(t.current_section() + 1), &t.section_count()]), skin.text_secondary));
                         divider(ui);
-                        ui.label(small(if t.kind == Kind::Live { "Live script" } else { "Script" }, skin.text_secondary));
+                        ui.label(small(if t.kind == Kind::Live { tr("Live script") } else { tr("Script") }, skin.text_secondary));
                     });
                 });
             });
@@ -2433,13 +2480,13 @@ impl App {
         let mut ui = Self::card(ui, &skin, rect);
         let title = match self.tree.root() {
             Some(r) => r.file_name().map_or_else(|| r.display().to_string(), |n| n.to_string_lossy().into_owned()),
-            None => "Files".to_string(),
+            None => tr("Files").to_string(),
         };
         let has_root = self.tree.root().is_some();
         let mut pick = false;
         Self::drawer_header(&mut ui, &skin, Some(Ic::Folder), &title, |ui| {
             if has_root {
-                if widgets::cmd_button(ui, &skin, Some(Ic::OpenFolder), "", true, false, false).on_hover_text("Open folder").clicked() {
+                if widgets::cmd_button(ui, &skin, Some(Ic::OpenFolder), "", true, false, false).on_hover_text(tr("Open folder")).clicked() {
                     pick = true;
                 }
             }
@@ -2447,8 +2494,8 @@ impl App {
         if !has_root {
             egui::Frame::none().inner_margin(Margin { left: 16.0, right: 12.0, top: 12.0, bottom: 0.0 }).show(&mut ui, |ui| {
                 ui.spacing_mut().item_spacing.y = 8.0;
-                ui.add(egui::Label::new(RichText::new("No folder opened.").color(skin.text_secondary)).wrap());
-                if widgets::cmd_button(ui, &skin, Some(Ic::OpenFolder), "Open Folder", true, false, false).on_hover_text("Choose the project folder").clicked() {
+                ui.add(egui::Label::new(RichText::new(tr("No folder opened.")).color(skin.text_secondary)).wrap());
+                if widgets::cmd_button(ui, &skin, Some(Ic::OpenFolder), tr("Open Folder"), true, false, false).on_hover_text(tr("Choose the project folder")).clicked() {
                     pick = true;
                 }
             });
@@ -2498,23 +2545,23 @@ impl App {
         let mut ui = ui.new_child(UiBuilder::new().max_rect(Rect::from_min_max(inner.min + vec2(12.0, 8.0), inner.max - vec2(8.0, 8.0))).layout(Layout::top_down(Align::Min)));
         let (header, _) = ui.allocate_exact_size(vec2(ui.available_width(), 36.0), Sense::hover());
         let mut h = ui.new_child(UiBuilder::new().max_rect(header).layout(Layout::left_to_right(Align::Center)));
-        h.label(RichText::new("Workspace").font(semibold(14.0)).color(skin.text));
+        h.label(RichText::new(tr("Workspace")).font(semibold(14.0)).color(skin.text));
         let empty = self.workspace.is_empty();
         let count = self.workspace.len();
         h.with_layout(Layout::right_to_left(Align::Center), |ui| {
             ui.spacing_mut().item_spacing.x = 4.0;
-            if widgets::cmd_button(ui, &skin, Some(Ic::Clear), "", !empty && !self.running, false, false).on_hover_text("Clear workspace").clicked() {
+            if widgets::cmd_button(ui, &skin, Some(Ic::Clear), "", !empty && !self.running, false, false).on_hover_text(tr("Clear workspace")).clicked() {
                 self.engine.send(Command::ClearWorkspace);
             }
             if !empty {
-                ui.label(RichText::new(format!("{count} variable{}", if count == 1 { "" } else { "s" })).size(12.0).color(skin.text_secondary));
+                ui.label(RichText::new(if count == 1 { tr("1 variable").to_string() } else { trf("{} variables", &[&count]) }).size(12.0).color(skin.text_secondary));
             }
         });
         if empty {
             egui::Frame::none().inner_margin(Margin { left: 4.0, right: 4.0, top: 16.0, bottom: 0.0 }).show(&mut ui, |ui| {
                 ui.spacing_mut().item_spacing.y = 4.0;
-                ui.add(egui::Label::new(RichText::new("Variables appear here after you run code.").color(skin.text_secondary)).wrap());
-                ui.add(egui::Label::new(RichText::new(crate::os::keys("Press Ctrl+Enter to run the current section, or F5 to run all.")).size(12.0).color(skin.text_tertiary)).wrap());
+                ui.add(egui::Label::new(RichText::new(tr("Variables appear here after you run code.")).color(skin.text_secondary)).wrap());
+                ui.add(egui::Label::new(RichText::new(crate::os::keys(tr("Press Ctrl+Enter to run the current section, or F5 to run all."))).size(12.0).color(skin.text_tertiary)).wrap());
             });
             return;
         }
@@ -2527,7 +2574,7 @@ impl App {
         };
         let w = ui.available_width() - 4.0;
         let (hr, _) = ui.allocate_exact_size(vec2(w, 28.0), Sense::hover());
-        for ((x, _), label) in cols(hr.left(), w).into_iter().zip(["Name", "Value", "Size"]) {
+        for ((x, _), label) in cols(hr.left(), w).into_iter().zip([tr("Name"), tr("Value"), tr("Size")]) {
             ui.painter().text(pos2(x, hr.center().y), Align2::LEFT_CENTER, label, FontId::proportional(12.0), skin.text_secondary);
         }
         ui.painter().line_segment([pos2(hr.left(), hr.bottom() - 0.5), pos2(hr.right(), hr.bottom() - 0.5)], Stroke::new(1.0_f32, skin.separator));
@@ -2560,8 +2607,8 @@ impl App {
         let mut ui = Self::card(ui, &skin, rect);
         let mut clear = false;
         let empty = self.hist.is_empty();
-        Self::drawer_header(&mut ui, &skin, None, "Command window", |ui| {
-            clear = clear_button(ui, &skin, empty).on_hover_text("Clear command window (clc)").clicked();
+        Self::drawer_header(&mut ui, &skin, None, tr("Command window"), |ui| {
+            clear = clear_button(ui, &skin, empty).on_hover_text(tr("Clear command window (clc)")).clicked();
         });
         if clear {
             self.hist.clear();
@@ -2576,7 +2623,7 @@ impl App {
             ui.add_space(4.0);
             ui.spacing_mut().item_spacing.y = 0.0;
             if self.hist.is_empty() {
-                ui.label(RichText::new("Run a command against the current workspace. Try total * 2, or type clc to clear.").size(12.0).color(skin.text_tertiary));
+                ui.label(RichText::new(tr("Run a command against the current workspace. Try total * 2, or type clc to clear.")).size(12.0).color(skin.text_tertiary));
             }
             for (text, kind) in &self.hist {
                 let color = match kind {
@@ -2611,7 +2658,7 @@ impl App {
                 self.cmd_input = k.map(|k| self.cmd_history[k].clone()).unwrap_or_default();
             }
         }
-        let resp = widgets::text_box(&mut p, &skin, &mut self.cmd_input, id, "Enter a command", true, enabled, size);
+        let resp = widgets::text_box(&mut p, &skin, &mut self.cmd_input, id, tr("Enter a command"), true, enabled, size);
         if resp.lost_focus() && p.input(|i| i.key_pressed(Key::Enter)) {
             self.submit_command();
             resp.request_focus();
@@ -2732,7 +2779,7 @@ impl App {
         match action {
             FigAction::Copy => match crate::plot::copy_to_clipboard(ctx, &skin, fig, size) {
                 Ok(()) => self.copied = Some((block, fig.id, ctx.input(|i| i.time))),
-                Err(e) => self.notice = Some((format!("Could not copy the figure: {e}"), true)),
+                Err(e) => self.notice = Some((trf("Could not copy the figure: {}", &[&e]), true)),
             },
             FigAction::Save => {
                 let Some(p) = rfd::FileDialog::new().add_filter("PNG image", &["png"]).add_filter("SVG image", &["svg"]).set_file_name(format!("figure{}.png", fig.id)).save_file() else {
@@ -2745,7 +2792,7 @@ impl App {
                     crate::plot::to_png(ctx, &skin, fig, size, 2.0).and_then(|bytes| std::fs::write(&p, bytes).map_err(|e| e.to_string()))
                 };
                 if let Err(e) = result {
-                    self.notice = Some((format!("Could not save the figure: {e}"), true));
+                    self.notice = Some((trf("Could not save the figure: {}", &[&e]), true));
                 }
             }
         }
@@ -2755,7 +2802,7 @@ impl App {
     fn figure_windows(&mut self, ctx: &egui::Context) {
         let skin = self.skin.clone();
         for (f, open) in &mut self.figures {
-            let title = if f.name.is_empty() { format!("Figure {}", f.id) } else { format!("Figure {}: {}", f.id, f.name) };
+            let title = if f.name.is_empty() { trf("Figure {}", &[&f.id]) } else { trf("Figure {}: {}", &[&f.id, &f.name]) };
             egui::Window::new(RichText::new(title).font(semibold(14.0)))
                 .id(Id::new(("figure", f.id)))
                 .open(open)
@@ -2980,9 +3027,35 @@ fn more_button(ui: &mut Ui, skin: &Skin, open: bool) -> egui::Response {
     resp
 }
 
+/// The width the command bar needs, from the sizes `cmd_button`, `bar_divider` and
+/// `segmented` give their parts, with or without the run and file labels (the Output label
+/// goes with the file labels), plus a 16 px gap between its two groups.
+fn command_bar_width(ctx: &egui::Context, live: bool, run_labels: bool, file_labels: bool) -> f32 {
+    let text = |s: &str, font: FontId| ctx.fonts(|f| f.layout_no_wrap(s.to_string(), font, Color32::PLACEHOLDER).size().x);
+    // A drop-down button with its chevron, and a plain one; icon only, 54 and 32 px.
+    let drop = |s: &str| if file_labels { text(s, FontId::proportional(14.0)) + 60.0 } else { 54.0 };
+    let plain = |s: &str| if run_labels { text(s, FontId::proportional(14.0)) + 46.0 } else { 32.0 };
+    const DIVIDER: f32 = 9.0;
+    let mut left = vec![drop(tr("New")), drop(tr("Open")), drop(tr("Save"))];
+    if live {
+        left.extend([DIVIDER, drop(tr("Insert"))]);
+    }
+    left.extend([DIVIDER, plain(tr("Run section")), plain(tr("Run and advance")), plain(tr("Run all")), plain(tr("Stop"))]);
+    let mut right = vec![32.0; 5];
+    if live {
+        let seg: f32 = [tr("Inline"), tr("Right")].iter().map(|s| text(s, semibold(14.0)) + 28.0).sum::<f32>() + 4.0;
+        right.extend([DIVIDER, seg]);
+        if file_labels {
+            right.push(text(tr("Output"), FontId::proportional(12.0)));
+        }
+    }
+    let group = |v: &[f32]| v.iter().sum::<f32>() + 4.0 * (v.len() as f32 - 1.0);
+    group(&left) + group(&right) + 16.0
+}
+
 /// The command window's Clear button: eraser icon and label, 24 px tall, 12 px text.
 fn clear_button(ui: &mut Ui, skin: &Skin, disabled: bool) -> egui::Response {
-    let galley = ui.painter().layout_no_wrap("Clear".into(), FontId::proportional(12.0), skin.text);
+    let galley = ui.painter().layout_no_wrap(tr("Clear").into(), FontId::proportional(12.0), skin.text);
     let (rect, resp) = ui.allocate_exact_size(vec2(8.0 + 14.0 + 6.0 + galley.size().x + 8.0, 24.0), Sense::click());
     let p = ui.painter();
     if resp.is_pointer_button_down_on() {
@@ -3048,7 +3121,7 @@ fn live_view(ui: &mut Ui, tab: &mut Tab, v: &mut View) -> Vec<Action> {
         if has_code && !v.running && (v.hover_section == Some(si) || si == current_section) {
             let r = Rect::from_min_size(pos2(gutter_x + 2.0, top + 2.0), vec2(24.0, 24.0));
             let mut child = ui.new_child(UiBuilder::new().max_rect(r));
-            if widgets::tool_button(&mut child, &skin, Ic::RunSmall, 14.0, &crate::os::keys(&format!("Run section {} (Ctrl+Enter)", si + 1))).clicked() {
+            if widgets::tool_button(&mut child, &skin, Ic::RunSmall, 14.0, &crate::os::keys(&trf("Run section {} (Ctrl+Enter)", &[&(si + 1)]))).clicked() {
                 actions.push(Action::RunSection(si));
                 if let Some(first) = range.clone().find(|&i| tab.doc.blocks[i].kind == BlockKind::Code) {
                     actions.push(Action::Focus(first));
@@ -3099,18 +3172,18 @@ fn block_ui(ui: &mut Ui, tab: &mut Tab, i: usize, content_w: f32, v: &mut View, 
         let mut child = ui.new_child(UiBuilder::new().max_rect(tb).layout(Layout::left_to_right(Align::Center)));
         toolbar_frame(&skin).show(&mut child, |ui| {
             ui.spacing_mut().item_spacing.x = 2.0;
-            if widgets::tool_button(ui, &skin, Ic::RunSmall, 14.0, &crate::os::keys("Run section (Ctrl+Enter)")).clicked() && !v.running {
+            if widgets::tool_button(ui, &skin, Ic::RunSmall, 14.0, &crate::os::keys(tr("Run section (Ctrl+Enter)"))).clicked() && !v.running {
                 actions.push(Action::RunSection(section));
             }
             toolbar_separator(ui, &skin);
-            if widgets::tool_button(ui, &skin, Ic::MoveUp, 16.0, "Move up").clicked() {
+            if widgets::tool_button(ui, &skin, Ic::MoveUp, 16.0, tr("Move up")).clicked() {
                 actions.push(Action::Move { from: i, up: true });
             }
-            if widgets::tool_button(ui, &skin, Ic::MoveDown, 16.0, "Move down").clicked() {
+            if widgets::tool_button(ui, &skin, Ic::MoveDown, 16.0, tr("Move down")).clicked() {
                 actions.push(Action::Move { from: i, up: false });
             }
             toolbar_separator(ui, &skin);
-            if widgets::tool_button(ui, &skin, Ic::Delete, 16.0, "Delete block").clicked() {
+            if widgets::tool_button(ui, &skin, Ic::Delete, 16.0, tr("Delete block")).clicked() {
                 actions.push(Action::Delete(i));
             }
         });
@@ -3133,10 +3206,10 @@ fn toolbar_separator(ui: &mut Ui, skin: &Skin) {
 
 fn text_block(ui: &mut Ui, skin: &Skin, block: &mut Block, edit_id: Id) -> egui::Response {
     let (font, line_height, margin, hint) = match block.kind {
-        BlockKind::Title => (semibold(28.0), 35.0, Margin { left: 4.0, right: 4.0, top: 2.0, bottom: 2.0 }, "Title"),
-        BlockKind::Heading => (semibold(20.0), 26.0, Margin { left: 4.0, right: 4.0, top: 8.0, bottom: 0.0 }, "Heading"),
-        BlockKind::Heading2 => (semibold(16.0), 21.0, Margin { left: 4.0, right: 4.0, top: 6.0, bottom: 0.0 }, "Subheading"),
-        _ => (FontId::proportional(14.0), 20.3, Margin { left: 4.0, right: 4.0, top: 0.0, bottom: 2.0 }, "Enter text"),
+        BlockKind::Title => (semibold(28.0), 35.0, Margin { left: 4.0, right: 4.0, top: 2.0, bottom: 2.0 }, tr("Title")),
+        BlockKind::Heading => (semibold(20.0), 26.0, Margin { left: 4.0, right: 4.0, top: 8.0, bottom: 0.0 }, tr("Heading")),
+        BlockKind::Heading2 => (semibold(16.0), 21.0, Margin { left: 4.0, right: 4.0, top: 6.0, bottom: 0.0 }, tr("Subheading")),
+        _ => (FontId::proportional(14.0), 20.3, Margin { left: 4.0, right: 4.0, top: 0.0, bottom: 2.0 }, tr("Enter text")),
     };
     let color = skin.text;
     let f2 = font.clone();
@@ -3390,7 +3463,7 @@ fn code_editor(ui: &mut Ui, tab: &mut Tab, i: usize, focused: bool, err_line: Op
         let tip;
         match &c.kind {
             ControlKind::Slider { min, max, step } => {
-                tip = format!("Slider · {} to {}, step {}", fmt_num(*min), fmt_num(*max), fmt_num(*step));
+                tip = trf("Slider · {} to {}, step {}", &[&fmt_num(*min), &fmt_num(*max), &fmt_num(*step)]);
                 let mut value: f64 = literal.trim().parse().unwrap_or(*min);
                 let mut child = ui.new_child(UiBuilder::new().max_rect(Rect::from_min_size(pos2(x, cy - 12.0), vec2(w, 24.0))));
                 if widgets::track_bar(&mut child, &skin, cid, &mut value, *min, *max, *step, 150.0) {
@@ -3398,7 +3471,7 @@ fn code_editor(ui: &mut Ui, tab: &mut Tab, i: usize, focused: bool, err_line: Op
                 }
             }
             ControlKind::DropDown { items, labels } => {
-                tip = "Drop-down".into();
+                tip = tr("Drop-down").into();
                 let sel = items.iter().position(|it| it.trim() == literal.trim()).unwrap_or(0);
                 let mut child = ui.new_child(UiBuilder::new().max_rect(Rect::from_min_size(pos2(x, cy - 14.0), vec2(110.0, 28.0))));
                 if let Some(j) = widgets::combo_box(&mut child, &skin, cid, labels, sel, vec2(110.0, 28.0)) {
@@ -3406,7 +3479,7 @@ fn code_editor(ui: &mut Ui, tab: &mut Tab, i: usize, focused: bool, err_line: Op
                 }
             }
             ControlKind::CheckBox => {
-                tip = "Check box".into();
+                tip = tr("Check box").into();
                 let mut on = literal.trim() == "true";
                 let mut child = ui.new_child(UiBuilder::new().max_rect(Rect::from_min_size(pos2(x, cy - 10.0), vec2(20.0, 20.0))));
                 if widgets::check_box(&mut child, &skin, cid, &mut on) {
@@ -3414,7 +3487,7 @@ fn code_editor(ui: &mut Ui, tab: &mut Tab, i: usize, focused: bool, err_line: Op
                 }
             }
             ControlKind::EditField => {
-                tip = "Edit field".into();
+                tip = tr("Edit field").into();
                 let buf_id = cid.with("buffer");
                 let editing = ui.memory(|m| m.has_focus(cid));
                 let mut buf: String = if editing { ui.data_mut(|d| d.get_temp(buf_id)).unwrap_or_else(|| literal.clone()) } else { literal.clone() };
@@ -3431,7 +3504,7 @@ fn code_editor(ui: &mut Ui, tab: &mut Tab, i: usize, focused: bool, err_line: Op
                 }
             }
             ControlKind::Button { label } => {
-                tip = "Button · runs the section".into();
+                tip = tr("Button · runs the section").into();
                 let mut child = ui.new_child(UiBuilder::new().max_rect(Rect::from_min_size(pos2(x, cy - 14.0), vec2(w, 28.0))));
                 if widgets::standard_button(&mut child, &skin, cid, label).clicked() {
                     run = true;
@@ -3447,7 +3520,7 @@ fn code_editor(ui: &mut Ui, tab: &mut Tab, i: usize, focused: bool, err_line: Op
                 v.control_edit = Some(ControlEdit { block: block_id, index: k, at: Some(area.left_bottom() + vec2(0.0, 4.0)), fields: control_fields(&c.kind) });
             } else {
                 egui::show_tooltip_at_pointer(ui.ctx(), ui.layer_id(), cid.with("tip"), |ui| {
-                    ui.label(format!("{tip}  ·  right-click to edit"));
+                    ui.label(trf("{}  ·  right-click to edit", &[&tip]));
                 });
             }
         }
@@ -3510,24 +3583,24 @@ fn control_editor(ui: &mut Ui, tab: &mut Tab, i: usize, v: &mut View) {
                 ui.set_width(260.0);
                 ui.spacing_mut().item_spacing.y = 8.0;
                 let labels: &[&str] = match control.kind {
-                    ControlKind::Slider { .. } => &["Minimum", "Maximum", "Step"],
-                    ControlKind::DropDown { .. } => &["Items (code literals, comma-separated)"],
-                    ControlKind::Button { .. } => &["Label"],
+                    ControlKind::Slider { .. } => &[tr("Minimum"), tr("Maximum"), tr("Step")],
+                    ControlKind::DropDown { .. } => &[tr("Items (code literals, comma-separated)")],
+                    ControlKind::Button { .. } => &[tr("Label")],
                     _ => &[],
                 };
-                ui.label(RichText::new("Control settings").font(semibold(14.0)).color(skin.text));
+                ui.label(RichText::new(tr("Control settings")).font(semibold(14.0)).color(skin.text));
                 for (k, label) in labels.iter().enumerate() {
                     ui.label(RichText::new(*label).size(12.0).color(skin.text_secondary));
                     widgets::text_box(ui, &skin, &mut edit.fields[k], Id::new(("control-field", k)), "", true, true, vec2(260.0, 32.0));
                 }
                 ui.horizontal(|ui| {
-                    if !labels.is_empty() && widgets::standard_button(ui, &skin, Id::new("ce-apply"), "Apply").clicked() {
+                    if !labels.is_empty() && widgets::standard_button(ui, &skin, Id::new("ce-apply"), tr("Apply")).clicked() {
                         apply = true;
                     }
-                    if widgets::standard_button(ui, &skin, Id::new("ce-remove"), "Remove control").clicked() {
+                    if widgets::standard_button(ui, &skin, Id::new("ce-remove"), tr("Remove control")).clicked() {
                         remove = true;
                     }
-                    if widgets::standard_button(ui, &skin, Id::new("ce-close"), "Close").clicked() {
+                    if widgets::standard_button(ui, &skin, Id::new("ce-close"), tr("Close")).clicked() {
                         close = true;
                     }
                 });
@@ -3588,7 +3661,7 @@ fn outputs_ui(ui: &mut Ui, skin: &Skin, outs: &[UiOutput], block: u64, stale: bo
                 });
             }
             UiOutput::Error { message, line } => {
-                widgets::error_bar(ui, skin, &format!("Error in line {line}."), message);
+                widgets::error_bar(ui, skin, &trf("Error in line {}.", &[&line]), message);
             }
             UiOutput::Figure(f) => {
                 let w = ui.available_width();
@@ -3607,13 +3680,13 @@ fn outputs_ui(ui: &mut Ui, skin: &Skin, outs: &[UiOutput], block: u64, stale: bo
                         ui.spacing_mut().item_spacing.x = 2.0;
                         if copied {
                             ui.add_space(4.0);
-                            ui.label(RichText::new("Copied").size(12.0).color(skin.text_secondary));
+                            ui.label(RichText::new(tr("Copied")).size(12.0).color(skin.text_secondary));
                             ui.add_space(2.0);
                         }
-                        if widgets::tool_button(ui, skin, if copied { Ic::Check } else { Ic::CopyImg }, 16.0, "Copy figure to clipboard").clicked() {
+                        if widgets::tool_button(ui, skin, if copied { Ic::Check } else { Ic::CopyImg }, 16.0, tr("Copy figure to clipboard")).clicked() {
                             v.figure_action = Some((f.clone(), FigAction::Copy, block));
                         }
-                        if widgets::tool_button(ui, skin, Ic::SaveImg, 16.0, "Save figure as image (PNG, SVG)").clicked() {
+                        if widgets::tool_button(ui, skin, Ic::SaveImg, 16.0, tr("Save figure as image (PNG, SVG)")).clicked() {
                             v.figure_action = Some((f.clone(), FigAction::Save, block));
                         }
                     });
@@ -3709,7 +3782,7 @@ fn script_view(ui: &mut Ui, tab: &mut Tab, v: &mut View) -> Option<usize> {
                         if !v.running && (v.hover_section == Some(si) || si == current) {
                             let br = Rect::from_min_size(pos2(x0 + 6.0, r.top() - 2.0), vec2(24.0, 24.0));
                             let mut c = ui.new_child(UiBuilder::new().max_rect(br));
-                            if widgets::tool_button(&mut c, &skin, Ic::RunSmall, 14.0, &crate::os::keys(&format!("Run section {} (Ctrl+Enter)", si + 1))).clicked() {
+                            if widgets::tool_button(&mut c, &skin, Ic::RunSmall, 14.0, &crate::os::keys(&trf("Run section {} (Ctrl+Enter)", &[&(si + 1)]))).clicked() {
                                 run = Some(si);
                                 tab.current = line;
                             }
@@ -3836,7 +3909,7 @@ fn paint_suggest(ui: &Ui, skin: &Skin, v: &mut View, block: u64, galley: &egui::
             }
             if s.items.len() > ROWS {
                 ui.add_space(2.0);
-                ui.label(RichText::new(format!("{} of {}  ·  ↑↓ to choose, Tab to insert", s.sel + 1, s.items.len())).size(11.0).color(skin.text_tertiary));
+                ui.label(RichText::new(trf("{} of {}  ·  ↑↓ to choose, Tab to insert", &[&(s.sel + 1), &s.items.len()])).size(11.0).color(skin.text_tertiary));
             }
         });
     });
@@ -3891,13 +3964,13 @@ fn conflict_bar(ui: &mut Ui, skin: &Skin, name: &str) -> Option<bool> {
                 ui.add_space(4.0);
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     ui.spacing_mut().item_spacing.x = 6.0;
-                    if widgets::dialog_button(ui, skin, Id::new("conflict-keep"), "Keep mine", 96.0, false).on_hover_text("Keep the editor's text; saving replaces the file").clicked() {
+                    if widgets::dialog_button(ui, skin, Id::new("conflict-keep"), tr("Keep mine"), 96.0, false).on_hover_text(tr("Keep the editor's text; saving replaces the file")).clicked() {
                         pick = Some(false);
                     }
-                    if widgets::dialog_button(ui, skin, Id::new("conflict-reload"), "Reload", 80.0, true).on_hover_text("Load the file from disk; your unsaved changes are lost").clicked() {
+                    if widgets::dialog_button(ui, skin, Id::new("conflict-reload"), tr("Reload"), 80.0, true).on_hover_text(tr("Load the file from disk; your unsaved changes are lost")).clicked() {
                         pick = Some(true);
                     }
-                    ui.add(egui::Label::new(RichText::new(format!("{name} was changed by another program while you had unsaved changes."))).wrap());
+                    ui.add(egui::Label::new(RichText::new(trf("{} was changed by another program while you had unsaved changes.", &[&name]))).wrap());
                 });
             });
         });
@@ -3963,7 +4036,7 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         std::env::set_var("APPDATA", &dir);
         let first = SavedLayout::load();
-        assert!(!first.files_open && first.cmd_open && first.ws_open && !first.output_right && !first.dark && !first.chat_open && first.completions);
+        assert!(!first.files_open && first.cmd_open && first.ws_open && !first.output_right && !first.dark && !first.chat_open && first.completions && first.language.is_none());
         let mine = SavedLayout {
             files_open: true,
             cmd_open: false,
@@ -3977,9 +4050,13 @@ mod tests {
             chat_w: 420.0,
             completions: false,
             folder: Some(dir.clone()),
+            language: Some(crate::i18n::Lang::Pt),
         };
         mine.save();
         assert!(SavedLayout::load() == mine);
+        let english = SavedLayout { language: Some(crate::i18n::Lang::En), ..mine };
+        english.save();
+        assert!(SavedLayout::load() == english);
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -3,6 +3,7 @@
 //! It needs no network and answers at once (the Claude suggestions are in `complete.rs`).
 
 use crate::highlight::{spans, Kind};
+use crate::i18n::tr;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ItemKind {
@@ -17,12 +18,12 @@ pub enum ItemKind {
 impl ItemKind {
     pub fn label(self) -> &'static str {
         match self {
-            ItemKind::Variable => "variable",
-            ItemKind::Field => "field",
-            ItemKind::LocalFunction => "local function",
-            ItemKind::File => "file",
-            ItemKind::Keyword => "keyword",
-            ItemKind::Function => "function",
+            ItemKind::Variable => tr("variable"),
+            ItemKind::Field => tr("field"),
+            ItemKind::LocalFunction => tr("local function"),
+            ItemKind::File => tr("file"),
+            ItemKind::Keyword => tr("keyword"),
+            ItemKind::Function => tr("function"),
         }
     }
 }

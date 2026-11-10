@@ -13,6 +13,7 @@ use eframe::egui::text::{LayoutJob, TextFormat};
 use eframe::egui::{self, Align, Color32, FontId, Id, Key, Layout, Margin, Modifiers, Rounding, Stroke, Ui};
 use serde_json::{json, Value};
 
+use crate::i18n::{tr, trf};
 use crate::mcp::{self, ToolResult};
 use crate::theme::{semibold, Skin, RADIUS};
 use crate::widgets;
@@ -141,7 +142,7 @@ impl Chat {
     }
 
     fn spawn(&mut self, mcp_url: &str, cwd: &Path, ctx: &egui::Context) -> Result<(), String> {
-        let exe = self.exe().ok_or("Claude Code is not installed.")?.to_path_buf();
+        let exe = self.exe().ok_or(tr("Claude Code is not installed."))?.to_path_buf();
         let config = json!({ "mcpServers": { "matlivre": { "type": "http", "url": mcp_url } } }).to_string();
         let mut cmd = crate::claude::command(&exe);
         cmd.args(["-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--include-partial-messages"])
@@ -152,7 +153,7 @@ impl Chat {
         if let Some(s) = &self.session {
             cmd.args(["--resume", s]);
         }
-        let mut child = cmd.spawn().map_err(|e| format!("Could not start Claude Code: {e}"))?;
+        let mut child = cmd.spawn().map_err(|e| trf("Could not start Claude Code: {}", &[&e]))?;
         let stdin = child.stdin.take().ok_or("no stdin")?;
         let stdout = child.stdout.take().ok_or("no stdout")?;
         let mut stderr = child.stderr.take().ok_or("no stderr")?;
@@ -195,7 +196,7 @@ impl Chat {
         }
         let p = self.proc.as_mut().unwrap();
         if p.stdin.write_all(crate::claude::user_message(&text).as_bytes()).and_then(|()| p.stdin.flush()).is_err() {
-            self.items.push(Item::Error("Claude Code stopped unexpectedly.".into()));
+            self.items.push(Item::Error(tr("Claude Code stopped unexpectedly.").into()));
             self.kill();
             return;
         }
@@ -222,7 +223,7 @@ impl Chat {
         if self.busy {
             self.kill();
             self.busy = false;
-            self.items.push(Item::Note("Stopped.".into()));
+            self.items.push(Item::Note(tr("Stopped.").into()));
         }
     }
 
@@ -286,7 +287,7 @@ impl Chat {
                         self.busy = false;
                         let tail: Vec<&str> = stderr.lines().rev().take(6).collect();
                         let msg = tail.into_iter().rev().collect::<Vec<_>>().join("\n");
-                        self.items.push(Item::Error(if msg.trim().is_empty() { "Claude Code stopped unexpectedly.".into() } else { msg }));
+                        self.items.push(Item::Error(if msg.trim().is_empty() { tr("Claude Code stopped unexpectedly.").into() } else { msg }));
                     }
                 }
             }
@@ -363,7 +364,7 @@ impl Chat {
             Some("result") => {
                 self.busy = false;
                 if v["is_error"].as_bool().unwrap_or(false) {
-                    let msg = v["result"].as_str().map(str::to_string).unwrap_or_else(|| format!("Claude Code reported an error ({}).", v["subtype"].as_str().unwrap_or("unknown")));
+                    let msg = v["result"].as_str().map(str::to_string).unwrap_or_else(|| trf("Claude Code reported an error ({}).", &[&v["subtype"].as_str().unwrap_or("unknown")]));
                     self.items.push(Item::Error(msg));
                 }
             }
@@ -475,10 +476,10 @@ fn code_card(ui: &mut Ui, skin: &Skin, id: Id, lang: &str, code: &str, actions: 
         ui.add_space(4.0);
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 4.0;
-            if ui.small_button("Copy").clicked() {
+            if ui.small_button(tr("Copy")).clicked() {
                 ui.ctx().copy_text(code.to_string());
             }
-            if matlab && ui.small_button("Run").on_hover_text("Run in the command window").clicked() {
+            if matlab && ui.small_button(tr("Run")).on_hover_text(tr("Run in the command window")).clicked() {
                 actions.push(Action::Run(code.to_string()));
             }
         });
@@ -493,9 +494,9 @@ pub fn transcript(ui: &mut Ui, skin: &Skin, chat: &mut Chat) -> Vec<Action> {
     ui.spacing_mut().item_spacing.y = 10.0;
     if chat.items.is_empty() {
         ui.add_space(8.0);
-        ui.add(egui::Label::new(egui::RichText::new("Ask Claude about your code, your data or MATLAB.").color(skin.text_secondary)).wrap());
-        ui.add(egui::Label::new(egui::RichText::new("Claude can run code in your workspace and edit the open documents; it asks before it changes anything. It uses the Claude Code installed on this computer.").size(12.0).color(skin.text_tertiary)).wrap());
-        for example in ["Plot the variables in my workspace", "Explain what this script does", "Vectorise the loop in the current section"] {
+        ui.add(egui::Label::new(egui::RichText::new(tr("Ask Claude about your code, your data or MATLAB.")).color(skin.text_secondary)).wrap());
+        ui.add(egui::Label::new(egui::RichText::new(tr("Claude can run code in your workspace and edit the open documents; it asks before it changes anything. It uses the Claude Code installed on this computer.")).size(12.0).color(skin.text_tertiary)).wrap());
+        for example in [tr("Plot the variables in my workspace"), tr("Explain what this script does"), tr("Vectorise the loop in the current section")] {
             if ui.add(egui::Button::new(egui::RichText::new(example).size(12.0)).fill(skin.button_fill)).clicked() {
                 actions.push(Action::Send(example.to_string()));
             }
@@ -549,7 +550,7 @@ pub fn transcript(ui: &mut Ui, skin: &Skin, chat: &mut Chat) -> Vec<Action> {
                 egui::Frame::none().fill(skin.surface).stroke(Stroke::new(1.0_f32, skin.accent)).rounding(Rounding::same(RADIUS)).inner_margin(Margin::same(10.0)).show(ui, |ui| {
                     ui.set_width(ui.available_width());
                     ui.spacing_mut().item_spacing.y = 6.0;
-                    ui.label(egui::RichText::new(format!("Claude wants to use {tool}")).font(semibold(13.0)).color(skin.text));
+                    ui.label(egui::RichText::new(trf("Claude wants to use {}", &[&tool])).font(semibold(13.0)).color(skin.text));
                     if !summary.is_empty() {
                         ui.add(egui::Label::new(egui::RichText::new(summary).font(FontId::monospace(12.0)).color(skin.text)).wrap());
                     }
@@ -557,19 +558,19 @@ pub fn transcript(ui: &mut Ui, skin: &Skin, chat: &mut Chat) -> Vec<Action> {
                         None => {
                             ui.horizontal(|ui| {
                                 ui.spacing_mut().item_spacing.x = 6.0;
-                                if widgets::dialog_button(ui, skin, id.with("allow"), "Allow", 72.0, true).clicked() {
+                                if widgets::dialog_button(ui, skin, id.with("allow"), tr("Allow"), 72.0, true).clicked() {
                                     answers.push((*key, true, false));
                                 }
-                                if widgets::dialog_button(ui, skin, id.with("always"), "Always", 72.0, false).on_hover_text(format!("Allow {tool} for the rest of this conversation")).clicked() {
+                                if widgets::dialog_button(ui, skin, id.with("always"), tr("Always"), 72.0, false).on_hover_text(trf("Allow {} for the rest of this conversation", &[&tool])).clicked() {
                                     answers.push((*key, true, true));
                                 }
-                                if widgets::dialog_button(ui, skin, id.with("deny"), "Deny", 72.0, false).clicked() {
+                                if widgets::dialog_button(ui, skin, id.with("deny"), tr("Deny"), 72.0, false).clicked() {
                                     answers.push((*key, false, false));
                                 }
                             });
                         }
                         Some(yes) => {
-                            ui.label(egui::RichText::new(if *yes { "Allowed" } else { "Denied" }).size(12.0).color(skin.text_tertiary));
+                            ui.label(egui::RichText::new(if *yes { tr("Allowed") } else { tr("Denied") }).size(12.0).color(skin.text_tertiary));
                         }
                     }
                 });
@@ -585,7 +586,7 @@ pub fn transcript(ui: &mut Ui, skin: &Skin, chat: &mut Chat) -> Vec<Action> {
     if chat.busy && !chat.waiting_for_answer() {
         ui.horizontal(|ui| {
             widgets::progress_ring(ui, skin, 16.0);
-            ui.label(egui::RichText::new("Working…").size(12.0).color(skin.text_secondary));
+            ui.label(egui::RichText::new(tr("Working…")).size(12.0).color(skin.text_secondary));
         });
     }
     for (key, yes, always) in answers {
@@ -618,15 +619,15 @@ pub fn composer(ui: &mut Ui, skin: &Skin, chat: &mut Chat, id: Id) -> Option<Act
                     .margin(Margin::ZERO)
                     .desired_rows(2)
                     .desired_width(f32::INFINITY)
-                    .hint_text(egui::RichText::new("Ask Claude…  (Enter to send, Shift+Enter for a new line)").color(skin.text_tertiary)),
+                    .hint_text(egui::RichText::new(tr("Ask Claude…  (Enter to send, Shift+Enter for a new line)")).color(skin.text_tertiary)),
             );
         });
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             if chat.busy {
-                if widgets::dialog_button(ui, skin, id.with("stop"), "Stop", 64.0, false).clicked() {
+                if widgets::dialog_button(ui, skin, id.with("stop"), tr("Stop"), 64.0, false).clicked() {
                     stop = true;
                 }
-            } else if widgets::dialog_button(ui, skin, id.with("send"), "Send", 64.0, true).clicked() {
+            } else if widgets::dialog_button(ui, skin, id.with("send"), tr("Send"), 64.0, true).clicked() {
                 send = true;
             }
         });

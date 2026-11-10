@@ -7,6 +7,7 @@ mod complete;
 mod engine;
 mod files;
 mod highlight;
+mod i18n;
 mod suggest;
 mod icons;
 mod mcp;

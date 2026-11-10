@@ -231,6 +231,9 @@ within 3.7x of MATLAB in all of them, and 1.03x slower on the geometric mean; a 
   the plot. Graphics objects are handles (`get`, `set`, `findobj`, `copyobj`, arrays of them). `saveas`, `print` and `exportgraphics` write PNG and SVG; `savefig` and `openfig` save and reopen MATLAB `.fig` files.
 - A files panel (open a folder as the project root, like VS Code), workspace browser, command window and floating figure windows; tabs that can
   be dragged between windows; light and dark themes.
+- The interface in English, Portuguese, Spanish, French, German, Italian, Russian, Chinese
+  and Japanese: the system's language on first start, and a flag menu at the top right to
+  switch at any time. MATLAB output and error messages stay as MATLAB shows them.
 - Code runs on its own engine thread, so the editor never freezes while a script runs.
 - Files changed by another program (an editor, Claude Code, git) reload in their tab, as in
   VS Code and MATLAB. A tab with unsaved changes asks instead: reload the file or keep your
