@@ -13,6 +13,7 @@ pub mod ode;
 pub mod print;
 pub mod special;
 pub mod specnum;
+pub mod subexpr;
 pub mod tools;
 pub mod transforms;
 pub mod units;

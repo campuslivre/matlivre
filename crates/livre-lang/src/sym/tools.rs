@@ -19,7 +19,7 @@ type R<T> = Result<T, LangError>;
 
 pub const NAMES: &[&str] = &[
     "quorem", "in", "cell2sym", "sym2cell", "assumptions", "symType", "isSymType", "hasSymType", "findSymType", "mapSymType", "symFunType", "fold",
-    "resultant", "polynomialReduce", "colspace", "bernsteinMatrix", "minpoly", "potential", "vectorPotential", "pade", "vpasum", "vpaintegral", "poles",
+    "resultant", "polynomialReduce", "colspace", "bernsteinMatrix", "minpoly", "potential", "vectorPotential", "pade", "vpasum", "vpaintegral", "poles", "subexpr",
 ];
 
 fn not_enough() -> LangError {
@@ -204,6 +204,42 @@ pub fn call(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> R<
             one(Value::Sym(SymArray::from_dims(vec![r, k], data)))
         }
         "bernsteinMatrix" => bernstein_matrix(a).map(|v| Some(vec![v])),
+        "subexpr" => {
+            let s = sym_arg(a, 0)?;
+            let name = match a.get(1) {
+                None => "sigma".to_string(),
+                Some(v) => {
+                    let bad = || rt::<String>("Second argument must be a symbolic variable or a char array or string naming a symbolic variable.");
+                    let n = match v {
+                        Value::Sym(sv) => match sv.data.as_slice() {
+                            [Expr::Var(n)] => n.clone(),
+                            _ => return bad().map(|_| None),
+                        },
+                        v if v.is_text() => v.text()?,
+                        _ => return bad().map(|_| None),
+                    };
+                    let ok = n.chars().next().map_or(false, |c| c.is_ascii_alphabetic()) && n.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+                    if !ok {
+                        return bad().map(|_| None);
+                    }
+                    n
+                }
+            };
+            let mut vs = Vec::new();
+            for e in &s.data {
+                e.free_vars(&mut vs);
+            }
+            if vs.contains(&name) {
+                return rt(&format!("Expression already contains '{name}'."));
+            }
+            let (data, sub) = super::subexpr::subexpr(&s.data, &name);
+            let r = Value::Sym(SymArray::from_dims(s.dims.clone(), data));
+            let sv = match sub {
+                Some(e) => SymArray::scalar(e),
+                None => SymArray::from_dims(vec![0, 0], vec![]),
+            };
+            Ok(Some(vec![r, Value::Sym(sv)]))
+        }
         "minpoly" => {
             let numeric = !matches!(a.first(), Some(Value::Sym(_)));
             let s = sym_arg(a, 0)?;

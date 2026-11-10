@@ -310,3 +310,45 @@ fn potentials_pade_numerics_and_poles() {
         ],
     );
 }
+
+#[test]
+fn subexpr_picks_the_most_profitable_common_subexpression() {
+    // Expected subexpressions recorded from MATLAB R2023b; the rewritten expression is
+    // checked by substituting the subexpression back.
+    let cases: &[(&str, &str)] = &[
+        ("sin(x^2+1)^2 + cos(x^2+1)^2*exp(x^2+1) + (x^2+1)*y", "x^2 + 1"),
+        ("(x^2+1)*(y+x)+ (x^2+1)*(y+x)*b + sin((x^2+1)*(y+x))", "(x^2 + 1)*(x + y)"),
+        ("(a+b)^2 + (a+b)^2*x + (a+b)*y", "(a + b)^2"),
+        ("x*y + x*y*a + x*y*b", "x*y"),
+        ("(x+y)^2*(a+b) + (x+y)^2*(a+b)^2 + exp(x+y)*(a+b)", "(x + y)^2"),
+        ("sin(x+y)+cos(x+y)+exp(a+b)+log(a+b)", "x + y"),
+        ("sin(a+b)+cos(a+b)+exp(x+y)+log(x+y)", "x + y"),
+        ("sin(x+y)*cos(x+y)*a+ sin(x+y)*cos(x+y)*b + sin(x+y)*c", "x + y"),
+        ("x+y+a + sin(x+y+a)*b", "a + x + y"),
+        ("(x+y+a)*c+ (x+y+a+b)*d", "a + x + y"),
+        ("(x+y)^2+(x+y)^3", "x + y"),
+        ("x^2*y + x^2*a + y*a", "x^2"),
+        ("sin(x*y)+cos(x*y)*a", "x*y"),
+    ];
+    for (f, s) in cases {
+        let src = format!(
+            "syms x y a b c d\nf = {f};\n[r, s] = subexpr(f);\ndisp(char(s))\nsyms sigma\ndisp(double(isAlways(expand(subs(r, sigma, s)) == expand(f))))\n"
+        );
+        assert_eq!(shown(&src), vec![s.to_string() + "\n", "     1\n".to_string()], "{f}");
+    }
+    check(
+        "syms x y a\n[r,s] = subexpr(x*y*a+x*y*(a+1));\ndisp(size(s))\n",
+        &["     0     0\n"],
+    );
+    check(
+        "syms x y a b\n[r, s] = subexpr(sin(x+y)+cos(x+y), 'q');\ndisp(char(r))\n",
+        &["cos(q) + sin(q)\n"],
+    );
+    check(
+        "syms x y\ntry, subexpr(sin(x+y)+cos(x+y), 'x y'), catch e, disp(e.message), end\ntry, subexpr(x+y, 'x'), catch e, disp(e.message), end\n",
+        &[
+            "Second argument must be a symbolic variable or a char array or string naming a symbolic variable.\n",
+            "Expression already contains 'x'.\n",
+        ],
+    );
+}
