@@ -654,6 +654,7 @@ impl Value {
             Value::Table(t) if t.is_timetable() => "timetable".into(),
             Value::Table(_) => "table".into(),
             Value::Sym(s) if !s.args.is_empty() => "symfun".into(),
+            Value::Sym(s) if s.label.is_some() => crate::sym::symmatrix::class_of(s).into(),
             Value::Sym(_) => "sym".into(),
             Value::Sparse(c) => if c.logical { "logical" } else { "double" }.into(),
         }

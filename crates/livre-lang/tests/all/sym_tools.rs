@@ -352,3 +352,92 @@ fn subexpr_picks_the_most_profitable_common_subexpression() {
         ],
     );
 }
+
+#[test]
+fn symmatrix_and_symfunmatrix() {
+    // Recorded from MATLAB R2023b.
+    check(
+        concat!(
+            "A = symmatrix('A',[2 3]);\n",
+            "B = symmatrix('B',[3 2]);\n",
+            "disp(class(A))\n",
+            "disp(size(A))\n",
+            "disp(A*B)\n",
+            "disp((A*B).')\n",
+            "disp(2*A)\n",
+            "disp(A.')\n",
+            "disp(-A)\n",
+            "S = symmatrix2sym(A)\n",
+            "disp(size(A*B))\n",
+        ),
+        &[
+            "symmatrix\n",
+            "     2     3\n",
+            "A*B\n",
+            "B.'*A.'\n",
+            "2*A\n",
+            "A.'\n",
+            "-A\n",
+            "S = \n[A1_1, A1_2, A1_3]\n[A2_1, A2_2, A2_3]",
+            "     2     2\n",
+        ],
+    );
+    check(
+        concat!(
+            "C = symmatrix('C',[2 2]); D = symmatrix('D',[2 2]);\n",
+            "disp(C + D)\n",
+            "disp(C - D)\n",
+            "disp(C + C)\n",
+            "disp((C + D)*C)\n",
+            "disp(C*(C + D))\n",
+            "disp(C/2)\n",
+            "disp(C*C)\n",
+            "Q = symmatrix2sym(symmatrix('Q',[3 1]))\n",
+            "R = symmatrix2sym(symmatrix('R',[1 3]))\n",
+            "W = symmatrix2sym(symmatrix('W',[1 1]))\n",
+            "X = symmatrix2sym(symmatrix('X',[2 1])*symmatrix('P',[1 2]))\n",
+        ),
+        &[
+            "C + D\n",
+            "C - D\n",
+            "2*C\n",
+            "(C + D)*C\n",
+            "C*(C + D)\n",
+            "1/2*C\n",
+            "C^2\n",
+            "Q = \nQ1\nQ2\nQ3",
+            "R = \n[R1_1, R1_2, R1_3]",
+            "W = W",
+            "X = \n[P1_1*X1, P1_2*X1]\n[P1_1*X2, P1_2*X2]",
+        ],
+    );
+    check(
+        concat!(
+            "syms t s\n",
+            "f = symfunmatrix('f(t)',t,[2 3]);\n",
+            "disp(class(f))\n",
+            "disp(size(f))\n",
+            "g = symfunmatrix2symfun(f)\n",
+            "p = symfunmatrix('p(t,s)',{t,s},[2 2]);\n",
+            "h = symfunmatrix2symfun(p)\n",
+            "try, symfunmatrix('f(t)',[2 2]), catch e, disp(e.message), end\n",
+            "try, symfunmatrix2symfun(symmatrix('A',[2 2])), catch e, disp(e.message), end\n",
+            "try, symmatrix('A',[2 2 2]), catch e, disp(e.message), end\n",
+            "try, symmatrix('A',[-1 2]), catch e, disp(e.message), end\n",
+            "try, symmatrix('A',[2 2],'real'), catch e, disp(e.message), end\n",
+            "try, symmatrix('A',[2 3])*symmatrix('B',[2 3]), catch e, disp(e.message), end\n",
+        ),
+        &[
+            "symfunmatrix\n",
+            "     1     1\n",
+            "g(t) = \n[f1_1(t), f1_2(t), f1_3(t)]\n[f2_1(t), f2_2(t), f2_3(t)]",
+            "h(t, s) = \n[p1_1(t, s), p1_2(t, s)]\n[p2_1(t, s), p2_2(t, s)]",
+            "Invalid argument at position 2. Second argument must be a symbolic variable or a nonempty cell array of distinct symbolic variables.\n",
+            "Undefined function 'symfunmatrix2symfun' for input arguments of type 'symmatrix'.\n",
+            "Invalid argument at position 2. Value must be a vector with 2 elements.\n",
+            "Invalid argument at position 2. Value must be nonnegative.\n",
+            "Too many input arguments.\n",
+            "Dimensions do not match.\n",
+        ],
+    );
+}

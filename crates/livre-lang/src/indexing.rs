@@ -258,7 +258,7 @@ pub fn concat(items: Vec<Value>, dim: usize) -> R<Value> {
     if items.iter().any(|v| matches!(v, Value::Sym(_))) {
         let parts = items.iter().filter(|v| !is_delete_rhs(v)).map(|v| crate::sym::SymArray::from_value(v).map(|s| (s.dims, s.data))).collect::<R<Vec<_>>>()?;
         let (d, data) = nd::concat(parts, dim)?;
-        return Ok(Value::Sym(crate::sym::SymArray { dims: d, data, args: Vec::new() }));
+        return Ok(Value::Sym(crate::sym::SymArray { dims: d, data, args: Vec::new(), label: None }));
     }
     let items: Vec<Value> = {
         let non_empty: Vec<Value> = items.iter().filter(|v| !is_delete_rhs(v)).cloned().collect();
