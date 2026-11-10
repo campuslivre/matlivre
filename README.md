@@ -328,6 +328,11 @@ sudo apt install build-essential pkg-config libgtk-3-dev libxkbcommon-dev libway
 cargo run -p livre-app --release
 ```
 
+For binaries that run on older distributions (glibc 2.31: Ubuntu 20.04, Debian 11, Linux Mint 20
+and newer), `tools/linux/build-portable.sh` builds with `cargo zigbuild` against glibc 2.31 and
+checks the result with `objdump -T`; the AppImage release is built this way. It needs
+`cargo install cargo-zigbuild --locked` and [Zig](https://ziglang.org/download) on the `PATH`.
+
 `tools/linux/package.sh` builds and packs `dist/matlivre-linux-<arch>.tar.gz`; its
 `install.sh` installs `matlivre` and `matlivre-cli` into `~/.local/bin` and adds MatLivre to
 the application menu.
