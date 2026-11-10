@@ -362,20 +362,48 @@ fn svg_document(ctx: &egui::Context, skin: &Skin, fig: &Figure, size: Vec2, hove
     draw_figure(&mut c, skin, fig, layout, hover);
     c.clip(None);
     let (w, h) = (num(size.x), num(size.y));
+    let sans = &export_fonts().family;
     format!(
-        r#"<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}" font-family="{SANS}" xml:space="preserve"><g transform="scale({s})">{}</g></svg>"#,
+        r#"<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}" font-family="{sans}" xml:space="preserve"><g transform="scale({s})">{}</g></svg>"#,
         c.out
     )
 }
 
-/// The sans-serif family figures are drawn in.
+/// Prefer the native family when it is installed; exports also run on Linux.
 #[cfg(target_os = "macos")]
 const SANS: &str = "Helvetica Neue";
 #[cfg(not(target_os = "macos"))]
 const SANS: &str = "Segoe UI";
 
-fn fontdb() -> Arc<usvg::fontdb::Database> {
-    static DB: OnceLock<Arc<usvg::fontdb::Database>> = OnceLock::new();
+struct ExportFonts {
+    db: Arc<usvg::fontdb::Database>,
+    family: String,
+}
+
+fn configure_export_fonts(mut db: usvg::fontdb::Database) -> ExportFonts {
+    // usvg falls back to generic serif when a named family is missing. That may
+    // resolve to a symbol font, so choose an available text family explicitly.
+    let family = [SANS, "Noto Sans", "DejaVu Sans", "Liberation Sans", "Arial", "Ubuntu"]
+        .into_iter()
+        .find(|family| db.query(&usvg::fontdb::Query {
+            families: &[usvg::fontdb::Family::Name(family)],
+            ..Default::default()
+        }).is_some())
+        .map(str::to_owned)
+        .unwrap_or_else(|| {
+            // Reuse the proportional font already bundled with egui. This also
+            // covers minimal systems without any of the named fonts installed.
+            let fonts = egui::FontDefinitions::default();
+            let name = &fonts.families[&FontFamily::Proportional][0];
+            let ids = db.load_font_source(usvg::fontdb::Source::Binary(Arc::new(fonts.font_data[name].font.to_vec())));
+            db.face(ids[0]).expect("bundled proportional font").families[0].0.clone()
+        });
+    db.set_sans_serif_family(&family);
+    ExportFonts { db: Arc::new(db), family }
+}
+
+fn export_fonts() -> &'static ExportFonts {
+    static DB: OnceLock<ExportFonts> = OnceLock::new();
     DB.get_or_init(|| {
         let mut db = usvg::fontdb::Database::new();
         if let Ok(win) = std::env::var("WINDIR") {
@@ -385,14 +413,16 @@ fn fontdb() -> Arc<usvg::fontdb::Database> {
             }
         }
         db.load_system_fonts();
-        db.set_sans_serif_family(SANS);
-        Arc::new(db)
+        configure_export_fonts(db)
     })
-    .clone()
 }
 
 fn rasterize(svg: &str, size: Vec2, scale: f32) -> Result<tiny_skia::Pixmap, String> {
-    let opt = usvg::Options { fontdb: fontdb(), font_family: SANS.into(), ..Default::default() };
+    rasterize_with_fonts(svg, size, scale, export_fonts())
+}
+
+fn rasterize_with_fonts(svg: &str, size: Vec2, scale: f32, fonts: &ExportFonts) -> Result<tiny_skia::Pixmap, String> {
+    let opt = usvg::Options { fontdb: fonts.db.clone(), font_family: fonts.family.clone(), ..Default::default() };
     let tree = usvg::Tree::from_str(svg, &opt).map_err(|e| e.to_string())?;
     let (w, h) = ((size.x * scale).round() as u32, (size.y * scale).round() as u32);
     let mut pm = tiny_skia::Pixmap::new(w, h).ok_or("invalid figure size")?;
@@ -1825,6 +1855,47 @@ fn draw_legend(c: &mut dyn Canvas, t: &Tokens, ax: &Axes, names: &[String], plot
 mod tests {
     use super::*;
 
+    #[test]
+    fn export_font_fallback_preserves_latin_labels_without_system_fonts() {
+        // An isolated database: no Segoe UI/Helvetica Neue, and an unrelated serif
+        // fallback. Never depend on the host's installed fonts or fontconfig aliases.
+        let mut db = usvg::fontdb::Database::new();
+        for data in egui::FontDefinitions::default().font_data.values() {
+            db.load_font_data(data.font.to_vec());
+        }
+        db.set_serif_family("Hack");
+        let fonts = configure_export_fonts(db);
+        let expected = ExportFonts { db: fonts.db.clone(), family: "Ubuntu".into() };
+        let svg = |family: &str| format!(
+            r#"<svg xmlns="http://www.w3.org/2000/svg" width="300" height="50" font-family="{family}"><text x="10" y="30" font-size="20">ABC abc 123 Time Value</text></svg>"#
+        );
+        let actual = rasterize_with_fonts(&svg(&fonts.family), vec2(300.0, 50.0), 1.0, &fonts).unwrap();
+        let reference = rasterize_with_fonts(&svg("Ubuntu"), vec2(300.0, 50.0), 1.0, &expected).unwrap();
+        assert!(reference.pixels().iter().any(|p| p.alpha() != 0), "reference must contain text");
+        assert!(actual.data() == reference.data(), "Latin labels must use the bundled sans font, not the unrelated serif fallback (configured: {})", fonts.family);
+    }
+
+    #[test]
+    fn export_fonts_work_with_an_empty_database() {
+        let fonts = configure_export_fonts(usvg::fontdb::Database::new());
+        let svg = format!(r#"<svg xmlns="http://www.w3.org/2000/svg" width="100" height="40" font-family="{}"><text x="5" y="25">ABC abc 123</text></svg>"#, fonts.family);
+        let image = rasterize_with_fonts(&svg, vec2(100.0, 40.0), 1.0, &fonts).unwrap();
+        assert!(image.pixels().iter().any(|p| p.alpha() != 0), "bundled fallback must render text without system fonts");
+    }
+
+    #[test]
+    fn export_fonts_keep_the_native_family_when_available() {
+        let mut db = usvg::fontdb::Database::new();
+        db.load_font_data(egui::FontDefinitions::default().font_data["Ubuntu-Light"].font.to_vec());
+        // Give the fixture the native family name without requiring Windows or
+        // macOS fonts on the test runner.
+        let mut face = db.faces().next().unwrap().clone();
+        face.id = usvg::fontdb::ID::dummy();
+        face.families[0].0 = SANS.into();
+        db.push_face_info(face);
+        assert_eq!(configure_export_fonts(db).family, SANS);
+    }
+
     fn ctx() -> egui::Context {
         let ctx = egui::Context::default();
         crate::theme::install_fonts(&ctx);
@@ -1860,6 +1931,7 @@ mod tests {
     fn svg_has_title_legend_and_parses() {
         let ctx = ctx();
         let svg = to_svg(&ctx, &Skin::light(), &line_figure(), figure_size(800.0));
+        assert!(svg.contains(&format!(r#"font-family="{}""#, export_fonts().family)));
         assert!(svg.contains(">Damped wave</text>"));
         assert!(svg.contains(">signal</text>") && svg.contains(">envelope</text>"));
         assert!(svg.contains(r#"stroke-dasharray="7 5""#));
