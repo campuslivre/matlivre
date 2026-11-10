@@ -361,6 +361,17 @@ copied.
 cargo test --workspace
 ```
 
+The Arch Linux workflow runs the workspace tests with Arch's packaged Rust toolchain,
+then builds both binaries and exercises the CLI and headless MCP PNG/SVG exports.
+To run the binary smoke checks locally after `cargo build --locked --workspace --bins`:
+
+```bash
+python tools/linux/smoke.py
+```
+
+These checks need no display server or MATLAB installation. They do not validate the
+interactive GUI, desktop portals, or a particular window manager.
+
 The tests compare MatLivre's output with MATLAB R2023b's for each function family.
 `livre-doc/tests/matlab_samples.rs` round-trips the live scripts shipped with a local MATLAB
 installation when one is present. Benchmarks: [`benchmarks/run_bench.bat`](benchmarks/run_bench.bat)
