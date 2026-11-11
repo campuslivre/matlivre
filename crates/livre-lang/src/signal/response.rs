@@ -40,7 +40,11 @@ pub fn call(_it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> R
 
 /// Numerator, denominator and the index of the first frequency-related argument.
 fn filter_args(a: &[Value], name: &str) -> R<(Vec<C>, Vec<C>, usize)> {
-    let b = cvec_arg(a, 0, name)?;
+    let mut b = cvec_arg(a, 0, name)?;
+    if b.is_empty() && name == "freqz" {
+        // An empty numerator is the zero filter.
+        b = vec![C::new(0.0, 0.0)];
+    }
     let mut rest = 1;
     // The second argument is the denominator unless it is a flag.
     let den = if a.len() > 1 && text_arg(a, 1).is_none() {
@@ -234,10 +238,10 @@ fn freqs(a: &[Value]) -> Ret {
             if v.len() > 1 {
                 (v, m.dims[0] == 1)
             } else {
-                (auto_frequencies(&b, &den, positive_integer(v[0])?), false)
+                (auto_frequencies(&b, &den, positive_integer(v[0])?)?, false)
             }
         }
-        _ => (auto_frequencies(&b, &den, 200), false),
+        _ => (auto_frequencies(&b, &den, 200)?, false),
     };
     let h: Vec<C> = w
         .iter()
@@ -260,15 +264,22 @@ fn positive_integer(v: f64) -> R<usize> {
 }
 
 /// `n` log-spaced frequencies covering the roots of the numerator and denominator: from
-/// 10^(ceil(log10(min |root|)) - 2) to 10^(floor(log10(max |root|)) + 1).
-fn auto_frequencies(b: &[C], a: &[C], n: usize) -> Vec<f64> {
-    let mags: Vec<f64> = poly_roots(b).into_iter().chain(poly_roots(a)).map(|r| r.abs()).filter(|&m| m > 0.0).collect();
+/// 10^(ceil(log10(min |root|)) - 2) to 10^(round(log10(max |root|)) + 1). The rule is inferred
+/// from MATLAB's output; a root at the origin counts as magnitude 1, and the roots come from the
+/// companion-matrix eigenvalues because a magnitude a rounding error below 1 changes the result.
+fn auto_frequencies(b: &[C], a: &[C], n: usize) -> R<Vec<f64>> {
+    let mut mags: Vec<f64> = Vec::new();
+    for poly in [b, a] {
+        for r in roots_matlab(poly)? {
+            mags.push(if r.abs() == 0.0 { 1.0 } else { r.abs() });
+        }
+    }
     let (lo, hi) = if mags.is_empty() {
         (-2.0, 1.0)
     } else {
         let min = mags.iter().cloned().fold(f64::INFINITY, f64::min);
         let max = mags.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-        (min.log10().ceil() - 2.0, max.log10().floor() + 1.0)
+        (min.log10().ceil() - 2.0, max.log10().round() + 1.0)
     };
-    (0..n).map(|i| 10f64.powf(if n == 1 { lo } else { lo + (hi - lo) * i as f64 / (n - 1) as f64 })).collect()
+    Ok((0..n).map(|i| 10f64.powf(if n == 1 { lo } else { lo + (hi - lo) * i as f64 / (n - 1) as f64 })).collect())
 }

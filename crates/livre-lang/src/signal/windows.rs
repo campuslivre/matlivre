@@ -148,6 +148,10 @@ fn shape(a: &[Value], default: f64, name: &str, label: &str, nonneg: bool) -> R<
         return rt("Input BTA in kaiser must be numeric, instead it was char.");
     }
     let m = m_arg(a, 1, name)?;
+    if name == "kaiser" && m.numel() > 1 {
+        // MATLAB multiplies the window by beta and fails there.
+        return rt("Incorrect dimensions for matrix multiplication. Check that the number of columns in the first matrix matches the number of rows in the second matrix. To operate on each element of the matrix individually, use TIMES (.*) for elementwise multiplication.");
+    }
     if m.numel() != 1 {
         return rt(format!("Expected input number 2, {label}, to be a scalar."));
     }

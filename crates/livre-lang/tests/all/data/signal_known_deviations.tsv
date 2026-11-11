@@ -11,8 +11,6 @@
 r = cheby1(3,0,0.4);	zero ripple degenerates; MATLAB returns the FIR (1+z^-1)^3/8
 r = cheby2(3,0,0.4);	zero attenuation degenerates in MATLAB
 [a1,b1,c1,d1] = butter(2,0.4); r = {a1,b1,c1,d1};	state-space output is not implemented
-r = kaiser(3,[1 2]);	MATLAB fails with a matrix-multiplication error for a vector beta
-r = freqz([]);	empty numerator
 r = freqz(1,0);	zero denominator
 r = filtic(1,[0 1],1);	zero leading denominator coefficient
 r = pwelch(1:100,10,5.5);	non-integer overlap
@@ -20,5 +18,7 @@ r = pwelch(1:100,10,5.5);	non-integer overlap
 [s,f,tt] = spectrogram(x,20,10,[1 2 3],100); r = {s,f,tt};	a frequency vector in place of nfft is not implemented
 r = dct(1:4,4,3);	N-D arrays (dimension 3) are not supported
 r = hilbert(ones(2,2,2));	N-D arrays are not supported
-r = db2mag(int8(20));	integer-class results are not implemented
 r = gauspuls(1i);	complex time input: MATLAB returns Inf, MatLivre rejects it
+[b,a] = butter(5,0.3); [gd,w] = grpdelay(b,a,64); r = {gd,w};	MATLAB loses accuracy near the zeros at Nyquist (error 3e-7); MatLivre is within 1e-8 of the exact value
+[h,w] = freqs([1],[1 1 1],20); r = {h,w};	MATLAB refines the automatic grid around resonances (uneven log spacing); MatLivre spaces it evenly
+[h,w] = freqs([1 0 0],[1 2 3 4]); r = {h,w};	MATLAB refines the automatic grid around resonances (uneven log spacing); MatLivre spaces it evenly

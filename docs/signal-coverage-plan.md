@@ -125,11 +125,12 @@ not exercise:
 - **State-space output** (`[A,B,C,D] = butter(...)`) is not implemented.
 - **Single precision**: results are computed in double precision and rounded to single; MATLAB's
   own single arithmetic can differ in the last digits (the recorded cases allow 1e-6).
-  Integer-class results (`db2mag(int8(...))`) are not implemented.
 - **N-D arrays** and operating along dimension 3 (`dct`, `hilbert`).
 - **`spectrogram`**: the centroid outputs `fc`, `tc`, and a frequency vector in place of `nfft`.
-- **`pwelch`** with a non-integer overlap; **`freqz`** with an empty or zero polynomial;
-  **`filtic`** with a zero leading denominator coefficient; **`kaiser`** with a vector beta.
+- **`pwelch`** with a non-integer overlap; **`freqz`** with a zero denominator;
+  **`filtic`** with a zero leading denominator coefficient; **`gauspuls`** with complex time.
+- **`grpdelay`** near zeros on the unit circle: MATLAB's own value loses accuracy there (3e-7
+  off at the last point of a 5th-order Butterworth); MatLivre's is within 1e-8 of the exact one.
 - **`dct`/`idct`** sum the definition directly, O(N^2) per column; fine for a few thousand samples,
   slow beyond that.
 - **`fftfilt`** and **`upfirdn`** filter directly instead of with overlap-add FFTs or a polyphase
@@ -138,8 +139,9 @@ not exercise:
 - **`impz`/`stepz`** choose their automatic length from the poles with the rule inferred from
   MATLAB's output (floor of ln(5e-5)/ln(radius) for stable poles, ln(1e6)/ln(radius) for unstable
   ones, five periods on the unit circle); unusual mixtures of pole radii may differ by a sample.
-- **`freqs`** chooses its automatic range from the root magnitudes by an inferred rule that
-  matched all the recorded cases but one (a numerator and denominator at very different scales).
+- **`freqs`** chooses its automatic range from the root magnitudes (a root at the origin counts
+  as 1) by a rule inferred from MATLAB's output. MATLAB also refines the grid around resonances
+  (second-order or higher denominators), which MatLivre does not: it spaces the points evenly.
 - **`hilbert`** ignores the imaginary part of complex input, with MATLAB's warning.
 - **Messages**: the wording follows MATLAB's for the cases recorded; other validation failures
   fall back to generic text.

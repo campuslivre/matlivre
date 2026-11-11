@@ -58,6 +58,13 @@ pub fn call(_it: &mut Interpreter, name: &str, a: &[Value], _nargout: usize) -> 
             .collect();
         Matrix::from_dims(x.dims.clone(), data)
     };
+    if let Kind::Int(_) = x.kind {
+        // Computed in double precision, then rounded and saturated to the input's class.
+        for v in result.data.iter_mut() {
+            *v = x.kind.cast(*v);
+        }
+        result.kind = x.kind;
+    }
     if x.kind == Kind::Single {
         result.kind = Kind::Single;
         for v in result.data.iter_mut() {
