@@ -55,6 +55,7 @@ mod random;
 mod reported_bugs;
 mod session_more;
 mod settings;
+mod signal_matlab;
 mod sparse;
 mod specfun;
 mod special_functions;

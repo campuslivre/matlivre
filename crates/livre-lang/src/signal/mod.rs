@@ -1,0 +1,98 @@
+//! Signal Processing Toolbox. Each area has its own module with a `NAMES` list and a `call`
+//! dispatcher, like the other builtin modules; `call` here routes a name to its module.
+//!
+//! The toolbox is not part of the MATLAB installation the project records outputs from, so the
+//! definitions follow the function reference at mathworks.com/help/signal and the tests check
+//! those documented formulas (see docs/signal-coverage-plan.md).
+
+pub mod analog;
+pub mod conversions;
+pub mod db;
+pub mod filtering;
+pub mod fir;
+pub mod iir;
+pub mod measures;
+pub mod peaks;
+pub mod poly;
+pub mod response;
+pub mod smoothing;
+pub mod spectral;
+pub mod transforms;
+pub mod waveforms;
+pub mod windows;
+
+use crate::builtins::Ret;
+use crate::interp::Interpreter;
+use crate::value::*;
+
+/// The function in `name`, if one of the signal modules provides it. Results are single precision
+/// when any argument is.
+pub fn call(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Ret {
+    let result = dispatch(it, name, a, nargout)?;
+    let single = a.iter().any(|v| matches!(v, Value::Num(m) if m.kind == Kind::Single));
+    Ok(result.map(|vals| if single { vals.into_iter().map(to_single).collect() } else { vals }))
+}
+
+fn to_single(v: Value) -> Value {
+    match v {
+        Value::Num(mut m) if m.kind == Kind::Double => {
+            m.kind = Kind::Single;
+            for x in m.data.iter_mut() {
+                *x = *x as f32 as f64;
+            }
+            if let Some(im) = m.im.as_mut() {
+                for x in im.iter_mut() {
+                    *x = *x as f32 as f64;
+                }
+            }
+            Value::Num(m)
+        }
+        other => other,
+    }
+}
+
+fn dispatch(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Ret {
+    if windows::NAMES.contains(&name) {
+        return windows::call(it, name, a, nargout);
+    }
+    if waveforms::NAMES.contains(&name) {
+        return waveforms::call(it, name, a, nargout);
+    }
+    if db::NAMES.contains(&name) {
+        return db::call(it, name, a, nargout);
+    }
+    if analog::NAMES.contains(&name) {
+        return analog::call(it, name, a, nargout);
+    }
+    if iir::NAMES.contains(&name) {
+        return iir::call(it, name, a, nargout);
+    }
+    if fir::NAMES.contains(&name) {
+        return fir::call(it, name, a, nargout);
+    }
+    if response::NAMES.contains(&name) {
+        return response::call(it, name, a, nargout);
+    }
+    if conversions::NAMES.contains(&name) {
+        return conversions::call(it, name, a, nargout);
+    }
+    if measures::NAMES.contains(&name) {
+        return measures::call(it, name, a, nargout);
+    }
+    if spectral::NAMES.contains(&name) {
+        return spectral::call(it, name, a, nargout);
+    }
+    if transforms::NAMES.contains(&name) {
+        return transforms::call(it, name, a, nargout);
+    }
+    if peaks::NAMES.contains(&name) {
+        return peaks::call(it, name, a, nargout);
+    }
+    if smoothing::NAMES.contains(&name) {
+        return smoothing::call(it, name, a, nargout);
+    }
+    if filtering::NAMES.contains(&name) {
+        return filtering::call(it, name, a, nargout);
+    }
+    Ok(None)
+}
