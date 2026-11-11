@@ -84,6 +84,8 @@ pub fn get(en: &str) -> Option<&'static str> {
         // Workspace
         "Workspace" => "Workspace",
         "Clear workspace" => "Limpar o workspace",
+        "Double-click to open" => "Clique duas vezes para abrir",
+        "·  Showing the first {} rows and {} columns" => "·  Mostrando as primeiras {} linhas e {} colunas",
         "1 variable" => "1 variável",
         "{} variables" => "{} variáveis",
         "Variables appear here after you run code." => "As variáveis aparecem aqui depois que você executa código.",

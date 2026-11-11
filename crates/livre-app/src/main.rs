@@ -19,6 +19,7 @@ mod theme;
 mod transfer;
 mod widgets;
 mod updater;
+mod varview;
 mod file_types;
 mod linux_types;
 

@@ -9,7 +9,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use eframe::egui;
-use livre_lang::{Interpreter, Output, OutputKind, VarInfo};
+use livre_lang::{Interpreter, Output, OutputKind, VarInfo, VarView};
 
 pub enum Command {
     /// Run `blocks` in order. `all_code` holds every code block of the document so local
@@ -19,6 +19,8 @@ pub enum Command {
     /// functions. Its outputs come back under [`COMMAND_ID`].
     Eval(String),
     ClearWorkspace,
+    /// Asks for a base workspace variable's contents, answered with [`Event::Variable`].
+    Inspect(String),
 }
 
 /// The block id the command window's outputs are reported under.
@@ -28,6 +30,8 @@ pub enum Event {
     BlockStarted(u64),
     Output(u64, Output),
     Finished { workspace: Vec<VarInfo>, ok: bool, elapsed: Duration },
+    /// A variable's contents, or `None` when the workspace no longer has it.
+    Variable { name: String, view: Option<VarView> },
 }
 
 pub struct Engine {
@@ -97,6 +101,11 @@ fn engine_main(rx: Receiver<Command>, tx: Sender<Event>, cancel: Arc<AtomicBool>
                 it.clear_workspace();
                 it.close_all_figures();
                 let _ = tx.send(Event::Finished { workspace: it.workspace(), ok: true, elapsed: Duration::ZERO });
+                ctx.request_repaint();
+            }
+            Command::Inspect(name) => {
+                let view = it.inspect(&name);
+                let _ = tx.send(Event::Variable { name, view });
                 ctx.request_repaint();
             }
             Command::Eval(src) => {

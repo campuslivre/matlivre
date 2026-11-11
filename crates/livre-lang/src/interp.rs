@@ -46,6 +46,8 @@ pub struct VarInfo {
     pub size: String,
     pub value: String,
     pub bytes: usize,
+    /// The first rows and columns of a matrix whose `value` is only its size.
+    pub preview: Option<String>,
 }
 
 pub(crate) enum Flow {
@@ -516,9 +518,14 @@ impl Interpreter {
             .into_iter()
             .map(|n| {
                 let v = &self.base.vars[n];
-                VarInfo { name: n.clone(), class: v.class_name(), size: nd::size_text(&v.dims()), value: summary(v, self.format), bytes: approx_bytes(v) }
+                VarInfo { name: n.clone(), class: v.class_name(), size: nd::size_text(&v.dims()), value: summary(v, self.format), bytes: approx_bytes(v), preview: crate::varview::preview(v, self.format) }
             })
             .collect()
+    }
+
+    /// The contents of a base workspace variable for the variable viewer.
+    pub fn inspect(&self, name: &str) -> Option<crate::varview::VarView> {
+        self.base.vars.get(name).map(|v| crate::varview::view(name, v, self.format))
     }
 
     // ---- search path -------------------------------------------------------------------
