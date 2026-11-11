@@ -6,15 +6,17 @@ use crate::interp::Interpreter;
 use crate::signal::poly::{scalar_arg, text_arg};
 use crate::value::*;
 
-pub const NAMES: &[&str] = &["square", "sawtooth", "rectpuls", "diric", "chirp", "gmonopuls"];
+pub const NAMES: &[&str] = &["square", "sawtooth", "rectpuls", "diric", "chirp", "gmonopuls", "tripuls", "gauspuls"];
 
 type R<T> = Result<T, LangError>;
 
-pub fn call(_it: &mut Interpreter, name: &str, a: &[Value], _nargout: usize) -> Ret {
+pub fn call(_it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Ret {
     if a.is_empty() {
         return rt("Not enough input arguments.");
     }
     match name {
+        "tripuls" => return tripuls(a),
+        "gauspuls" => return gauspuls(a, nargout),
         "diric" => return diric(a),
         "chirp" => return chirp(a),
         "gmonopuls" => return gmonopuls(a),
@@ -80,6 +82,116 @@ pub fn call(_it: &mut Interpreter, name: &str, a: &[Value], _nargout: usize) -> 
         }
     };
     one(Value::Num(Matrix::from_dims(t.dims.clone(), y)))
+}
+
+const TIME_TYPES: &str = "double, single, uint8, uint16, uint32, uint64, int8, int16, int32, int64";
+
+fn scalar_option(a: &[Value], i: usize, name: &str, label: &str, default: f64) -> R<f64> {
+    if a.len() <= i {
+        return Ok(default);
+    }
+    let m = m_arg(a, i, name)?;
+    if m.numel() != 1 {
+        return rt(format!("Expected {label} to be a scalar."));
+    }
+    Ok(m.data[0])
+}
+
+/// Unit-height triangular pulse of width `w` centred on 0 with its apex at `s * w / 2`.
+fn tripuls(a: &[Value]) -> Ret {
+    if a.len() > 3 {
+        return rt("Too many input arguments.");
+    }
+    let t = m_arg(a, 0, "tripuls")?;
+    if t.kind == Kind::Char {
+        return rt(format!("Expected input to be one of these types:  {TIME_TYPES}"));
+    }
+    if t.im.is_some() {
+        return rt("Expected input to be real.");
+    }
+    let opt = |i: usize, default: f64| -> R<f64> {
+        if a.len() <= i {
+            return Ok(default);
+        }
+        let m = m_arg(a, i, "tripuls")?;
+        if m.numel() != 1 {
+            return rt("Expected input to be a scalar.");
+        }
+        Ok(m.data[0])
+    };
+    let w = opt(1, 1.0)?;
+    let s = opt(2, 0.0)?;
+    if !(-1.0..=1.0).contains(&s) {
+        return rt("Skew value must be in the range -1<=k<=1.");
+    }
+    let half = w.abs() / 2.0;
+    let apex = s * half;
+    let y = t
+        .data
+        .iter()
+        .map(|&v| {
+            if half == 0.0 {
+                if v == 0.0 { 1.0 } else { 0.0 }
+            } else if v < -half || v > half {
+                0.0
+            } else if v < apex {
+                (v + half) / (half * (1.0 + s))
+            } else if v == apex {
+                1.0
+            } else {
+                (half - v) / (half * (1.0 - s))
+            }
+        })
+        .collect();
+    one(Value::Num(Matrix::from_dims(t.dims.clone(), y)))
+}
+
+/// Gaussian-modulated sinusoid: `[yi, yq, ye] = gauspuls(t, fc, bw, bwr)` and the cutoff time
+/// `gauspuls('cutoff', fc, bw, bwr, tpe)`.
+fn gauspuls(a: &[Value], nargout: usize) -> Ret {
+    let cutoff = match &a[0] {
+        Value::Str(_) => true,
+        Value::Num(m) => m.kind == Kind::Char,
+        _ => false,
+    };
+    if a.len() > if cutoff { 5 } else { 4 } {
+        return rt("Too many input arguments.");
+    }
+    if cutoff && a[0].text().ok().map(|s| s.to_lowercase()).as_deref() != Some("cutoff") {
+        return rt("When first input is a character vector, its value must be 'cutoff'.");
+    }
+    let fc = scalar_option(a, 1, "gauspuls", "FC", 1000.0)?;
+    let bw = scalar_option(a, 2, "gauspuls", "BW", 0.5)?;
+    let bwr = scalar_option(a, 3, "gauspuls", "BWR", -6.0)?;
+    let tpe = if cutoff { scalar_option(a, 4, "gauspuls", "TPE", -60.0)? } else { -60.0 };
+    if fc < 0.0 {
+        return rt("Frequency, FC, must be >= 0 Hz.");
+    }
+    if bw <= 0.0 {
+        return rt("Fractional bandwidth, BW, must be > 0.");
+    }
+    if bwr >= 0.0 || tpe >= 0.0 {
+        return rt("Bandwidth reference level BWR must be < 0 dB.");
+    }
+    let ref_level = 10f64.powf(bwr / 20.0);
+    let alpha = -(std::f64::consts::PI * fc * bw).powi(2) / (4.0 * ref_level.ln());
+    if cutoff {
+        let tpe_level = 10f64.powf(tpe / 20.0);
+        return one(Value::Num(Matrix::scalar((-tpe_level.ln() / alpha).sqrt())));
+    }
+    let t = m_arg(a, 0, "gauspuls")?;
+    if t.im.is_some() {
+        return rt("Expected input to be real.");
+    }
+    let env: Vec<f64> = t.data.iter().map(|&v| (-alpha * v * v).exp()).collect();
+    let phase = |v: f64| std::f64::consts::TAU * fc * v;
+    let make = |v: Vec<f64>| Value::Num(Matrix::from_dims(t.dims.clone(), v));
+    let yi = make(t.data.iter().zip(&env).map(|(&v, &e)| e * phase(v).cos()).collect());
+    if nargout <= 1 {
+        return one(yi);
+    }
+    let yq = make(t.data.iter().zip(&env).map(|(&v, &e)| e * phase(v).sin()).collect());
+    Ok(Some(vec![yi, yq, make(env)]))
 }
 
 /// Position of `t` within its 2*pi period, in [0, 2*pi).

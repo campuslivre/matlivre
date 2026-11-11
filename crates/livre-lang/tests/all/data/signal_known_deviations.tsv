@@ -21,3 +21,4 @@ r = pwelch(1:100,10,5.5);	non-integer overlap
 r = dct(1:4,4,3);	N-D arrays (dimension 3) are not supported
 r = hilbert(ones(2,2,2));	N-D arrays are not supported
 r = db2mag(int8(20));	integer-class results are not implemented
+r = gauspuls(1i);	complex time input: MATLAB returns Inf, MatLivre rejects it

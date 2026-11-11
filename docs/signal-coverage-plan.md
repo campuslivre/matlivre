@@ -11,10 +11,10 @@ How MatLivre grows to cover the MATLAB Signal Processing Toolbox. The function i
 |---|---:|
 | Functions in scope (R2023b-era, from `signal.tsv`) | 333 |
 | Already in MatLivre before this plan (`xcorr`, `xcov`, `resample`, `rms`, `sinc`, `detrend`, `movmedian`, `movmad`, `isoutlier`, `filloutliers`, `smoothdata`, `islocalmax`, `paddata`, `trimdata`, `resize`, `freqspace`, `ss2tf`) | 17 |
-| Implemented by this plan (`crates/livre-lang/src/signal/`) | 76 |
-| Still to implement | 240 |
+| Implemented by this plan (`crates/livre-lang/src/signal/`) | 87 |
+| Still to implement | 229 |
 
-The 76 are checked against MATLAB: see "How it is tested".
+The 87 are checked against MATLAB: see "How it is tested".
 
 ## How it is tested
 
@@ -66,13 +66,13 @@ cases in `signal_cases.m` and MATLAB's output recorded as above.
    `hamming`, `hann`, `blackman`, `blackmanharris`, `nuttallwin`, `flattopwin`, `kaiser`,
    `tukeywin`, `gausswin`, `parzenwin`, `bohmanwin`, `barthannwin`, `chebwin`; `mag2db`, `db2mag`,
    `pow2db`, `db2pow`; `square`, `sawtooth`, `rectpuls`, `diric`, `chirp`, `gmonopuls`.
-2. **More waveforms and windows**. To do: `tripuls`, `gauspuls`, `pulstran`, `vco`, `taylorwin`,
+2. **More waveforms and windows**. Done: `tripuls`, `gauspuls`. To do: `pulstran`, `vco`, `taylorwin`,
    `dpss`, `buffer`, `modulate`, `demod`, `shiftdata`, `unshiftdata`, `uencode`, `udecode`,
    `marcumq`.
 3. **Polynomial and filter conversions**. Done: `lp2lp`, `lp2hp`, `lp2bp`, `lp2bs` (transfer
    function form), `bilinear` (transfer function and zero-pole-gain forms, with pre-warping),
-   `polystab`, `polyscale`, `eqtflength`, `sos2tf`. To do: `tf2zp`, `zp2tf`, `tf2zpk`, `tf2sos`,
-   `zp2sos`, `sos2zp`, `tf2ss`, `zp2ss`, `ss2zp`, `sos2ss`, `ss2sos`, `residuez`, `latc2tf`,
+   `polystab`, `polyscale`, `eqtflength`, `sos2tf`, `tf2zp`, `tf2zpk`, `zp2tf`, `sos2zp`. To do:
+   `tf2sos`, `zp2sos`, `tf2ss`, `zp2ss`, `ss2zp`, `sos2ss`, `ss2sos`, `residuez`, `latc2tf`,
    `tf2latc`, `impinvar`, `cell2sos`, `sos2cell` (these were held back only because the reference
    leaves their conventions open; with MATLAB available they can now be done by comparison).
 4. **Analog prototypes and IIR design**. Done: `buttap`, `cheb1ap`, `cheb2ap`, `butter`,
@@ -99,9 +99,10 @@ cases in `signal_cases.m` and MATLAB's output recorded as above.
    `powerbw`, `enbw`, `meanfreq`, `medfreq`, `cusum`, `dtw`, `edr`, `alignsignals`, `finddelay`,
    `findsignal`, `zerocrossrate`, `seqperiod`; pulse metrics (`risetime`, `falltime`,
    `pulsewidth`, `pulseperiod`, `pulsesep`, `dutycycle`, `midcross`, `overshoot`, `undershoot`,
-   `settlingtime`, `slewrate`, `statelevels`); `lpc`, `levinson`, `rlevinson`, `aryule`,
+   `settlingtime`, `slewrate`, `statelevels`); `lpc`, `rlevinson`, `aryule`,
    `arburg`, `arcov`, `armcov`, `prony`, `stmcb`, `invfreqz`, `invfreqs` and the
-   reflection-coefficient converters (`ac2rc`, `rc2ac`, `poly2rc`, ...).
+   remaining reflection-coefficient converters (`ac2poly`, `poly2ac`, `rc2is`, `is2rc`, `rc2lar`,
+   `lar2rc`, `rc2lsf`, `lsf2rc`, ...). Done: `levinson`, `ac2rc`, `rc2ac`, `rc2poly`, `poly2rc`.
 9. **Time-frequency**. Done: `spectrogram`. To do: `stft`, `istft`, `xspectrogram`, `iscola`,
    `wvd`, `xwvd`, `hht`, `emd`, `vmd`, `ewt`, `fsst`, `ifsst`, `tfridge`, `kurtogram`, `instfreq`,
    `instbw`, spectral descriptors (`spectralCrest`, `spectralEntropy`, `spectralFlatness`,

@@ -125,6 +125,47 @@ pub(crate) fn out(values: Vec<Value>) -> Ret {
     Ok(Some(values))
 }
 
+/// Roots of a polynomial in the order MATLAB's `roots` returns them: the roots at the origin
+/// (trailing zeros) first, then the eigenvalues of the companion matrix of the rest. Leading
+/// zeros are dropped.
+pub(crate) fn roots_matlab(coef: &[C]) -> R<Vec<C>> {
+    let zero = |c: &C| c.re == 0.0 && c.im == 0.0;
+    let mut c: Vec<C> = coef.iter().copied().skip_while(zero).collect();
+    let mut nz = 0;
+    while c.last().is_some_and(zero) {
+        c.pop();
+        nz += 1;
+    }
+    let mut roots = vec![C::new(0.0, 0.0); nz];
+    let n = c.len().saturating_sub(1);
+    if n == 0 {
+        return Ok(roots);
+    }
+    let mut re = vec![0.0; n * n];
+    let mut im = vec![0.0; n * n];
+    for j in 0..n {
+        let q = c[j + 1].div(c[0]);
+        re[j * n] = -q.re;
+        im[j * n] = -q.im;
+    }
+    for i in 1..n {
+        re[(i - 1) * n + i] = 1.0;
+    }
+    let m = Matrix::complex(vec![n, n], re, im);
+    let Value::Num(v) = crate::builtins_matfun::eig_values(&m)? else { return Ok(roots) };
+    roots.extend((0..v.numel()).map(|k| C::new(v.data[k], v.im_at(k))));
+    Ok(roots)
+}
+
+/// MATLAB's wording for an argument of the wrong class, where the check names the allowed ones.
+pub(crate) fn class_error(label: &str, index: usize, allowed: &str, got: Kind, with_got: bool) -> LangError {
+    let mut msg = format!("Expected input number {index}, {label}, to be one of these types:  {allowed}");
+    if with_got {
+        msg.push_str(&format!("  Instead its type was {}.", got.name()));
+    }
+    LangError::new(msg, 0)
+}
+
 // ---- real-matrix helpers shared by the filtering and transform modules -------------------
 
 /// The real matrix argument `i`.
@@ -179,4 +220,3 @@ pub(crate) fn along(m: &Matrix, dim: usize, f: &dyn Fn(&[f64]) -> R<Vec<f64>>) -
         Ok(Matrix::new(rows, len, data))
     }
 }
-

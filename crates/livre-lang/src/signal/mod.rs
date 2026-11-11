@@ -11,6 +11,7 @@ pub mod db;
 pub mod filtering;
 pub mod fir;
 pub mod iir;
+pub mod lpc;
 pub mod measures;
 pub mod peaks;
 pub mod poly;
@@ -29,11 +30,15 @@ use crate::value::*;
 /// when any argument is.
 pub fn call(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Ret {
     let result = dispatch(it, name, a, nargout)?;
-    let single = a.iter().any(|v| matches!(v, Value::Num(m) if m.kind == Kind::Single));
+    // These functions decide the class of each output themselves.
+    let single = !OWN_PRECISION.contains(&name) && a.iter().any(|v| matches!(v, Value::Num(m) if m.kind == Kind::Single));
     Ok(result.map(|vals| if single { vals.into_iter().map(to_single).collect() } else { vals }))
 }
 
-fn to_single(v: Value) -> Value {
+/// Functions whose outputs do not all follow a single-precision input.
+const OWN_PRECISION: &[&str] = &["tripuls", "gauspuls", "zp2tf"];
+
+pub(crate) fn to_single(v: Value) -> Value {
     match v {
         Value::Num(mut m) if m.kind == Kind::Double => {
             m.kind = Kind::Single;
@@ -93,6 +98,9 @@ fn dispatch(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
     }
     if filtering::NAMES.contains(&name) {
         return filtering::call(it, name, a, nargout);
+    }
+    if lpc::NAMES.contains(&name) {
+        return lpc::call(it, name, a, nargout);
     }
     Ok(None)
 }
