@@ -84,6 +84,8 @@ pub fn get(en: &str) -> Option<&'static str> {
         // Workspace
         "Workspace" => "ワークスペース",
         "Clear workspace" => "ワークスペースをクリア",
+        "Double-click to open" => "ダブルクリックで開く",
+        "·  Showing the first {} rows and {} columns" => "·  最初の {} 行と {} 列を表示中",
         "1 variable" => "変数 1 個",
         "{} variables" => "変数 {} 個",
         "Variables appear here after you run code." => "コードを実行すると、ここに変数が表示されます。",

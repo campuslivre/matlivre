@@ -82,6 +82,10 @@ retaining allocator) are in [`docs/performance.md`](docs/performance.md); the sc
   the plot. Graphics objects are handles (`get`, `set`, `findobj`, `copyobj`, arrays of them). `saveas`, `print` and `exportgraphics` write PNG and SVG; `savefig` and `openfig` save and reopen MATLAB `.fig` files.
 - A files panel (open a folder as the project root, like VS Code), workspace browser, command window and floating figure windows; tabs that can
   be dragged between windows; light and dark themes.
+- A variable viewer, like MATLAB's Variables editor (read-only): double-click a variable in the
+  workspace to open it beside the document as a grid of its elements, with numbered rows and
+  columns that stay in place while it scrolls, whatever the size of the array. Hovering a matrix
+  in the workspace previews its first rows and columns.
 - The interface in English, Portuguese, Spanish, French, German, Italian, Russian, Chinese
   and Japanese: the system's language on first start, and a flag menu at the top right to
   switch at any time. MATLAB output and error messages stay as MATLAB shows them.
