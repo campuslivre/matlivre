@@ -327,6 +327,8 @@ pub struct App {
     /// A section to run as soon as the current run ends (a control changed meanwhile).
     pending: Option<(u64, usize)>,
     workspace: Vec<VarInfo>,
+    /// Workspace variables opened over the document.
+    viewer: crate::varview::Viewer,
     output_right: bool,
     last_run: Option<(bool, Duration)>,
     /// Section and line (1-based) of the last run's error.
@@ -529,6 +531,7 @@ impl App {
             running_block: None,
             pending: None,
             workspace: Vec::new(),
+            viewer: Default::default(),
             output_right: layout.output_right,
             last_run: None,
             last_error: None,
@@ -1243,8 +1246,13 @@ impl App {
                         }
                     }
                 }
+                Event::Variable { name, view } => self.viewer.receive(&name, view),
                 Event::Finished { workspace, ok, elapsed } => {
                     self.workspace = workspace;
+                    // The open variables show what the run left in them.
+                    for name in self.viewer.names() {
+                        self.engine.send(Command::Inspect(name));
+                    }
                     self.running = false;
                     if let Some((reply, c)) = self.mcp_run.take() {
                         let _ = reply.send(c.finish(ctx, ok));
@@ -2578,11 +2586,15 @@ impl App {
             ui.painter().text(pos2(x, hr.center().y), Align2::LEFT_CENTER, label, FontId::proportional(12.0), skin.text_secondary);
         }
         ui.painter().line_segment([pos2(hr.left(), hr.bottom() - 0.5), pos2(hr.right(), hr.bottom() - 0.5)], Stroke::new(1.0_f32, skin.separator));
+        let mut open = None;
         scroll_area(&mut ui, &skin, "workspace", |ui| {
             ui.add_space(4.0);
             ui.spacing_mut().item_spacing.y = 0.0;
             for v in &self.workspace {
-                let (r, resp) = ui.allocate_exact_size(vec2(w, 32.0), Sense::hover());
+                let (r, resp) = ui.allocate_exact_size(vec2(w, 32.0), Sense::click());
+                if resp.double_clicked() {
+                    open = Some(v.name.clone());
+                }
                 let p = ui.painter();
                 if resp.hovered() {
                     p.rect_filled(r, Rounding::same(RADIUS), skin.subtle_hover);
@@ -2597,9 +2609,25 @@ impl App {
                 cell(name, &v.name, FontId::proportional(14.0), skin.text);
                 cell(value, &v.value, FontId::monospace(13.0), skin.text);
                 cell(size, &v.size, FontId::proportional(12.0), skin.text_secondary);
-                resp.on_hover_text(format!("{}  ·  {} {}  ·  {}", v.name, v.size, v.class, v.value));
+                resp.on_hover_ui(|ui| {
+                    ui.spacing_mut().item_spacing.y = 6.0;
+                    ui.set_max_width(640.0);
+                    // A matrix's value only repeats its size and class; its first elements say more.
+                    match &v.preview {
+                        Some(_) => ui.label(format!("{}  ·  {} {}", v.name, v.size, v.class)),
+                        None => ui.label(format!("{}  ·  {} {}  ·  {}", v.name, v.size, v.class, v.value)),
+                    };
+                    if let Some(preview) = &v.preview {
+                        ui.add(egui::Label::new(RichText::new(preview).font(FontId::monospace(12.0)).color(skin.text)).extend());
+                    }
+                    ui.label(RichText::new(tr("Double-click to open")).size(12.0).color(skin.text_tertiary));
+                });
             }
         });
+        if let Some(name) = open {
+            self.viewer.ask(&name);
+            self.engine.send(Command::Inspect(name));
+        }
     }
 
     fn command_window(&mut self, ui: &mut Ui, rect: Rect) {
@@ -2697,6 +2725,16 @@ impl App {
                     t.conflict = false;
                 }
                 None => {}
+            }
+        }
+        if !self.viewer.is_empty() {
+            let title = self.tab().title();
+            if let Some(action) = self.viewer.strip(&mut ui, &skin, &title) {
+                self.viewer.apply(action);
+            }
+            if self.viewer.active().is_some() {
+                self.viewer.show(&mut ui, &skin);
+                return;
             }
         }
         let running_section = self.running_section();
@@ -2990,7 +3028,7 @@ fn scroll_area<R>(ui: &mut Ui, skin: &Skin, salt: &str, add_contents: impl FnOnc
     .inner
 }
 
-fn style_scroll_bar(ui: &mut Ui, skin: &Skin) {
+pub(crate) fn style_scroll_bar(ui: &mut Ui, skin: &Skin) {
     let v = &mut ui.style_mut().visuals;
     v.extreme_bg_color = Color32::TRANSPARENT;
     for (w, fill) in [

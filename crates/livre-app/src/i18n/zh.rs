@@ -84,6 +84,8 @@ pub fn get(en: &str) -> Option<&'static str> {
         // Workspace
         "Workspace" => "工作区",
         "Clear workspace" => "清空工作区",
+        "Double-click to open" => "双击打开",
+        "·  Showing the first {} rows and {} columns" => "·  显示前 {} 行和前 {} 列",
         "1 variable" => "1 个变量",
         "{} variables" => "{} 个变量",
         "Variables appear here after you run code." => "运行代码后，变量将显示在这里。",

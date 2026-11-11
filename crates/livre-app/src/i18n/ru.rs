@@ -84,6 +84,8 @@ pub fn get(en: &str) -> Option<&'static str> {
         // Workspace
         "Workspace" => "Рабочая область",
         "Clear workspace" => "Очистить рабочую область",
+        "Double-click to open" => "Дважды щёлкните, чтобы открыть",
+        "·  Showing the first {} rows and {} columns" => "·  Показаны первые {} строк и {} столбцов",
         "1 variable" => "Переменных: 1",
         "{} variables" => "Переменных: {}",
         "Variables appear here after you run code." => "Переменные появятся здесь после выполнения кода.",
