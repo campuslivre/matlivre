@@ -5,7 +5,7 @@
 //! are columns.
 
 use crate::builtins::Ret;
-use crate::cplx::{poly_roots, C};
+use crate::cplx::C;
 use crate::error::rt;
 use crate::interp::Interpreter;
 use crate::signal::poly::*;

@@ -117,12 +117,14 @@ cases in `signal_cases.m` and MATLAB's output recorded as above.
 These are the calls in `signal_known_deviations.tsv`, plus the limits that the recorded cases do
 not exercise:
 
-- **Order of zeros and poles** of designs that MATLAB builds through state space: a digital
-  Chebyshev design, a band transformation, an analog high-pass or band-stop design. The values
-  are the same set; the order differs. (`buttap`, `cheb1ap`, `cheb2ap` and lowpass `butter`
-  match.)
+- **Order of zeros and poles** of `cheby2` designs. `butter`, `cheby1` and the poles of `cheby2`
+  follow MATLAB's order, because the design goes through the same state-space path (cascade
+  realisation `zp2ss`, frequency transformation, bilinear transform) and takes the eigenvalue
+  order of the state matrix from a port of LAPACK's `dgebal`/`dgehd2`/`dlahqr`
+  (`signal/lapack_eig.rs`). The zeros of `cheby2` are the eigenvalues of A - B C / D; in about one
+  case in twenty MATLAB's order follows rounding errors in the entries of that matrix, which
+  differ here (five recorded cases).
 - **Degenerate designs**: `cheby1` with zero ripple and `cheby2` with zero attenuation.
-- **State-space output** (`[A,B,C,D] = butter(...)`) is not implemented.
 - **Single precision**: results are computed in double precision and rounded to single; MATLAB's
   own single arithmetic can differ in the last digits (the recorded cases allow 1e-6).
 - **N-D arrays** and operating along dimension 3 (`dct`, `hilbert`).

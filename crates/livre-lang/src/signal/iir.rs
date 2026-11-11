@@ -9,8 +9,10 @@
 use crate::builtins::{m_arg, Ret};
 use crate::error::rt;
 use crate::interp::Interpreter;
+use crate::cplx::C;
 use crate::signal::analog::*;
 use crate::signal::poly::*;
+use crate::signal::statespace::*;
 use crate::value::*;
 
 pub const NAMES: &[&str] = &["butter", "cheby1", "cheby2"];
@@ -100,6 +102,15 @@ pub fn call(_it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> R
         Band::Stop => zpk_lp2bs(&proto, (u[0] * u[1]).sqrt(), u[1] - u[0]),
     };
     let f = if analog { f } else { zpk_bilinear(&f, 4.0) };
+    // The state-space path MATLAB takes: its eigenvalue order is the order of the poles.
+    let ss = zp2ss(&proto.z, &proto.p, proto.k);
+    let ss = match band {
+        Band::Low => lp2lp(&ss, u[0]),
+        Band::High => lp2hp(&ss, u[0]),
+        Band::Pass => lp2bp(&ss, (u[0] * u[1]).sqrt(), u[1] - u[0]),
+        Band::Stop => lp2bs(&ss, (u[0] * u[1]).sqrt(), u[1] - u[0]),
+    };
+    let ss = if analog { ss } else { bilinear(&ss, 2.0) };
     match nargout {
         0..=2 => {
             let (mut b, den) = zpk_to_ba(&f);
@@ -108,7 +119,85 @@ pub fn call(_it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> R
             }
             out(vec![real_row(b), real_row(den)])
         }
-        3 => out(vec![col_value(&f.z), col_value(&f.p), scalar_value(f.k)]),
-        _ => rt("State-space output is not supported yet; request two or three outputs."),
+        3 => {
+            let z = if name == "cheby2" { zeros_like(&ss, &f.z)? } else { clean(&f.z) };
+            let p = like_eigenvalues(&ss, &f.p)?;
+            out(vec![col_value(&z), col_value(&p), scalar_value(f.k)])
+        }
+        _ => {
+            let n = ss.n;
+            out(vec![
+                Value::Num(Matrix::new(n, n, ss.a.clone())),
+                real_col(ss.b.clone()),
+                real_row(ss.c.clone()),
+                scalar_value(ss.d),
+            ])
+        }
     }
+}
+
+/// The zeros of the model in the order of the eigenvalues of A - B C / D (the transmission zeros
+/// of a model with feedthrough); the accurate values in `zeros` are kept. Without feedthrough,
+/// or if the iteration fails, the order of the companion-matrix roots is used instead.
+fn zeros_like(ss: &Ss, zeros: &[C]) -> R<Vec<C>> {
+    if ss.d == 0.0 || zeros.len() != ss.n {
+        return matlab_order(zeros);
+    }
+    let n = ss.n;
+    let mut m = ss.a.clone();
+    for i in 0..n {
+        for j in 0..n {
+            m[i + j * n] -= ss.b[i] * ss.c[j] / ss.d;
+        }
+    }
+    let Some(ev) = crate::signal::lapack_eig::eigenvalues(n, &m) else { return matlab_order(zeros) };
+    let mut left = clean(zeros);
+    let mut out = Vec::with_capacity(n);
+    for (re, im) in ev {
+        let w = C::new(re, im);
+        let Some((i, _)) = left.iter().enumerate().map(|(i, r)| (i, r.sub(w).abs())).min_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal)) else { break };
+        out.push(left.remove(i));
+    }
+    Ok(out)
+}
+
+/// `poles` in the order of the eigenvalues of the state matrix (the accurate values are kept).
+fn like_eigenvalues(ss: &Ss, poles: &[C]) -> R<Vec<C>> {
+    let Some(ev) = crate::signal::lapack_eig::eigenvalues(ss.n, &ss.a) else { return matlab_order(poles) };
+    let mut left = clean(poles);
+    let mut out = Vec::with_capacity(left.len());
+    for (re, im) in ev {
+        let w = C::new(re, im);
+        let Some((i, _)) = left.iter().enumerate().map(|(i, r)| (i, r.sub(w).abs())).min_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal)) else { break };
+        out.push(left.remove(i));
+    }
+    Ok(out)
+}
+
+/// Roots with a rounding-error imaginary part removed.
+fn clean(v: &[C]) -> Vec<C> {
+    v.iter().map(|r| if r.im.abs() <= 1e-12 * r.abs().max(1.0) { C::new(r.re, 0.0) } else { *r }).collect()
+}
+
+/// The roots in the order MATLAB returns them. MATLAB designs through state space and reads the
+/// poles from the roots of the characteristic polynomial, so the order is that of the companion
+/// matrix eigenvalues. That order is found from the polynomial and applied to the accurate roots.
+fn matlab_order(roots: &[C]) -> R<Vec<C>> {
+    let roots = clean(roots);
+    if roots.len() < 2 {
+        return Ok(roots);
+    }
+    let want = roots_matlab(&poly_of(&roots))?;
+    let mut left = roots;
+    let mut out = Vec::with_capacity(want.len());
+    for w in want {
+        let (i, _) = left
+            .iter()
+            .enumerate()
+            .map(|(i, r)| (i, r.sub(w).abs()))
+            .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
+            .expect("same number of roots");
+        out.push(left.remove(i));
+    }
+    Ok(out)
 }

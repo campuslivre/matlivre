@@ -151,6 +151,12 @@ pub(crate) fn roots_matlab(coef: &[C]) -> R<Vec<C>> {
     for i in 1..n {
         re[(i - 1) * n + i] = 1.0;
     }
+    if im.iter().all(|&v| v == 0.0) {
+        if let Some(ev) = crate::signal::lapack_eig::eigenvalues(n, &re) {
+            roots.extend(ev.into_iter().map(|(r, i)| C::new(r, i)));
+            return Ok(roots);
+        }
+    }
     let m = Matrix::complex(vec![n, n], re, im);
     let Value::Num(v) = crate::builtins_matfun::eig_values(&m)? else { return Ok(roots) };
     roots.extend((0..v.numel()).map(|k| C::new(v.data[k], v.im_at(k))));

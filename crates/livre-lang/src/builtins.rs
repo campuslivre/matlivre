@@ -2630,7 +2630,7 @@ fn call_dense(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize) 
         "roots" => {
             let p = m_arg(a, 0, name)?;
             let c: Vec<C> = (0..p.numel()).map(|i| C::new(p.data[i], p.im_at(i))).collect();
-            let r = poly_roots(&c);
+            let r = crate::signal::poly::roots_matlab(&c)?;
             let n = r.len();
             mat(Matrix::complex(vec![n, if n == 0 { 0 } else { 1 }], r.iter().map(|z| z.re).collect(), r.iter().map(|z| z.im).collect()))
         }

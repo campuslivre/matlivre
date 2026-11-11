@@ -1,16 +1,7 @@
 # case text <TAB> why MatLivre still differs from MATLAB. The test checks each one still differs,
 # so remove an entry when it is fixed.
-[z,p,k] = butter(3,[0.2 0.5]); r = {z,p,k};	order of the poles after the band transformation
-[z,p,k] = butter(2,0.3,'high'); r = {z,p,k};	order of the poles after the high-pass transformation
-[z,p,k] = cheby1(3,1,0.4); r = {z,p,k};	order of the poles of a digital Chebyshev design
-[z,p,k] = cheby2(4,40,0.5); r = {z,p,k};	order of the zeros and poles of a digital Chebyshev design
-[z,p,k] = cheby2(3,40,0.5); r = {z,p,k};	order of the zeros and poles of a digital Chebyshev design
-[z,p,k] = butter(4,[0.2 0.4]); r = {z,p,k};	order of the poles after the band transformation
-[z,p,k] = cheby1(2,1,10,'high','s'); r = {z,p,k};	order of the poles of an analog high-pass design
-[z,p,k] = cheby2(3,40,[10 20],'stop','s'); r = {z,p,k};	order of the zeros and poles of an analog band-stop design
 r = cheby1(3,0,0.4);	zero ripple degenerates; MATLAB returns the FIR (1+z^-1)^3/8
 r = cheby2(3,0,0.4);	zero attenuation degenerates in MATLAB
-[a1,b1,c1,d1] = butter(2,0.4); r = {a1,b1,c1,d1};	state-space output is not implemented
 r = freqz(1,0);	zero denominator
 r = filtic(1,[0 1],1);	zero leading denominator coefficient
 r = pwelch(1:100,10,5.5);	non-integer overlap
@@ -22,3 +13,9 @@ r = gauspuls(1i);	complex time input: MATLAB returns Inf, MatLivre rejects it
 [b,a] = butter(5,0.3); [gd,w] = grpdelay(b,a,64); r = {gd,w};	MATLAB loses accuracy near the zeros at Nyquist (error 3e-7); MatLivre is within 1e-8 of the exact value
 [h,w] = freqs([1],[1 1 1],20); r = {h,w};	MATLAB refines the automatic grid around resonances (uneven log spacing); MatLivre spaces it evenly
 [h,w] = freqs([1 0 0],[1 2 3 4]); r = {h,w};	MATLAB refines the automatic grid around resonances (uneven log spacing); MatLivre spaces it evenly
+[z,p,k] = cheby2(6,35,0.35); r = {z,p,k};	order of the zeros: MATLAB's follows rounding errors of its state matrix, which are not reproduced
+[z,p,k] = cheby2(5,35,0.6,'high'); r = {z,p,k};	order of the zeros: MATLAB's follows rounding errors of its state matrix, which are not reproduced
+[z,p,k] = cheby2(5,35,[0.25 0.55]); r = {z,p,k};	order of the zeros: MATLAB's follows rounding errors of its state matrix, which are not reproduced
+[z,p,k] = cheby2(3,35,20,'high','s'); r = {z,p,k};	order of the poles: a rounding error in the state matrix changes the eigenvalue order
+[z,p,k] = cheby2(3,35,[10 40],'s'); r = {z,p,k};	order of the zeros: MATLAB's are 1e-15 off the imaginary axis, MatLivre's exactly on it
+r = roots([1 5 10 10 5 1]);	fivefold root: the result is rounding noise around -1 and differs from MATLAB in the last digits
