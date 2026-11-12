@@ -9,6 +9,7 @@ pub mod analog;
 pub mod conversions;
 pub mod db;
 pub mod filtering;
+pub mod elliptic;
 pub mod fir;
 pub mod iir;
 pub mod lapack_eig;
@@ -106,6 +107,9 @@ fn dispatch(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
     }
     if ssconv::NAMES.contains(&name) {
         return ssconv::call(it, name, a, nargout);
+    }
+    if elliptic::NAMES.contains(&name) {
+        return elliptic::call(it, name, a, nargout);
     }
     if rational::NAMES.contains(&name) {
         return rational::call(it, name, a, nargout);

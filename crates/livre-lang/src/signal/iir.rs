@@ -15,7 +15,7 @@ use crate::signal::poly::*;
 use crate::signal::statespace::*;
 use crate::value::*;
 
-pub const NAMES: &[&str] = &["butter", "cheby1", "cheby2"];
+pub const NAMES: &[&str] = &["butter", "cheby1", "cheby2", "ellip", "besself"];
 
 #[derive(Clone, Copy, PartialEq)]
 enum Band {
@@ -26,12 +26,17 @@ enum Band {
 }
 
 pub fn call(_it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Ret {
-    let ripple = name != "butter";
-    let fixed = if ripple { 3 } else { 2 };
+    let ripple = !matches!(name, "butter" | "besself");
+    let bessel = name == "besself";
+    let fixed = match name {
+        "ellip" => 4,
+        "cheby1" | "cheby2" => 3,
+        _ => 2,
+    };
     if a.len() < fixed {
         return rt("Not enough input arguments.");
     }
-    if a.len() > fixed + 2 {
+    if a.len() > fixed + if bessel { 1 } else { 2 } {
         return rt("Too many input arguments.");
     }
     let nm = m_arg(a, 0, name)?;
@@ -47,20 +52,38 @@ pub fn call(_it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> R
     let n = nm.data[0] as usize;
     let r = if ripple { scalar_arg(a, 1, name)? } else { 0.0 };
     if ripple && r < 0.0 {
-        return rt(if name == "cheby1" { "Expected Rp to be nonnegative." } else { "Expected Rs to be nonnegative." });
+        return rt(if name == "cheby2" { "Expected Rs to be nonnegative." } else { "Expected Rp to be nonnegative." });
+    }
+    let rs = if name == "ellip" { scalar_arg(a, 2, name)? } else { 0.0 };
+    if name == "ellip" {
+        if rs < 0.0 {
+            return rt("Expected Rs to be nonnegative.");
+        }
+        if r == 0.0 {
+            return rt("Passband ripple cannot be zero. Use CHEBY2 or BUTTER if no passband ripple is desired.");
+        }
+        if rs <= r {
+            return rt("Stopband attenuation must be greater than passband ripple.");
+        }
     }
     let wn = rvec_arg(a, fixed - 1, name)?;
     if wn.is_empty() || wn.len() > 2 {
         return rt("Wn must be a one or two element vector.");
     }
     // Remaining arguments: a band type and/or "s" for an analog design ("z" is the default).
-    let mut analog = false;
+    let mut analog = bessel;
     let mut band = None;
     let mut band_name = String::new();
     for i in fixed..a.len() {
         let Some(s) = text_arg(a, i) else {
             return rt("Option character vector must be one of 'high', 'stop', 'low', 'bandpass', 'z' or 's'.");
         };
+        if bessel && !matches!(s.as_str(), "low" | "high" | "bandpass" | "stop") {
+            return rt("Filter type must be one of 'high', 'stop', 'low', or 'bandpass'.");
+        }
+        if name == "ellip" && i == fixed + 1 && !matches!(s.as_str(), "s" | "z") {
+            return rt("Analog flag must be either 'z' or 's'.");
+        }
         match s.as_str() {
             "s" => analog = true,
             "z" => analog = false,
@@ -91,6 +114,8 @@ pub fn call(_it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> R
     let proto = match name {
         "butter" => buttap(n),
         "cheby1" => cheb1ap(n, r),
+        "ellip" => crate::signal::elliptic::ellipap(n, r, rs),
+        "besself" => crate::signal::elliptic::besselap(n)?,
         _ => cheb2ap(n, r),
     };
     // Band edges in rad/s of the analog prototype's domain.
@@ -120,7 +145,7 @@ pub fn call(_it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> R
             out(vec![real_row(b), real_row(den)])
         }
         3 => {
-            let z = if name == "cheby2" { zeros_like(&ss, &f.z)? } else { clean(&f.z) };
+            let z = if matches!(name, "cheby2" | "ellip") { zeros_like(&ss, &f.z)? } else { clean(&f.z) };
             let p = like_eigenvalues(&ss, &f.p)?;
             out(vec![col_value(&z), col_value(&p), scalar_value(f.k)])
         }
