@@ -11,10 +11,10 @@ How MatLivre grows to cover the MATLAB Signal Processing Toolbox. The function i
 |---|---:|
 | Functions in scope (R2023b-era, from `signal.tsv`) | 333 |
 | Already in MatLivre before this plan (`xcorr`, `xcov`, `resample`, `rms`, `sinc`, `detrend`, `movmedian`, `movmad`, `isoutlier`, `filloutliers`, `smoothdata`, `islocalmax`, `paddata`, `trimdata`, `resize`, `freqspace`, `ss2tf`) | 17 |
-| Implemented by this plan (`crates/livre-lang/src/signal/`) | 128 |
-| Still to implement | 188 |
+| Implemented by this plan (`crates/livre-lang/src/signal/`) | 136 |
+| Still to implement | 180 |
 
-The 128 are checked against MATLAB: see "How it is tested".
+The 136 are checked against MATLAB: see "How it is tested".
 
 ## How it is tested
 
@@ -96,9 +96,9 @@ cases in `signal_cases.m` and MATLAB's output recorded as above.
    `findsignal`, `zerocrossrate`, `seqperiod`; pulse metrics (`risetime`, `falltime`,
    `pulsewidth`, `pulseperiod`, `pulsesep`, `dutycycle`, `midcross`, `overshoot`, `undershoot`,
    `settlingtime`, `slewrate`, `statelevels`); `lpc`, `rlevinson`, `aryule`,
-   `arburg`, `arcov`, `armcov`, `prony`, `stmcb`, `invfreqz`, `invfreqs` and the
-   remaining reflection-coefficient converters (`ac2poly`, `poly2ac`, `rc2is`, `is2rc`, `rc2lar`,
-   `lar2rc`, `rc2lsf`, `lsf2rc`, ...). Done: `levinson`, `ac2rc`, `rc2ac`, `rc2poly`, `poly2rc`.
+   `arburg`, `arcov`, `armcov`, `prony`, `stmcb`, `invfreqz`, `invfreqs`, `schurrc`.
+   Done: `levinson`, `ac2rc`, `rc2ac`, `rc2poly`, `poly2rc`, `ac2poly`, `poly2ac`, `rc2is`, `is2rc`,
+   `rc2lar`, `lar2rc`, `poly2lsf`, `lsf2poly`.
 9. **Time-frequency**. Done: `spectrogram`. To do: `stft`, `istft`, `xspectrogram`, `iscola`,
    `wvd`, `xwvd`, `hht`, `emd`, `vmd`, `ewt`, `fsst`, `ifsst`, `tfridge`, `kurtogram`, `instfreq`,
    `instbw`, spectral descriptors (`spectralCrest`, `spectralEntropy`, `spectralFlatness`,

@@ -16,6 +16,7 @@ pub mod firdes;
 pub mod iir;
 pub mod lapack_eig;
 pub mod lpc;
+pub mod lpc2;
 pub mod measure2;
 pub mod measures;
 pub mod order;
@@ -112,6 +113,9 @@ fn dispatch(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
     }
     if ssconv::NAMES.contains(&name) {
         return ssconv::call(it, name, a, nargout);
+    }
+    if lpc2::NAMES.contains(&name) {
+        return lpc2::call(it, name, a, nargout);
     }
     if measure2::NAMES.contains(&name) {
         return measure2::call(it, name, a, nargout);
