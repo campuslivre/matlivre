@@ -24,6 +24,7 @@ pub mod measures;
 pub mod order;
 pub mod peaks;
 pub mod poly;
+pub mod pspec;
 pub mod rational;
 pub mod remez;
 pub mod response;
@@ -116,6 +117,9 @@ fn dispatch(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
     }
     if ssconv::NAMES.contains(&name) {
         return ssconv::call(it, name, a, nargout);
+    }
+    if pspec::NAMES.contains(&name) {
+        return pspec::call(it, name, a, nargout);
     }
     if cepstra::NAMES.contains(&name) {
         return cepstra::call(it, name, a, nargout);

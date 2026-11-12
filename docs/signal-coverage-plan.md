@@ -11,10 +11,10 @@ How MatLivre grows to cover the MATLAB Signal Processing Toolbox. The function i
 |---|---:|
 | Functions in scope (R2023b-era, from `signal.tsv`) | 333 |
 | Already in MatLivre before this plan (`xcorr`, `xcov`, `resample`, `rms`, `sinc`, `detrend`, `movmedian`, `movmad`, `isoutlier`, `filloutliers`, `smoothdata`, `islocalmax`, `paddata`, `trimdata`, `resize`, `freqspace`, `ss2tf`) | 17 |
-| Implemented by this plan (`crates/livre-lang/src/signal/`) | 151 |
-| Still to implement | 165 |
+| Implemented by this plan (`crates/livre-lang/src/signal/`) | 155 |
+| Still to implement | 161 |
 
-The 151 are checked against MATLAB: see "How it is tested".
+The 155 are checked against MATLAB: see "How it is tested".
 
 ## How it is tested
 
@@ -86,8 +86,8 @@ cases in `signal_cases.m` and MATLAB's output recorded as above.
    `filtfilt` with second-order sections.
 7. **Spectral estimation and transforms**. Done: `periodogram`, `pwelch`, `mscohere`, `dct`,
    `idct`, `dftmtx`, `goertzel`, `hilbert`, `cconv`, `convmtx`, `bitrevorder`, `czt`, `fwht`, `ifwht`, `cceps`, `rceps`, `icceps`,
-   `digitrevorder`, `corrmtx`. To do: `cpsd`,
-   `tfestimate`, `pmtm`, `plomb`, `poctave`, `pspectrum`, `pburg`, `pcov`, `pmcov`, `pyulear`,
+   `digitrevorder`, `corrmtx`, `pyulear`, `pburg`, `pcov`, `pmcov`. To do: `cpsd`,
+   `tfestimate`, `pmtm`, `plomb`, `poctave`, `pspectrum`,
    `pmusic`, `peig`, `rootmusic`, `rooteig`; `xcorr2`.
 8. **Measurements and modeling**. Done: `peak2peak`, `peak2rms`, `rssq`, `findpeaks`, `enbw`, `bandpower`, `meanfreq`, `medfreq`,
    `finddelay`. To do:
