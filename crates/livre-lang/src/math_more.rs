@@ -122,7 +122,7 @@ fn strip_leading(p: &[C]) -> Vec<C> {
 }
 
 /// `num / den` for polynomials in descending powers: quotient and remainder.
-fn poly_div(num: &[C], den: &[C]) -> (Vec<C>, Vec<C>) {
+pub(crate) fn poly_div(num: &[C], den: &[C]) -> (Vec<C>, Vec<C>) {
     let (n, d) = (num.len(), den.len());
     if n < d {
         return (Vec::new(), num.to_vec());
@@ -157,7 +157,7 @@ fn poly_from_roots(r: &[C]) -> Vec<C> {
 }
 
 /// Taylor coefficients of a polynomial about `x0`, constant term first.
-fn taylor(p: &[C], x0: C, count: usize) -> Vec<C> {
+pub(crate) fn taylor(p: &[C], x0: C, count: usize) -> Vec<C> {
     let mut cur = p.to_vec();
     let mut out = Vec::with_capacity(count);
     for _ in 0..count {
@@ -182,7 +182,7 @@ fn taylor(p: &[C], x0: C, count: usize) -> Vec<C> {
 
 /// Poles grouped by multiplicity, as `mpoles` does: largest magnitude first, poles within a
 /// relative tolerance of 0.001 merged into their mean.
-fn group_poles(p: &[C]) -> Vec<(C, usize)> {
+pub(crate) fn group_poles(p: &[C]) -> Vec<(C, usize)> {
     let mut order: Vec<usize> = (0..p.len()).collect();
     order.sort_by(|&i, &j| p[j].abs().partial_cmp(&p[i].abs()).unwrap_or(std::cmp::Ordering::Equal));
     let mut used = vec![false; p.len()];
@@ -215,7 +215,7 @@ fn poly_eval(p: &[C], x: C) -> C {
 
 /// A pole of multiplicity `m` is a simple root of the (m-1)-th derivative, which pins it down
 /// far better than the mean of the clustered roots.
-fn refine_pole(den: &[C], p0: C, m: usize) -> C {
+pub(crate) fn refine_pole(den: &[C], p0: C, m: usize) -> C {
     let mut d = den.to_vec();
     for _ in 1..m {
         d = poly_deriv(&d);

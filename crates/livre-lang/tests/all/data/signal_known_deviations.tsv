@@ -35,3 +35,5 @@ r = tf2sos([1 2 3 4],[1 0.5]);	poles tied at the origin: MATLAB keeps the pole a
 [A,B,C,D] = butter(5,0.3); [s,g] = ss2sos(A,B,C,D); r = {s,g};	repeated zero at z = -1: MATLAB gets them from a structured eigenvalue problem that returns -1 to the last digit, MatLivre's differ in the last digits and the order follows the noise
 [A,B,C,D] = butter(5,0.3); s = ss2sos(A,B,C,D,1,'down'); r = s;	repeated zero at z = -1: MATLAB gets them from a structured eigenvalue problem that returns -1 to the last digit, MatLivre's differ in the last digits and the order follows the noise
 [A,B,C,D] = butter(5,0.3); s = ss2sos(A,B,C,D,'down'); r = s;	repeated zero at z = -1: MATLAB gets them from a structured eigenvalue problem that returns -1 to the last digit, MatLivre's differ in the last digits and the order follows the noise
+[r,p,k] = residuez([1 2 3],[1 0 0 0.5]); r = {r,p,k};	poles of equal size (a real one and a complex pair) are ordered by rounding noise in the eigenvalues, which differs from MATLAB
+[r,p,k] = residuez([1 0 0 1],[1 -1.5 0.75 -0.125]); r = {r,p,k};	a triple pole is found by MATLAB only to about 1e-5; MatLivre refines it to the exact value

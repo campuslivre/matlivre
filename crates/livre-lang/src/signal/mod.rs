@@ -16,6 +16,7 @@ pub mod lpc;
 pub mod measures;
 pub mod peaks;
 pub mod poly;
+pub mod rational;
 pub mod response;
 pub mod smoothing;
 pub mod sos;
@@ -40,7 +41,7 @@ pub fn call(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
 }
 
 /// Functions whose outputs do not all follow a single-precision input.
-const OWN_PRECISION: &[&str] = &["tripuls", "gauspuls", "zp2tf"];
+const OWN_PRECISION: &[&str] = &["tripuls", "gauspuls", "zp2tf", "impinvar"];
 
 pub(crate) fn to_single(v: Value) -> Value {
     match v {
@@ -105,6 +106,9 @@ fn dispatch(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
     }
     if ssconv::NAMES.contains(&name) {
         return ssconv::call(it, name, a, nargout);
+    }
+    if rational::NAMES.contains(&name) {
+        return rational::call(it, name, a, nargout);
     }
     if sos::NAMES.contains(&name) {
         return sos::call(it, name, a, nargout);
