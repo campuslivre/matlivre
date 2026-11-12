@@ -10,7 +10,7 @@ use crate::interp::Interpreter;
 use crate::signal::poly::*;
 use crate::value::*;
 
-pub const NAMES: &[&str] = &["periodogram", "pwelch", "mscohere", "spectrogram"];
+pub const NAMES: &[&str] = &["periodogram", "pwelch", "mscohere", "spectrogram", "cpsd", "tfestimate"];
 
 const PI: f64 = std::f64::consts::PI;
 
@@ -268,6 +268,9 @@ pub fn call(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
     if name == "mscohere" {
         return mscohere(it, a, nargout);
     }
+    if name == "cpsd" || name == "tfestimate" {
+        return cross_spectra(it, name, a, nargout);
+    }
     if name == "spectrogram" {
         return spectrogram(it, a, nargout);
     }
@@ -297,6 +300,87 @@ pub fn call(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
         columns.push(p);
     }
     let mut outs = vec![Value::Num(matrix_of(columns))];
+    if nargout >= 2 {
+        outs.push(real_col(rg.freqs));
+    }
+    out(outs)
+}
+
+/// `cpsd` (cross power spectral density) and `tfestimate` (transfer function estimate).
+fn cross_spectra(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Ret {
+    if a.len() < 2 {
+        return rt("Not enough input arguments.");
+    }
+    let x = signal_arg(a, 0, name, true)?;
+    let y = signal_arg(a, 1, name, true)?;
+    if x.len != y.len || (x.re.len() != y.re.len() && x.re.len() != 1 && y.re.len() != 1) {
+        return rt("The number of rows of the two inputs must be equal to calculate the cross spectral density.");
+    }
+    let o = match parse_opts(a, 2, &["window", "noverlap", "nfft", "fs"], name) {
+        Ok(o) => o,
+        Err(e) if name == "tfestimate" && e.to_string().contains("did not match any of the valid values") => {
+            let shown = a.iter().skip(2).find_map(|v| v.text().ok().filter(|s| !s.is_empty() && !["onesided", "twosided", "centered", "half", "whole"].contains(&s.to_lowercase().as_str()) && v.text().is_ok() && matches!(v, Value::Num(m) if m.kind == Kind::Char))).unwrap_or_default();
+            return rt(format!("Expected input to match one of these values:  'mimo', 'onesided', 'twosided', 'centered', 'Estimator', 'h1', 'h2'  The input, '{shown}', did not match any of the valid values."));
+        }
+        Err(e) => return Err(e),
+    };
+    let pl = plan(&o, x.len, true)?;
+    let rg = range(&o, pl.nfft, x.im.is_some() || y.im.is_some())?;
+    let rate = o.fs.unwrap_or(2.0 * PI);
+    let scale_psd = if o.power { pl.win.iter().sum::<f64>().powi(2) } else { rate * pl.win.iter().map(|w| w * w).sum::<f64>() };
+    let (mut cre, mut cim) = (Vec::new(), Vec::new());
+    for c in 0..x.re.len().max(y.re.len()) {
+        let (cx, cy) = (if x.re.len() == 1 { 0 } else { c }, if y.re.len() == 1 { 0 } else { c });
+        let xi = x.im.as_ref().map(|im| im[cx].as_slice());
+        let yi = y.im.as_ref().map(|im| im[cy].as_slice());
+        let sx = segment_spectra(it, &x.re[cx], xi, &pl.win, pl.noverlap, pl.nfft)?;
+        let sy = segment_spectra(it, &y.re[cy], yi, &pl.win, pl.noverlap, pl.nfft)?;
+        let k = sx.len() as f64;
+        let mut re = Vec::new();
+        let mut im = Vec::new();
+        for &i in &rg.bins {
+            let (mut pxx, mut sr, mut si) = (0.0, 0.0, 0.0);
+            for s in 0..sx.len() {
+                let (xr, xim) = sx[s][i];
+                let (yr, yim) = sy[s][i];
+                pxx += xr * xr + xim * xim;
+                if name == "cpsd" {
+                    // X conj(Y)
+                    sr += xr * yr + xim * yim;
+                    si += xim * yr - xr * yim;
+                } else {
+                    // conj(X) Y
+                    sr += xr * yr + xim * yim;
+                    si += xr * yim - xim * yr;
+                }
+            }
+            if name == "cpsd" {
+                re.push(sr / k / scale_psd);
+                im.push(si / k / scale_psd);
+            } else {
+                re.push(sr / pxx);
+                im.push(si / pxx);
+            }
+        }
+        if name == "cpsd" && rg.onesided {
+            double_one_sided(&mut re, pl.nfft);
+            double_one_sided(&mut im, pl.nfft);
+        }
+        cre.extend(re);
+        cim.extend(im);
+    }
+    let rows = rg.bins.len();
+    let cols = x.re.len().max(y.re.len());
+    if o.sides == Some(Sides::Centered) {
+        // MATLAB mirrors the positive-frequency imaginary part evenly into the negative half.
+        let nrows = rg.freqs.len();
+        for (i, v) in cim.iter_mut().enumerate() {
+            if rg.freqs[i % nrows] < 0.0 {
+                *v = -*v;
+            }
+        }
+    }
+    let mut outs = vec![Value::Num(Matrix::complex(vec![rows, cols], cre, cim))];
     if nargout >= 2 {
         outs.push(real_col(rg.freqs));
     }
