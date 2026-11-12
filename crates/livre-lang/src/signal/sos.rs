@@ -25,6 +25,12 @@ pub fn call(_it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> R
         if a.len() < 2 {
             return rt("Not enough input arguments.");
         }
+        for i in 0..2 {
+            let m = m_arg(a, i, name)?;
+            if m.dims.len() > 2 || (m.dims[0] > 1 && m.dims[1] > 1) {
+                return rt("Pole and zero inputs must be vectors not matrices.");
+            }
+        }
         let z = cvec_arg(a, 0, name)?;
         let p = cvec_arg(a, 1, name)?;
         let k = if a.len() > 2 {

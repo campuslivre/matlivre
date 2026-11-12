@@ -19,6 +19,7 @@ pub mod poly;
 pub mod response;
 pub mod smoothing;
 pub mod sos;
+pub mod ssconv;
 pub mod spectral;
 pub mod statespace;
 pub mod transforms;
@@ -101,6 +102,9 @@ fn dispatch(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
     }
     if filtering::NAMES.contains(&name) {
         return filtering::call(it, name, a, nargout);
+    }
+    if ssconv::NAMES.contains(&name) {
+        return ssconv::call(it, name, a, nargout);
     }
     if sos::NAMES.contains(&name) {
         return sos::call(it, name, a, nargout);

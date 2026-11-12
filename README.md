@@ -132,7 +132,7 @@ Symbolic Math Toolbox references and its status (1,889 implemented).
   (stiff, DAE, implicit, `ode` objects), delay, boundary value and parabolic PDE problems,
   integration, optimization, statistics, FFT and filtering, computational geometry, special
   functions, image resizing and indexed color.
-- **Signal Processing (in progress):** 89 functions so far, compared call by call with
+- **Signal Processing (in progress):** 94 functions so far, compared call by call with
   MATLAB R2023b (about 1,500 recorded calls): windows, waveforms, `butter`/`cheby1`/`cheby2`
   designed through state space with MATLAB's pole and zero order, `freqz`/`freqs`, `levinson`
   and reflection-coefficient conversions, spectral estimates. Plan and known deviations:
