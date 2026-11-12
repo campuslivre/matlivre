@@ -6,7 +6,7 @@ use crate::interp::Interpreter;
 use crate::signal::poly::*;
 use crate::value::*;
 
-pub const NAMES: &[&str] = &["prony"];
+pub const NAMES: &[&str] = &["prony", "lpc"];
 
 fn order_arg(a: &[Value], i: usize, label: &str) -> R<usize> {
     let m = match &a[i] {
@@ -27,7 +27,9 @@ fn order_arg(a: &[Value], i: usize, label: &str) -> R<usize> {
 }
 
 pub fn call(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Ret {
-    let _ = name;
+    if name == "lpc" {
+        return lpc(it, a, nargout);
+    }
     if a.len() < 3 {
         return rt("Not enough input arguments.");
     }
@@ -125,4 +127,105 @@ pub fn call(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
         Value::Num(mat)
     };
     out(vec![build(&num), build(&den)])
+}
+
+fn lpc(it: &mut Interpreter, a: &[Value], nargout: usize) -> Ret {
+    if a.is_empty() {
+        return rt("Not enough input arguments.");
+    }
+    if a.len() > 2 {
+        return rt("Too many input arguments.");
+    }
+    if nargout > 2 {
+        return rt("Too many output arguments.");
+    }
+    let x = match &a[0] {
+        Value::Num(m) if m.kind == Kind::Double => m.clone(),
+        _ => return rt("Input arguments must be 'double'."),
+    };
+    if x.numel() == 0 {
+        return rt("Input vector X should not be empty");
+    }
+    let rows = if x.dims[0] == 1 { x.numel() } else { x.dims[0] };
+    let ncols = x.numel() / rows;
+    let p = if a.len() > 1 {
+        let m = crate::builtins::m_arg(a, 1, "lpc")?;
+        if m.numel() != 1 {
+            return rt("Expected input number 2, N, to be a scalar.");
+        }
+        if m.data[0] < 0.0 || m.data[0].is_nan() {
+            return rt("Order of the predictor should be a positive integer.");
+        }
+        m.data[0].floor() as usize
+    } else {
+        rows - 1
+    };
+    if rows == 1 {
+        return out(vec![scalar_value(1.0), scalar_value(x.data[0] * x.data[0])]);
+    }
+    if p > rows {
+        return rt("X must be a vector with length greater or equal to the prediction order. If X is a matrix, the length of each column must be greater or equal to the prediction order.");
+    }
+    let cplx = x.im.is_some();
+    let mut arows: Vec<Vec<(f64, f64)>> = vec![];
+    let mut gs: Vec<(f64, f64)> = vec![];
+    for c in 0..ncols {
+        let col: Vec<(f64, f64)> = (0..rows).map(|i| (x.data[c * rows + i], x.im_at(c * rows + i))).collect();
+        let mut rr = vec![0.0; p + 1];
+        let mut ri = vec![0.0; p + 1];
+        for k in 0..=p {
+            for n in 0..rows - k {
+                let (ar, ai) = col[n + k];
+                let (br, bi) = col[n];
+                rr[k] += (ar * br + ai * bi) / rows as f64;
+                ri[k] += (ai * br - ar * bi) / rows as f64;
+            }
+        }
+        if cplx {
+            let cm = |x: (f64, f64), y: (f64, f64)| (x.0 * y.0 - x.1 * y.1, x.0 * y.1 + x.1 * y.0);
+            let r: Vec<(f64, f64)> = (0..=p).map(|k| (rr[k], ri[k])).collect();
+            let mut av = vec![(1.0, 0.0)];
+            let mut e = r[0].0;
+            for m in 1..=p {
+                let mut acc = (0.0, 0.0);
+                for i in 0..m {
+                    let t = cm(av[i], r[m - i]);
+                    acc = (acc.0 + t.0, acc.1 + t.1);
+                }
+                let k = (-acc.0 / e, -acc.1 / e);
+                let prev = av.clone();
+                av.push((0.0, 0.0));
+                for i in 1..=m {
+                    let c = (prev.get(m - i).map_or(0.0, |v| v.0), -prev.get(m - i).map_or(0.0, |v| v.1));
+                    let t = cm(k, c);
+                    let base = if i < prev.len() { prev[i] } else { (0.0, 0.0) };
+                    av[i] = (base.0 + t.0, base.1 + t.1);
+                }
+                e *= 1.0 - (k.0 * k.0 + k.1 * k.1);
+            }
+            arows.push(av);
+            gs.push((e, 0.0));
+            continue;
+        }
+        let rv = if cplx { Value::Num(Matrix::complex(vec![p + 1, 1], rr, ri)) } else { real_col(rr) };
+        let res = it.call_function("levinson", vec![rv, scalar_value(p as f64)], 2)?;
+        let am = res[0].to_matrix()?;
+        arows.push((0..am.numel()).map(|i| (am.data[i], am.im_at(i))).collect());
+        let e = res[1].to_matrix()?;
+        gs.push((e.data[0], e.im_at(0)));
+    }
+    let width = p + 1;
+    let mut re = vec![0.0; ncols * width];
+    let mut im = vec![0.0; ncols * width];
+    for (c, row) in arows.iter().enumerate() {
+        for (j, v) in row.iter().enumerate() {
+            re[j * ncols + c] = v.0;
+            im[j * ncols + c] = v.1;
+        }
+    }
+    let mk = |d: Vec<f64>, i: Vec<f64>, r: usize, cc: usize| {
+        Value::Num(if cplx { Matrix::complex(vec![r, cc], d, i) } else { Matrix::from_dims(vec![r, cc], d) })
+    };
+    let g = mk(gs.iter().map(|v| v.0).collect(), gs.iter().map(|v| v.1).collect(), ncols, 1);
+    out(vec![mk(re, im, ncols, width), g])
 }
