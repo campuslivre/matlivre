@@ -11,10 +11,10 @@ How MatLivre grows to cover the MATLAB Signal Processing Toolbox. The function i
 |---|---:|
 | Functions in scope (R2023b-era, from `signal.tsv`) | 333 |
 | Already in MatLivre before this plan (`xcorr`, `xcov`, `resample`, `rms`, `sinc`, `detrend`, `movmedian`, `movmad`, `isoutlier`, `filloutliers`, `smoothdata`, `islocalmax`, `paddata`, `trimdata`, `resize`, `freqspace`, `ss2tf`) | 17 |
-| Implemented by this plan (`crates/livre-lang/src/signal/`) | 123 |
-| Still to implement | 193 |
+| Implemented by this plan (`crates/livre-lang/src/signal/`) | 128 |
+| Still to implement | 188 |
 
-The 123 are checked against MATLAB: see "How it is tested".
+The 128 are checked against MATLAB: see "How it is tested".
 
 ## How it is tested
 
@@ -89,9 +89,10 @@ cases in `signal_cases.m` and MATLAB's output recorded as above.
    `tfestimate`, `pmtm`, `plomb`, `poctave`, `pspectrum`, `pburg`, `pcov`, `pmcov`, `pyulear`,
    `pmusic`, `peig`, `rootmusic`, `rooteig`; `czt`, `fwht`, `ifwht`, `cceps`, `rceps`, `icceps`,
    `digitrevorder`, `corrmtx`, `xcorr2`.
-8. **Measurements and modeling**. Done: `peak2peak`, `peak2rms`, `rssq`, `findpeaks`. To do:
-   `findchangepts`, `envelope`, `snr`, `sinad`, `thd`, `sfdr`, `toi`, `bandpower`, `obw`,
-   `powerbw`, `enbw`, `meanfreq`, `medfreq`, `cusum`, `dtw`, `edr`, `alignsignals`, `finddelay`,
+8. **Measurements and modeling**. Done: `peak2peak`, `peak2rms`, `rssq`, `findpeaks`, `enbw`, `bandpower`, `meanfreq`, `medfreq`,
+   `finddelay`. To do:
+   `findchangepts`, `envelope`, `snr`, `sinad`, `thd`, `sfdr`, `toi`, `obw`,
+   `powerbw`, `cusum`, `dtw`, `edr`, `alignsignals`,
    `findsignal`, `zerocrossrate`, `seqperiod`; pulse metrics (`risetime`, `falltime`,
    `pulsewidth`, `pulseperiod`, `pulsesep`, `dutycycle`, `midcross`, `overshoot`, `undershoot`,
    `settlingtime`, `slewrate`, `statelevels`); `lpc`, `rlevinson`, `aryule`,

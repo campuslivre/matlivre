@@ -16,6 +16,7 @@ pub mod firdes;
 pub mod iir;
 pub mod lapack_eig;
 pub mod lpc;
+pub mod measure2;
 pub mod measures;
 pub mod order;
 pub mod peaks;
@@ -46,7 +47,7 @@ pub fn call(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
 }
 
 /// Functions whose outputs do not all follow a single-precision input.
-const OWN_PRECISION: &[&str] = &["tripuls", "gauspuls", "zp2tf", "impinvar", "buttord", "cheb1ord", "cheb2ord", "ellipord", "kaiserord", "fir2", "firls", "firpm", "firpmord", "gaussdesign", "rcosdesign", "firtype", "filtord", "filternorm", "impzlength"];
+const OWN_PRECISION: &[&str] = &["tripuls", "gauspuls", "zp2tf", "impinvar", "buttord", "cheb1ord", "cheb2ord", "ellipord", "kaiserord", "fir2", "firls", "firpm", "firpmord", "gaussdesign", "rcosdesign", "firtype", "filtord", "filternorm", "impzlength", "enbw", "finddelay"];
 
 pub(crate) fn to_single(v: Value) -> Value {
     match v {
@@ -111,6 +112,9 @@ fn dispatch(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
     }
     if ssconv::NAMES.contains(&name) {
         return ssconv::call(it, name, a, nargout);
+    }
+    if measure2::NAMES.contains(&name) {
+        return measure2::call(it, name, a, nargout);
     }
     if fanalysis::NAMES.contains(&name) {
         return fanalysis::call(it, name, a, nargout);

@@ -75,3 +75,6 @@ b = firls(40,[0 0.25 0.3 0.5],[1 1 0 0]); r = b;	the least-squares system is nea
 [b,e] = firls(30,[0 0.5],[0 1],'differentiator'); r = {b,e};	the differentiator fit is nearly singular (a band that starts at zero with a nonzero amplitude, or a fit without a stopband), so MATLAB's solution depends on its rounding
 b = firpm(20,[0 0.5],[0 1]); r = b;	the fit has no stopband and is nearly singular, so the coefficients (up to 1400) depend on where MATLAB stops the exchange; they differ from MatLivre's in the sixth digit
 r = filternorm([1 2 1;1 0 -1],inf);	for a matrix numerator MATLAB returns the same value as the 2-norm for the infinity norm; MatLivre treats the matrix as one long coefficient vector
+r = bandpower(x+1i*yy,1000,[10 40]);	complex input (a two-sided spectrum) is not supported
+r = meanfreq(x+1i*yy,1000);	complex input (a two-sided spectrum) is not supported
+r = medfreq(x+1i*yy,1000);	complex input (a two-sided spectrum) is not supported
