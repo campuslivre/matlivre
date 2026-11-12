@@ -50,3 +50,12 @@ r = tf2sos([1 2 3 4],[1 0.5]);	poles tied at the origin: MATLAB keeps the pole a
 [z,p,k] = besself(4,[10 20],'stop'); r = {z,p,k};	MATLAB's result carries rounding noise (1e-15 to 1e-8) where the exact value is zero; MatLivre returns exact zeros
 [b,a] = besself(5,[5 15],'stop'); r = {b,a};	MATLAB's result carries rounding noise (1e-15 to 1e-8) where the exact value is zero; MatLivre returns exact zeros
 [z,p,k] = besself(5,[5 15],'stop'); r = {z,p,k};	MATLAB's result carries rounding noise (1e-15 to 1e-8) where the exact value is zero; MatLivre returns exact zeros
+[n,w] = buttord([0.1 0.6],[0.2 0.5],1,40); r = {n,w};	MATLAB finds the symmetric band-stop passband edge by a numerical search accurate to about 1e-4; MatLivre uses the closed form
+[n,w] = buttord([0.2 0.5],[0.25 0.45],1,40); r = {n,w};	MATLAB finds the symmetric band-stop passband edge by a numerical search accurate to about 1e-4; MatLivre uses the closed form
+[n,w] = buttord([0.1 0.3],[0.15 0.25],2,30); r = {n,w};	MATLAB finds the symmetric band-stop passband edge by a numerical search accurate to about 1e-4; MatLivre uses the closed form
+[n,w] = buttord([50 300],[100 200],1,40,'s'); r = {n,w};	MATLAB finds the symmetric band-stop passband edge by a numerical search accurate to about 1e-4; MatLivre uses the closed form
+[n,w] = buttord(0.2,0.3,40,1); r = {n,w};	MATLAB's Wn for the 3-dB edges when the passband loss exceeds the stopband loss differs; the formula it uses is not documented
+[n,w] = buttord([0.2 0.5],[0.3 0.4],1,40); r = {n,w};	MATLAB finds the symmetric band-stop passband edge by a numerical search accurate to about 1e-4; MatLivre uses the closed form
+[n,w] = buttord([0.4 0.7],[0.5 0.6],0.5,60); r = {n,w};	MATLAB finds the symmetric band-stop passband edge by a numerical search accurate to about 1e-4; MatLivre uses the closed form
+[n,w] = cheb1ord([50 300],[100 200],1,40,'s'); r = {n,w};	MATLAB finds the symmetric band-stop passband edge by a numerical search accurate to about 1e-4; MatLivre uses the closed form
+[n,w] = cheb2ord([50 300],[100 200],1,40,'s'); r = {n,w};	MATLAB finds the symmetric band-stop passband edge by a numerical search accurate to about 1e-4; MatLivre uses the closed form

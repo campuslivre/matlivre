@@ -3670,3 +3670,343 @@
 2216|ERR|Too many input arguments.
 2217|ERR|Not enough input arguments.
 2218|ERR|Too many output arguments.
+2219.1|double|1 1 |12 |0 
+2219.2|double|1 1 |0.21270871824929544 |0 
+2220.1|double|1 1 |10 |0 
+2220.2|double|1 1 |0.10276864267822362 |0 
+2221.1|double|1 1 |12 |0 
+2221.2|double|1 1 |0.28330188928027861 |0 
+2222.1|double|1 1 |7 |0 
+2222.2|double|1 1 |0.35667508222581817 |0 
+2223.1|double|1 1 |2 |0 
+2223.2|double|1 1 |0.19544254321528401 |0 
+2224.1|double|1 1 |11 |0 
+2224.2|double|1 2 |0.1897737607225114 0.51778820400272974 |0 0 
+2225.1|double|1 1 |11 |0 
+2225.2|double|1 2 |0.15824231638719702 0.57777922140154092 |0 0 
+2226.1|double|1 1 |14 |0 
+2226.2|double|1 2 |0.22172382310355102 0.49171470434056164 |0 0 
+2227.1|double|1 1 |7 |0 
+2227.2|double|1 2 |0.12777287450627864 0.28939188230852758 |0 0 
+2228.1|double|1 1 |9 |0 
+2228.2|double|1 2 |0.28730576678201547 0.61502542436528229 |0 0 
+2229|ERR|The passband and stopband cutoff frequencies should not overlap.
+2230|ERR|The passband and stopband cutoff frequencies should not overlap.
+2231.1|double|1 1 |8 |0 
+2231.2|double|1 1 |1124.6896800207185 |0 
+2232.1|double|1 1 |7 |0 
+2232.2|double|1 2 |93.362803066562662 214.21807554065265 |0 0 
+2233.1|double|1 1 |7 |0 
+2233.2|double|1 2 |74.693255163749939 267.76170968821464 |0 0 
+2234.1|double|1 1 |9 |0 
+2234.2|double|1 1 |1895.7345992149289 |0 
+2235.1|double|1 1 |12 |0 
+2235.2|double|1 1 |0.21270871824929544 |0 
+2236.1|double|1 1 |0 |0 
+2236.2|double|1 1 |1 |0 
+2237.1|double|1 1 |-11 |0 
+2237.2|double|1 1 |0.31609862966910207 |0 
+2238.1|double|1 1 |17 |0 
+2238.2|double|1 1 |0.51545386637696833 |0 
+2239.1|double|1 1 |8 |0 
+2239.2|double|1 1 |0.99110905378941472 |0 
+2240.1|double|1 1 |16 |0 
+2240.2|double|1 1 |0.011249357029069141 |0 
+2241.1|double|1 1 |33 |0 
+2241.2|double|1 1 |0.2196832039151693 |0 
+2242.1|double|1 1 |46 |0 
+2242.2|double|1 1 |0.20330706954068001 |0 
+2243|ERR|The passband and stopband cutoff frequencies should not overlap.
+2244|ERR|The cutoff frequencies must be within the interval of (0,1).
+2245|ERR|The cutoff frequencies must be within the interval of (0,1).
+2246|ERR|The cutoff frequencies must be within the interval of (0,1).
+2247.1|double|1 1 |12 |0 
+2247.2|double|1 1 |0.21270871824929544 |0 
+2248.1|double|1 1 |12 |0 
+2248.2|double|1 1 |0.21270871824929544 |0 
+2249|ERR|The frequency vectors must both be the same length.
+2250|ERR|The frequency vectors must both be the same length.
+2251|ERR|The frequency vectors must both be the same length.
+2252|ERR|Not enough input arguments.
+2253|ERR|Invalid option for final argument.
+2254|ERR|Too many input arguments.
+2255|ERR|The cutoff frequencies must be non-negative for analog filters.
+2256|ERR|The cutoff frequencies must be non-negative for analog filters.
+2257|ERR|Matrix dimensions must agree.
+2258|ERR|Input Wp in buttord must be numeric, instead it was char.
+2259.1|double|1 1 |12 |0 
+2259.2|double|1 1 |0.21270871824929544 |0 
+2260.1|double|1 1 |12 |0 
+2260.2|double|1 1 |0.21270871824929544 |0 
+2261.1|double|1 1 |12 |0 
+2261.2|double|1 1 |0.21270871824929544 |0 
+2262|ERR|Invalid option for final argument.
+2263.1|double|1 1 |12 |0 
+2263.2|double|1 1 |0.71669811071972134 |0 
+2264.1|double|1 1 |15 |0 
+2264.2|double|1 1 |0.68751682109883328 |0 
+2265.1|double|1 1 |5 |0 
+2265.2|double|1 2 |0.23897691279525879 0.48008482899776123 |0 0 
+2266.1|double|1 1 |13 |0 
+2266.2|double|1 2 |0.38787811508576309 0.71025460576556654 |0 0 
+2267.1|double|1 1 |8 |0 
+2267.2|double|1 2 |0.43300273690051722 0.6617438338085132 |0 0 
+2268.1|double|1 1 |12 |0 
+2269.1|double|1 1 |11 |0 
+2270.1|double|1 1 |8 |0 
+2271|ERR|Too many output arguments.
+2272|ERR|Not enough input arguments.
+2273.1|double|1 1 |6 |0 
+2273.2|double|1 1 |0.20000000000000001 |0 
+2274.1|double|1 1 |6 |0 
+2274.2|double|1 1 |0.10000000000000001 |0 
+2275.1|double|1 1 |6 |0 
+2275.2|double|1 1 |0.29999999999999999 |0 
+2276.1|double|1 1 |5 |0 
+2276.2|double|1 1 |0.40000000000000002 |0 
+2277.1|double|1 1 |2 |0 
+2277.2|double|1 1 |0.050000000000000003 |0 
+2278.1|double|1 1 |6 |0 
+2278.2|double|1 2 |0.20000000000000001 0.5 |0 0 
+2279.1|double|1 1 |6 |0 
+2279.2|double|1 2 |0.10000000000000001 0.59999999999999998 |0 0 
+2280.1|double|1 1 |7 |0 
+2280.2|double|1 2 |0.20000000000000001 0.5 |0 0 
+2281.1|double|1 1 |4 |0 
+2281.2|double|1 2 |0.10000000000000001 0.29999999999999999 |0 0 
+2282.1|double|1 1 |5 |0 
+2282.2|double|1 2 |0.29999999999999999 0.59999999999999998 |0 0 
+2283|ERR|The passband and stopband cutoff frequencies should not overlap.
+2284|ERR|The passband and stopband cutoff frequencies should not overlap.
+2285.1|double|1 1 |5 |0 
+2285.2|double|1 1 |1000 |0 
+2286.1|double|1 1 |5 |0 
+2286.2|double|1 2 |100 200 |0 0 
+2287.1|double|1 1 |5 |0 
+2287.2|double|1 2 |66.666673534577157 299.99995083589062 |0 0 
+2288.1|double|1 1 |6 |0 
+2288.2|double|1 1 |2000 |0 
+2289.1|double|1 1 |6 |0 
+2289.2|double|1 1 |0.20000000000000001 |0 
+2290.1|double|1 1 |0 |0 
+2290.2|double|1 1 |0.20000000000000001 |0 
+2291.1|double|1 1 |0 |2 
+2291.2|double|1 1 |0.20000000000000001 |0 
+2292.1|double|1 1 |8 |0 
+2292.2|double|1 1 |0.5 |0 
+2293.1|double|1 1 |5 |0 
+2293.2|double|1 1 |0.98999999999999999 |0 
+2294.1|double|1 1 |9 |0 
+2294.2|double|1 1 |0.01 |0 
+2295.1|double|1 1 |15 |0 
+2295.2|double|1 1 |0.20000000000000001 |0 
+2296.1|double|1 1 |17 |0 
+2296.2|double|1 1 |0.20000000000000001 |0 
+2297|ERR|The passband and stopband cutoff frequencies should not overlap.
+2298|ERR|The cutoff frequencies must be within the interval of (0,1).
+2299|ERR|The cutoff frequencies must be within the interval of (0,1).
+2300|ERR|The cutoff frequencies must be within the interval of (0,1).
+2301.1|double|1 1 |6 |0 
+2301.2|double|1 1 |0.20000000000000001 |0 
+2302.1|double|1 1 |6 |0 
+2302.2|double|1 1 |0.20000000000000001 |0 
+2303|ERR|The frequency vectors must both be the same length.
+2304|ERR|The frequency vectors must both be the same length.
+2305|ERR|The frequency vectors must both be the same length.
+2306|ERR|Not enough input arguments.
+2307|ERR|Invalid option for final argument.
+2308|ERR|Too many input arguments.
+2309|ERR|The cutoff frequencies must be non-negative for analog filters.
+2310|ERR|The cutoff frequencies must be non-negative for analog filters.
+2311|ERR|Incorrect dimensions for raising a matrix to a power. Check that the matrix is square and the power is a scalar. To operate on each element of the matrix individually, use POWER (.^) for elementwise power.
+2312|ERR|Input Wp in cheb1ord must be numeric, instead it was char.
+2313.1|double|1 1 |6 |0 
+2313.2|double|1 1 |0.20000000000000001 |0 
+2314.1|double|1 1 |6 |0 
+2314.2|double|1 1 |0.20000000298023224 |0 
+2315.1|double|1 1 |6 |0 
+2315.2|double|1 1 |0.20000000000000001 |0 
+2316|ERR|Invalid option for final argument.
+2317.1|double|1 1 |6 |0 
+2317.2|double|1 1 |0.69999999999999996 |0 
+2318.1|double|1 1 |7 |0 
+2318.2|double|1 1 |0.69999999999999996 |0 
+2319.1|double|1 1 |4 |0 
+2319.2|double|1 2 |0.20000000000000001 0.5 |0 0 
+2320.1|double|1 1 |8 |0 
+2320.2|double|1 2 |0.40000000000000002 0.69999999999999996 |0 0 
+2321.1|double|1 1 |5 |0 
+2321.2|double|1 2 |0.40000000000000002 0.69999999999999996 |0 0 
+2322.1|double|1 1 |6 |0 
+2323.1|double|1 1 |6 |0 
+2324.1|double|1 1 |5 |0 
+2325|ERR|Too many output arguments.
+2326|ERR|Not enough input arguments.
+2327.1|double|1 1 |6 |0 
+2327.2|double|1 1 |0.29999999999999999 |0 
+2328.1|double|1 1 |6 |0 
+2328.2|double|1 1 |0.20000000000000001 |0 
+2329.1|double|1 1 |6 |0 
+2329.2|double|1 1 |0.20000000000000001 |0 
+2330.1|double|1 1 |5 |0 
+2330.2|double|1 1 |0.20000000000000001 |0 
+2331.1|double|1 1 |2 |0 
+2331.2|double|1 1 |0.5 |0 
+2332.1|double|1 1 |6 |0 
+2332.2|double|1 2 |0.10000000000000001 0.59999999999999998 |0 0 
+2333.1|double|1 1 |6 |0 
+2333.2|double|1 2 |0.20000000000000001 0.5 |0 0 
+2334.1|double|1 1 |7 |0 
+2334.2|double|1 2 |0.25 0.45000000000000001 |0 0 
+2335.1|double|1 1 |4 |0 
+2335.2|double|1 2 |0.14999999999999999 0.25 |0 0 
+2336.1|double|1 1 |5 |0 
+2336.2|double|1 2 |0.20000000000000001 0.69999999999999996 |0 0 
+2337|ERR|The passband and stopband cutoff frequencies should not overlap.
+2338|ERR|The passband and stopband cutoff frequencies should not overlap.
+2339.1|double|1 1 |5 |0 
+2339.2|double|1 1 |1802.7913655774851 |0 
+2340.1|double|1 1 |5 |0 
+2340.2|double|1 2 |77.565952708068309 257.84508926581685 |0 0 
+2341.1|double|1 1 |5 |0 
+2341.2|double|1 2 |90.810339454973075 220.23922499135918 |0 0 
+2342.1|double|1 1 |6 |0 
+2342.2|double|1 1 |1179.9010527324042 |0 
+2343.1|double|1 1 |6 |0 
+2343.2|double|1 1 |0.29999999999999999 |0 
+2344.1|double|1 1 |0 |0 
+2344.2|double|1 1 |0.29999999999999999 |0 
+2345.1|double|1 1 |0 |2 
+2345.2|double|1 1 |0.29999999999999999 |0 
+2346.1|double|1 1 |8 |0 
+2346.2|double|1 1 |0.59999999999999998 |0 
+2347.1|double|1 1 |5 |0 
+2347.2|double|1 1 |0.995 |0 
+2348.1|double|1 1 |9 |0 
+2348.2|double|1 1 |0.02 |0 
+2349.1|double|1 1 |15 |0 
+2349.2|double|1 1 |0.29999999999999999 |0 
+2350.1|double|1 1 |17 |0 
+2350.2|double|1 1 |0.25 |0 
+2351|ERR|The passband and stopband cutoff frequencies should not overlap.
+2352|ERR|The cutoff frequencies must be within the interval of (0,1).
+2353|ERR|The cutoff frequencies must be within the interval of (0,1).
+2354|ERR|The cutoff frequencies must be within the interval of (0,1).
+2355.1|double|1 1 |6 |0 
+2355.2|double|1 1 |0.29999999999999999 |0 
+2356.1|double|1 1 |6 |0 
+2356.2|double|1 1 |0.29999999999999999 |0 
+2357|ERR|The frequency vectors must both be the same length.
+2358|ERR|The frequency vectors must both be the same length.
+2359|ERR|The frequency vectors must both be the same length.
+2360|ERR|Not enough input arguments.
+2361|ERR|Invalid option for final argument.
+2362|ERR|Too many input arguments.
+2363|ERR|The cutoff frequencies must be non-negative for analog filters.
+2364|ERR|The cutoff frequencies must be non-negative for analog filters.
+2365|ERR|Incorrect dimensions for raising a matrix to a power. Check that the matrix is square and the power is a scalar. To operate on each element of the matrix individually, use POWER (.^) for elementwise power.
+2366|ERR|Input Wp in cheb2ord must be numeric, instead it was char.
+2367.1|double|1 1 |6 |0 
+2367.2|double|1 1 |0.29999999999999999 |0 
+2368.1|double|1 1 |6 |0 
+2368.2|double|1 1 |0.29999999999999999 |0 
+2369.1|double|1 1 |6 |0 
+2369.2|double|1 1 |0.29999999999999999 |0 
+2370|ERR|Invalid option for final argument.
+2371.1|double|1 1 |6 |0 
+2371.2|double|1 1 |0.80000000000000004 |0 
+2372.1|double|1 1 |7 |0 
+2372.2|double|1 1 |0.59999999999999998 |0 
+2373.1|double|1 1 |4 |0 
+2373.2|double|1 2 |0.29999999999999999 0.40000000000000002 |0 0 
+2374.1|double|1 1 |8 |0 
+2374.2|double|1 2 |0.29999999999999999 0.80000000000000004 |0 0 
+2375.1|double|1 1 |5 |0 
+2375.2|double|1 2 |0.5 0.59999999999999998 |0 0 
+2376.1|double|1 1 |6 |0 
+2377.1|double|1 1 |6 |0 
+2378.1|double|1 1 |5 |0 
+2379|ERR|Too many output arguments.
+2380|ERR|Not enough input arguments.
+2381.1|double|1 1 |4 |0 
+2381.2|double|1 1 |0.20000000000000001 |0 
+2382.1|double|1 1 |5 |0 
+2382.2|double|1 1 |0.10000000000000001 |0 
+2383.1|double|1 1 |4 |0 
+2383.2|double|1 1 |0.29999999999999999 |0 
+2384.1|double|1 1 |4 |0 
+2384.2|double|1 1 |0.40000000000000002 |0 
+2385.1|double|1 1 |2 |0 
+2385.2|double|1 1 |0.050000000000000003 |0 
+2386.1|double|1 1 |4 |0 
+2386.2|double|1 2 |0.20000000000000001 0.5 |0 0 
+2387.1|double|1 1 |4 |0 
+2387.2|double|1 2 |0.10000000000000001 0.59999999999999998 |0 0 
+2388.1|double|1 1 |5 |0 
+2388.2|double|1 2 |0.20000000000000001 0.5 |0 0 
+2389.1|double|1 1 |3 |0 
+2389.2|double|1 2 |0.10000000000000001 0.29999999999999999 |0 0 
+2390.1|double|1 1 |4 |0 
+2390.2|double|1 2 |0.29999999999999999 0.59999999999999998 |0 0 
+2391|ERR|The passband and stopband cutoff frequencies should not overlap.
+2392|ERR|The passband and stopband cutoff frequencies should not overlap.
+2393.1|double|1 1 |4 |0 
+2393.2|double|1 1 |1000 |0 
+2394.1|double|1 1 |4 |0 
+2394.2|double|1 2 |100 200 |0 0 
+2395.1|double|1 1 |4 |0 
+2395.2|double|1 2 |50 300 |0 0 
+2396.1|double|1 1 |4 |0 
+2396.2|double|1 1 |2000 |0 
+2397.1|double|1 1 |4 |0 
+2397.2|double|1 1 |0.20000000000000001 |0 
+2398.1|double|1 1 |0 |0 
+2398.2|double|1 1 |0.20000000000000001 |0 
+2399|ERR|M must be in the range 0 <= M <= 1.
+2400.1|double|1 1 |5 |0 
+2400.2|double|1 1 |0.5 |0 
+2401.1|double|1 1 |4 |0 
+2401.2|double|1 1 |0.98999999999999999 |0 
+2402.1|double|1 1 |7 |0 
+2402.2|double|1 1 |0.01 |0 
+2403.1|double|1 1 |10 |0 
+2403.2|double|1 1 |0.20000000000000001 |0 
+2404.1|double|1 1 |9 |0 
+2404.2|double|1 1 |0.20000000000000001 |0 
+2405|ERR|The passband and stopband cutoff frequencies should not overlap.
+2406|ERR|The cutoff frequencies must be within the interval of (0,1).
+2407|ERR|The cutoff frequencies must be within the interval of (0,1).
+2408|ERR|The cutoff frequencies must be within the interval of (0,1).
+2409|ERR|M must be in the range 0 <= M <= 1.
+2410|ERR|M must be in the range 0 <= M <= 1.
+2411|ERR|The frequency vectors must both be the same length.
+2412|ERR|The frequency vectors must both be the same length.
+2413|ERR|The frequency vectors must both be the same length.
+2414|ERR|Not enough input arguments.
+2415|ERR|Invalid option for final argument.
+2416|ERR|Too many input arguments.
+2417|ERR|The cutoff frequencies must be non-negative for analog filters.
+2418|ERR|The cutoff frequencies must be non-negative for analog filters.
+2419|ERR|Incorrect dimensions for raising a matrix to a power. Check that the matrix is square and the power is a scalar. To operate on each element of the matrix individually, use POWER (.^) for elementwise power.
+2420|ERR|Input Wp in ellipord must be numeric, instead it was char.
+2421|ERR|Input arguments must be real.
+2422.1|double|1 1 |4 |0 
+2422.2|double|1 1 |0.20000000298023224 |0 
+2423.1|double|1 1 |4 |0 
+2423.2|double|1 1 |0.20000000000000001 |0 
+2424|ERR|Invalid option for final argument.
+2425.1|double|1 1 |4 |0 
+2425.2|double|1 1 |0.69999999999999996 |0 
+2426.1|double|1 1 |5 |0 
+2426.2|double|1 1 |0.69999999999999996 |0 
+2427.1|double|1 1 |3 |0 
+2427.2|double|1 2 |0.20000000000000001 0.5 |0 0 
+2428.1|double|1 1 |5 |0 
+2428.2|double|1 2 |0.40000000000000002 0.69999999999999996 |0 0 
+2429.1|double|1 1 |4 |0 
+2429.2|double|1 2 |0.40000000000000002 0.69999999999999996 |0 0 
+2430.1|double|1 1 |4 |0 
+2431.1|double|1 1 |4 |0 
+2432.1|double|1 1 |4 |0 
+2433|ERR|Too many output arguments.
+2434|ERR|Not enough input arguments.

@@ -25,11 +25,11 @@ fn agm(mut a: f64, mut b: f64) -> f64 {
 }
 
 /// Complete elliptic integral of the first kind for modulus `k`.
-fn ellip_k(k: f64) -> f64 {
+pub(crate) fn ellip_k(k: f64) -> f64 {
     PI / (2.0 * agm(1.0, (1.0 - k * k).sqrt()))
 }
 
-fn ellip_kp(k: f64) -> f64 {
+pub(crate) fn ellip_kp(k: f64) -> f64 {
     PI / (2.0 * agm(1.0, k))
 }
 
