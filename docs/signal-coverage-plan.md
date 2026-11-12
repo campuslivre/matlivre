@@ -11,10 +11,10 @@ How MatLivre grows to cover the MATLAB Signal Processing Toolbox. The function i
 |---|---:|
 | Functions in scope (R2023b-era, from `signal.tsv`) | 333 |
 | Already in MatLivre before this plan (`xcorr`, `xcov`, `resample`, `rms`, `sinc`, `detrend`, `movmedian`, `movmad`, `isoutlier`, `filloutliers`, `smoothdata`, `islocalmax`, `paddata`, `trimdata`, `resize`, `freqspace`, `ss2tf`) | 17 |
-| Implemented by this plan (`crates/livre-lang/src/signal/`) | 111 |
-| Still to implement | 205 |
+| Implemented by this plan (`crates/livre-lang/src/signal/`) | 113 |
+| Still to implement | 203 |
 
-The 111 are checked against MATLAB: see "How it is tested".
+The 113 are checked against MATLAB: see "How it is tested".
 
 ## How it is tested
 
@@ -77,7 +77,7 @@ cases in `signal_cases.m` and MATLAB's output recorded as above.
    types, transfer function, zero-pole-gain and state-space outputs). To do: `yulewalk`,
    `maxflat`.
 5. **FIR design and filter analysis**. Done: `fir1`, `freqz`, `freqs`, `grpdelay`, `phasez`,
-   `isstable`, `impz`, `stepz`, `sgolay`, `fir2`, `firls`, `kaiserord`. To do: `firpm`, `firpmord`, `cfirpm`,
+   `isstable`, `impz`, `stepz`, `sgolay`, `fir2`, `firls`, `kaiserord`, `firpm`, `firpmord`. To do: `cfirpm`,
    `fircls`, `fircls1`, `intfilt`, `gaussdesign`, `rcosdesign`; `phasedelay`,
    `zerophase`, `impzlength`, `zplane`, `filternorm`, `filtord`, `firtype`, `isfir`,
    `isminphase`, `ismaxphase`, `islinphase`, `isallpass`, `designfilt`, `digitalFilter`.

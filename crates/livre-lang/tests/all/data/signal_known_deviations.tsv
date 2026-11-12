@@ -73,3 +73,4 @@ b = firls(30,[0 0.2 0.25 0.4],[1 1 0 0]); r = b;	the least-squares system is nea
 b = firls(30,[0 0.3 0.3 0.6],[1 1 0 0]); r = b;	the least-squares system is nearly singular (the bands leave most of the response unconstrained), so the solution depends on rounding and MATLAB's differs from MatLivre's
 b = firls(40,[0 0.25 0.3 0.5],[1 1 0 0]); r = b;	the least-squares system is nearly singular (the bands leave most of the response unconstrained), so the solution depends on rounding and MATLAB's differs from MatLivre's
 [b,e] = firls(30,[0 0.5],[0 1],'differentiator'); r = {b,e};	the differentiator fit is nearly singular (a band that starts at zero with a nonzero amplitude, or a fit without a stopband), so MATLAB's solution depends on its rounding
+b = firpm(20,[0 0.5],[0 1]); r = b;	the fit has no stopband and is nearly singular, so the coefficients (up to 1400) depend on where MATLAB stops the exchange; they differ from MatLivre's in the sixth digit
