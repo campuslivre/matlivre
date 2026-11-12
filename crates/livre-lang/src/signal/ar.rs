@@ -28,7 +28,7 @@ fn columns(m: &Matrix) -> Vec<Vec<f64>> {
 
 /// Least squares through Householder QR with column pivoting; for a rank-deficient matrix the
 /// basic solution (at most `rank` nonzero entries) is returned, as MATLAB's backslash does.
-fn lstsq(a: &[Vec<f64>], y: &[f64]) -> Vec<f64> {
+pub(crate) fn lstsq(a: &[Vec<f64>], y: &[f64]) -> Vec<f64> {
     let rows = y.len();
     let cols = a.len();
     let mut m: Vec<Vec<f64>> = a.to_vec();
