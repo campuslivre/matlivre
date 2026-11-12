@@ -10,6 +10,7 @@ pub mod conversions;
 pub mod db;
 pub mod filtering;
 pub mod elliptic;
+pub mod fanalysis;
 pub mod fir;
 pub mod firdes;
 pub mod iir;
@@ -45,7 +46,7 @@ pub fn call(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
 }
 
 /// Functions whose outputs do not all follow a single-precision input.
-const OWN_PRECISION: &[&str] = &["tripuls", "gauspuls", "zp2tf", "impinvar", "buttord", "cheb1ord", "cheb2ord", "ellipord", "kaiserord", "fir2", "firls", "firpm", "firpmord"];
+const OWN_PRECISION: &[&str] = &["tripuls", "gauspuls", "zp2tf", "impinvar", "buttord", "cheb1ord", "cheb2ord", "ellipord", "kaiserord", "fir2", "firls", "firpm", "firpmord", "gaussdesign", "rcosdesign", "firtype", "filtord", "filternorm", "impzlength"];
 
 pub(crate) fn to_single(v: Value) -> Value {
     match v {
@@ -110,6 +111,9 @@ fn dispatch(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
     }
     if ssconv::NAMES.contains(&name) {
         return ssconv::call(it, name, a, nargout);
+    }
+    if fanalysis::NAMES.contains(&name) {
+        return fanalysis::call(it, name, a, nargout);
     }
     if remez::NAMES.contains(&name) {
         return remez::call(it, name, a, nargout);

@@ -448,6 +448,11 @@ fn fftfilt(a: &[Value]) -> Ret {
 /// reaches 5e-5 (1e6) of its starting size, or five periods of the slowest oscillation for
 /// poles on the unit circle; numerator delays are added.
 fn automatic_length(b: &[f64], den: &[f64]) -> usize {
+    automatic_length_tol(b, den, 5e-5)
+}
+
+/// [`automatic_length`] for a decay target `dtol` (relative size of the slowest term).
+pub(crate) fn automatic_length_tol(b: &[f64], den: &[f64], dtol: f64) -> usize {
     if den.iter().skip(1).all(|&v| v == 0.0) {
         return b.len();
     }
@@ -471,13 +476,13 @@ fn automatic_length(b: &[f64], den: &[f64]) -> usize {
             osc
         } else {
             let inner = mags.iter().cloned().filter(|&m| !on_circle(m)).fold(0.0, f64::max);
-            let decay = if inner > 0.0 { (5e-5f64.ln() / inner.ln()).floor() } else { 0.0 };
+            let decay = if inner > 0.0 { (dtol.ln() / inner.ln()).floor() } else { 0.0 };
             osc.max(decay) - 1.0
         }
     } else if rmax == 0.0 {
         1.0
     } else {
-        (5e-5f64.ln() / rmax.ln()).floor()
+        (dtol.ln() / rmax.ln()).floor()
     };
     let n = n.max(1.0) as usize + delay;
     n.max(b.len() + 1)

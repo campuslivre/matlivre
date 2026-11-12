@@ -11,10 +11,10 @@ How MatLivre grows to cover the MATLAB Signal Processing Toolbox. The function i
 |---|---:|
 | Functions in scope (R2023b-era, from `signal.tsv`) | 333 |
 | Already in MatLivre before this plan (`xcorr`, `xcov`, `resample`, `rms`, `sinc`, `detrend`, `movmedian`, `movmad`, `isoutlier`, `filloutliers`, `smoothdata`, `islocalmax`, `paddata`, `trimdata`, `resize`, `freqspace`, `ss2tf`) | 17 |
-| Implemented by this plan (`crates/livre-lang/src/signal/`) | 113 |
-| Still to implement | 203 |
+| Implemented by this plan (`crates/livre-lang/src/signal/`) | 123 |
+| Still to implement | 193 |
 
-The 113 are checked against MATLAB: see "How it is tested".
+The 123 are checked against MATLAB: see "How it is tested".
 
 ## How it is tested
 
@@ -77,10 +77,9 @@ cases in `signal_cases.m` and MATLAB's output recorded as above.
    types, transfer function, zero-pole-gain and state-space outputs). To do: `yulewalk`,
    `maxflat`.
 5. **FIR design and filter analysis**. Done: `fir1`, `freqz`, `freqs`, `grpdelay`, `phasez`,
-   `isstable`, `impz`, `stepz`, `sgolay`, `fir2`, `firls`, `kaiserord`, `firpm`, `firpmord`. To do: `cfirpm`,
-   `fircls`, `fircls1`, `intfilt`, `gaussdesign`, `rcosdesign`; `phasedelay`,
-   `zerophase`, `impzlength`, `zplane`, `filternorm`, `filtord`, `firtype`, `isfir`,
-   `isminphase`, `ismaxphase`, `islinphase`, `isallpass`, `designfilt`, `digitalFilter`.
+   `isstable`, `impz`, `stepz`, `sgolay`, `fir2`, `firls`, `kaiserord`, `firpm`, `firpmord`, `gaussdesign`, `rcosdesign`, `impzlength`, `filternorm`, `filtord`,
+   `firtype`, `isminphase`, `ismaxphase`, `islinphase`, `isallpass`. To do: `cfirpm`,
+   `fircls`, `fircls1`, `intfilt`; `phasedelay`, `zerophase`, `zplane`, `designfilt`, `digitalFilter`.
 6. **Filtering and multirate**. Done: `filtfilt` (transfer function form), `sosfilt`, `filtic`,
    `medfilt1`, `downsample`, `upsample`, `fftfilt`, `upfirdn`, `sgolayfilt`, `hampel`. To do:
    `latcfilt`, `lowpass`, `highpass`, `bandpass`, `bandstop`, `decimate`, `interp`, `fillgaps`;
