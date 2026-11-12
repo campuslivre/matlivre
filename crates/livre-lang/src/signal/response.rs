@@ -11,7 +11,7 @@ use crate::interp::Interpreter;
 use crate::signal::poly::*;
 use crate::value::*;
 
-pub const NAMES: &[&str] = &["freqz", "freqs", "grpdelay", "phasez"];
+pub const NAMES: &[&str] = &["freqz", "freqs", "grpdelay", "phasez", "phasedelay", "zerophase"];
 
 const PI: f64 = std::f64::consts::PI;
 
@@ -28,12 +28,13 @@ pub fn call(_it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> R
     if a.is_empty() {
         return rt("Not enough input arguments.");
     }
-    if nargout == 0 {
+    if nargout == 0 && !matches!(name, "phasedelay" | "zerophase") {
         return rt(format!("{name} without output arguments plots the response, which is not supported; request outputs."));
     }
     match name {
         "freqs" => freqs(a),
         "freqz" => freqz(a, nargout),
+        "phasedelay" | "zerophase" => delay_or_zero(name, a, nargout),
         _ => digital_measure(name, a, nargout),
     }
 }
@@ -60,6 +61,7 @@ fn filter_args(a: &[Value], name: &str) -> R<(Vec<C>, Vec<C>, usize)> {
 }
 
 struct Grid {
+    fs: Option<f64>,
     omega: Vec<f64>,
     reported: Vec<f64>,
     row: bool,
@@ -83,7 +85,7 @@ fn frequency_grid(a: &[Value], rest: usize, name: &str) -> R<Grid> {
                     fs = Some(v[0]);
                 } else if v.is_empty() && fs.is_none() {
                     fs = None;
-                } else {
+                } else if !matches!(name, "phasedelay" | "zerophase") {
                     return rt("Too many numeric arguments.");
                 }
             }
@@ -95,13 +97,19 @@ fn frequency_grid(a: &[Value], rest: usize, name: &str) -> R<Grid> {
     Ok(match nw {
         Some((v, row)) if v.len() > 1 => {
             let om: Vec<f64> = v.iter().map(|&f| fs.map_or(f, |fs| 2.0 * PI * f / fs)).collect();
-            Grid { omega: om, reported: v, row }
+            Grid { fs, omega: om, reported: v, row }
         }
         other => {
             let n = match other {
                 Some((v, _)) if v.len() == 1 => v[0],
                 _ => 512.0,
             };
+            if matches!(name, "phasedelay" | "zerophase") && n < 1.0 {
+                return rt("Expected N to be positive.");
+            }
+            if matches!(name, "phasedelay" | "zerophase") && n.fract() != 0.0 {
+                return rt("Expected N to be integer-valued.");
+            }
             if n < 1.0 || n.fract() != 0.0 {
                 return rt(if name == "grpdelay" { "NaN and Inf not allowed." } else { "Array indices must be positive integers or logical values." });
             }
@@ -109,7 +117,7 @@ fn frequency_grid(a: &[Value], rest: usize, name: &str) -> R<Grid> {
             let span = if whole { 2.0 * PI } else { PI };
             let om: Vec<f64> = (0..n).map(|i| span * i as f64 / n as f64).collect();
             let rep = om.iter().map(|&w| fs.map_or(w, |fs| w * fs / (2.0 * PI))).collect();
-            Grid { omega: om, reported: rep, row: false }
+            Grid { fs, omega: om, reported: rep, row: false }
         }
     })
 }
@@ -141,7 +149,7 @@ fn group_delay_at(c: &[C], cr: &[C], shift: f64, w: f64) -> Option<f64> {
 /// Phase of the response on a fine path through the requested frequencies, unwrapped along the
 /// path so that jumps larger than pi between its points are removed (NaN where the response is
 /// zero).
-fn continuous_phase(omega: &[f64], b: &[C], den: &[C]) -> Vec<f64> {
+fn continuous_phase(omega: &[f64], b: &[C], den: &[C], zero_jump: bool) -> Vec<f64> {
     let scale: f64 = b.iter().map(|c| c.abs()).sum::<f64>().max(1.0);
     let raw = |w: f64| -> f64 {
         let h = eval_z(b, w).div(eval_z(den, w));
@@ -174,6 +182,9 @@ fn continuous_phase(omega: &[f64], b: &[C], den: &[C]) -> Vec<f64> {
         }
         let r = raw(w);
         advance(r, &mut last_raw, &mut offset);
+        if r.is_nan() && zero_jump && last_raw.is_some() {
+            offset -= PI;
+        }
         result.push(if r.is_nan() { f64::NAN } else { r + offset });
     }
     result
@@ -210,7 +221,7 @@ fn digital_measure(name: &str, a: &[Value], nargout: usize) -> Ret {
             })
             .collect()
     } else {
-        continuous_phase(&g.omega, &b, &den)
+        continuous_phase(&g.omega, &b, &den, false)
     };
     let mut outs = vec![real_col(values)];
     if nargout >= 2 {
@@ -282,4 +293,80 @@ fn auto_frequencies(b: &[C], a: &[C], n: usize) -> R<Vec<f64>> {
         (min.log10().ceil() - 2.0, max.log10().round() + 1.0)
     };
     Ok((0..n).map(|i| 10f64.powf(if n == 1 { lo } else { lo + (hi - lo) * i as f64 / (n - 1) as f64 })).collect())
+}
+
+/// `phasedelay` (samples) and `zerophase` (real amplitude, frequencies, continuous phase).
+fn delay_or_zero(name: &str, a: &[Value], nargout: usize) -> Ret {
+    if nargout > if name == "zerophase" { 4 } else { 3 } {
+        return rt("Too many output arguments.");
+    }
+    if let Value::Num(m) = &a[0] {
+        if m.kind == Kind::Char && name == "phasedelay" {
+            return rt(format!("Input B in {name} must be double/single, instead it was char."));
+        }
+        if m.dims.len() > 2 || (m.dims[0] > 1 && m.dims[1] > 1) {
+            return rt("When first input is a matrix, it must have exactly 6 columns to be a valid SOS matrix.");
+        }
+    }
+    let (b, den, rest) = filter_args(a, name)?;
+    let g = frequency_grid(a, rest, name)?;
+    let phase = continuous_phase(&g.omega, &b, &den, true);
+    if name == "phasedelay" {
+        let pd: Vec<f64> = phase.iter().zip(&g.omega).map(|(&p, &w)| if w == 0.0 { f64::NAN } else { -p / w * g.fs.map_or(1.0, |f| 2.0 * PI / f) }).collect();
+        let mut outs = vec![shaped_real(pd, g.row)];
+        if nargout >= 2 {
+            outs.push(shaped_real(g.reported, g.row));
+        }
+        if nargout >= 3 {
+            outs.push(real_col(vec![]));
+        }
+        return out(outs);
+    }
+    if b.iter().chain(den.iter()).any(|c| c.im != 0.0) {
+        return rt("zerophase not defined for complex filters.");
+    }
+    let h: Vec<C> = g.omega.iter().map(|&w| eval_z(&b, w).div(eval_z(&den, w))).collect();
+    // Linear-phase FIR filters have the exact phase -w (N-1)/2 (+ pi/2 when antisymmetric).
+    let n = b.len();
+    let tol = 1e-12 * b.iter().fold(0.0_f64, |s, v| s.max(v.abs()));
+    let fir = den.len() == 1 && den[0].re == 1.0;
+    let sym = fir && (0..n).all(|i| (b[i].re - b[n - 1 - i].re).abs() <= tol);
+    let anti = fir && !sym && (0..n).all(|i| (b[i].re + b[n - 1 - i].re).abs() <= tol);
+    let mut phi: Vec<f64> = if sym || anti {
+        g.omega.iter().map(|&w| -w * (n as f64 - 1.0) / 2.0 + if anti { PI / 2.0 } else { 0.0 }).collect()
+    } else {
+        phase
+    };
+    if !(sym || anti) {
+        // Keep the phase at the first frequency within (-pi/2, pi/2].
+        if let Some(p0) = phi.iter().copied().find(|p| !p.is_nan()) {
+            let k = ((p0 - PI / 2.0) / PI).ceil();
+            for p in phi.iter_mut() {
+                *p -= k * PI;
+            }
+        }
+    }
+    let scale: f64 = b.iter().map(|c| c.abs()).sum::<f64>().max(1.0);
+    let hr: Vec<f64> = h
+        .iter()
+        .zip(&phi)
+        .zip(&g.omega)
+        .map(|((hv, &p), &w)| {
+            let p = if p.is_nan() { 0.0 } else { p };
+            let v = hv.mul(C::new(p.cos(), -p.sin())).re;
+            let _ = w;
+            if (sym || anti) && v.abs() < 1e-12 * scale { 0.0 } else { v }
+        })
+        .collect();
+    let mut outs = vec![shaped_real(hr, g.row)];
+    if nargout >= 2 {
+        outs.push(shaped_real(g.reported, g.row));
+    }
+    if nargout >= 3 {
+        outs.push(shaped_real(phi, g.row));
+    }
+    if nargout >= 4 {
+        outs.push(real_col(vec![]));
+    }
+    out(outs)
 }
