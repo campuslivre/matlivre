@@ -6,6 +6,7 @@
 //! those documented formulas (see docs/signal-coverage-plan.md).
 
 pub mod analog;
+pub mod ar;
 pub mod conversions;
 pub mod db;
 pub mod filtering;
@@ -113,6 +114,9 @@ fn dispatch(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
     }
     if ssconv::NAMES.contains(&name) {
         return ssconv::call(it, name, a, nargout);
+    }
+    if ar::NAMES.contains(&name) {
+        return ar::call(it, name, a, nargout);
     }
     if lpc2::NAMES.contains(&name) {
         return lpc2::call(it, name, a, nargout);
