@@ -9,6 +9,7 @@ pub mod analog;
 pub mod ar;
 pub mod cepstra;
 pub mod change;
+pub mod bandwidth;
 pub mod conversions;
 pub mod db;
 pub mod filtering;
@@ -127,6 +128,9 @@ fn dispatch(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
     }
     if ssconv::NAMES.contains(&name) {
         return ssconv::call(it, name, a, nargout);
+    }
+    if bandwidth::NAMES.contains(&name) {
+        return bandwidth::call(it, name, a, nargout);
     }
     if resamp::NAMES.contains(&name) {
         return resamp::call(it, name, a, nargout);

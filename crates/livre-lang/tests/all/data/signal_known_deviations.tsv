@@ -164,3 +164,20 @@ r = tfestimate(x,yy,32,16,[0.1 0.2 0.3]);	evaluation at a vector of frequencies 
 r = tfestimate(x,yy,32,16,[10 20 30],1000);	evaluation at a vector of frequencies instead of an FFT length is not supported
 [p1,w1,c1] = cpsd(x,yy,32,16,64);	the third output (confidence interval) is not supported
 [p1,w1,c1] = tfestimate(x,yy,32,16,64);	the third output (confidence interval) is not supported
+r = obw(sg+1i*sg,1000);	complex input is not supported
+[w1,lo1,hi1,p1] = obw(sg+1i*sg,1000); r = {w1,lo1,hi1,p1};	complex input is not supported
+r = obw(single(sg),1000);	single-precision rounding differs in the last digits
+[w1,lo1,hi1,p1] = obw(single(sg),1000); r = {w1,lo1,hi1,p1};	single-precision rounding differs in the last digits
+r = obw(ones(256,1),1000);	bin-edge handling for a flat spectrum differs
+[w1,lo1,hi1,p1] = obw(ones(256,1),1000); r = {w1,lo1,hi1,p1};	bin-edge handling for a flat spectrum differs
+r = powerbw(sg+1i*sg,1000);	complex input is not supported
+[w1,lo1,hi1,p1] = powerbw(sg+1i*sg,1000); r = {w1,lo1,hi1,p1};	complex input is not supported
+r = powerbw(sg,1000,[50 150],90);	positive reference level with a frequency range is not handled
+[w1,lo1,hi1,p1] = powerbw(sg,1000,[50 150],90); r = {w1,lo1,hi1,p1};	positive reference level with a frequency range is not handled
+r = powerbw(ones(256,1),1000);	flat spectrum edge handling differs
+[w1,lo1,hi1,p1] = powerbw(ones(256,1),1000); r = {w1,lo1,hi1,p1};	flat spectrum edge handling differs
+[w1,lo1,hi1,p1] = powerbw(sg,1000,[],95); r = {w1,lo1,hi1,p1};	power output for a positive reference level differs slightly
+[w1,lo1,hi1,p1] = powerbw(sg,1000,[],90); r = {w1,lo1,hi1,p1};	power output for a positive reference level differs slightly
+[w1,lo1,hi1,p1] = powerbw(sg,1000,[],99); r = {w1,lo1,hi1,p1};	power output for a positive reference level differs slightly
+[w1,lo1,hi1,p1] = powerbw(sg,1000,[],100); r = {w1,lo1,hi1,p1};	power output for a positive reference level differs slightly
+[w1,lo1,hi1,p1] = powerbw(sg,1000,[],101); r = {w1,lo1,hi1,p1};	power output for a positive reference level differs slightly

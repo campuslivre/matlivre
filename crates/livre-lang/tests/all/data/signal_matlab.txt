@@ -6921,3 +6921,235 @@
 4740|ERR|Not enough input arguments.
 4741.1|char|1 5 |117 110 115 101 116 |0 0 0 0 0 
 4742.1|char|1 5 |117 110 115 101 116 |0 0 0 0 0 
+4743.1|double|3 3 |1 4 3 3 10 7 2 6 4 |0 0 0 0 0 0 0 0 0 
+4744.1|double|4 4 |1 4 7 0 2 6 12 7 3 8 14 8 0 3 6 9 |0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+4745|ERR|Too many input arguments.
+4746|ERR|Too many input arguments.
+4747|ERR|Too many input arguments.
+4748|ERR|Too many input arguments.
+4749.1|double|5 5 |9 42 90 54 21 26 94 186 106 38 50 154 285 154 50 38 106 186 94 26 21 54 90 42 9 |0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+4750|ERR|Too many input arguments.
+4751.1|double|1 5 |2 5 8 11 4 |0 0 0 0 0 
+4752.1|double|5 1 |2 5 8 11 4 |0 0 0 0 0 
+4753.1|double|1 1 |1 |0 
+4754.1|double|2 2 |0 0 0 0 |0 0 0 0 
+4755.1|double|1 2 |0 0 |0 0 
+4756|ERR|Too many input arguments.
+4757.1|double|3 3 |1 4 3 3 10 7 2 6 4 |1 1 0 1 1 0 0 0 0 
+4758.1|single|3 3 |1 4 3 3 10 7 2 6 4 |0 0 0 0 0 0 0 0 0 
+4759.1|double|7 5 |0.27281637243271128 0.27763882264961737 0.22187191119788771 0.48218655092087309 0.90936456465664406 1.1098630464845622 0.37841016388190074 0.27763882264961737 0.48715879643753363 0.33171681680280013 0.60415238674343785 1.2303576769041515 1.6590456659366972 0.95271439306971406 0.22187191119788771 0.33171681680280007 0.23527442252368042 0.45087176835647058 0.89740330654706002 1.176755281247702 0.60158870683044108 0.48218655092087309 0.60415238674343785 0.45087176835647058 0.91513124873313445 1.7763022099823496 2.255220561392401 0.98351809889701092 0.20327912721512234 0.51179109018049163 0.32316898154229334 0.52833861197887155 1.1319776850414551 1.6161443489615985 1.1278338929195582 |0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+4760|ERR|Too many input arguments.
+4761|ERR|Too many input arguments.
+4762|ERR|Too many input arguments.
+4763|ERR|Too many input arguments.
+4764|ERR|Too many input arguments.
+4765|ERR|Too many input arguments.
+4766|ERR|Invalid data type. First and second arguments must be numeric or logical.
+4767|ERR|Not enough input arguments.
+4768|ERR|Too many output arguments.
+4769.1|double|2 1 |0 1.06331351044005 |0 0 
+4770.1|double|1 1 |1.0648086244676407 |0 
+4771.1|double|1 1 |1.0648086244676407 |0 
+4771.2|double|1 1 |0.23829319658312273 |0 
+4771.3|double|1 1 |1.3031018210507634 |0 
+4771.4|double|1 1 |0.61633300781249989 |0 
+4772.1|double|1 1 |169.46955603090669 |0 
+4773.1|double|1 1 |169.46955603090669 |0 
+4773.2|double|1 1 |37.925540141372736 |0 
+4773.3|double|1 1 |207.39509617227944 |0 
+4773.4|double|1 1 |0.61633300781250011 |0 
+4774.1|double|1 1 |116.3181623925211 |0 
+4775.1|double|1 1 |116.3181623925211 |0 
+4775.2|double|1 1 |84.688818113042643 |0 
+4775.3|double|1 1 |201.00698050556375 |0 
+4775.4|double|1 1 |0.59143066406250011 |0 
+4776.1|double|1 1 |107.71254403592179 |0 
+4777.1|double|1 1 |107.71254403592179 |0 
+4777.2|double|1 1 |92.73593364417853 |0 
+4777.3|double|1 1 |200.44847768010032 |0 
+4777.4|double|1 1 |0.56030273437500011 |0 
+4778.1|double|1 1 |169.46955603090669 |0 
+4779.1|double|1 1 |169.46955603090669 |0 
+4779.2|double|1 1 |37.925540141372736 |0 
+4779.3|double|1 1 |207.39509617227944 |0 
+4779.4|double|1 1 |0.61633300781250011 |0 
+4780.1|double|1 1 |60.944597310030375 |0 
+4781.1|double|1 1 |60.944597310030375 |0 
+4781.2|double|1 1 |64.800804019166122 |0 
+4781.3|double|1 1 |125.7454013291965 |0 
+4781.4|double|1 1 |0.48752057108920388 |0 
+4782.1|double|1 1 |13.745951106517566 |0 
+4783.1|double|1 1 |13.745951106517566 |0 
+4783.2|double|1 1 |92.324979810908616 |0 
+4783.3|double|1 1 |106.07093091742618 |0 
+4783.4|double|1 1 |0.44320051917200354 |0 
+4784.1|double|1 1 |189.8011722443272 |0 
+4785.1|double|1 1 |189.8011722443272 |0 
+4785.2|double|1 1 |34.388065580784691 |0 
+4785.3|double|1 1 |224.18923782511189 |0 
+4785.4|double|1 1 |0.60768571368076274 |0 
+4786.1|double|1 1 |169.46955603090669 |0 
+4787.1|double|1 1 |169.46955603090669 |0 
+4787.2|double|1 1 |37.925540141372736 |0 
+4787.3|double|1 1 |207.39509617227944 |0 
+4787.4|double|1 1 |0.61633300781250011 |0 
+4788.1|double|1 2 |169.46955603090669 169.46955603090669 |0 0 
+4789.1|double|1 2 |169.46955603090669 169.46955603090669 |0 0 
+4789.2|double|1 2 |37.925540141372736 37.925540141372736 |0 0 
+4789.3|double|1 2 |207.39509617227944 207.39509617227944 |0 0 
+4789.4|double|1 2 |0.61633300781250011 0.61633300781250011 |0 0 
+4790.1|double|1 1 |407.63451683878338 |0 
+4791.1|double|1 1 |407.63451683878338 |0 
+4791.2|double|1 1 |-203.81613537224064 |0 
+4791.3|double|1 1 |203.81838146654272 |0 
+4791.4|double|1 1 |1.232666015625 |0 
+4792.1|single|1 1 |169.46975708007812 |0 
+4793.1|single|1 1 |169.46975708007812 |0 
+4793.2|single|1 1 |37.925537109375 |0 
+4793.3|single|1 1 |207.39529418945312 |0 
+4793.4|single|1 1 |0.61633294820785522 |0 
+4794|ERR|Expected input number 2, Fs, to be positive.
+4795|ERR|Expected input number 2, Fs, to be positive.
+4796|ERR|Expected P to be positive.
+4797|ERR|Expected P to be positive.
+4798|ERR|Expected P to be a scalar with value < 100.
+4799|ERR|Expected P to be a scalar with value < 100.
+4800|ERR|Expected P to be a scalar with value < 100.
+4801|ERR|Expected P to be a scalar with value < 100.
+4802|ERR|Expected P to be positive.
+4803|ERR|Expected P to be positive.
+4804|ERR|Expected input number 3, FREQRANGE, to be of size 1x2, but it is of size 1x3.
+4805|ERR|Expected input number 3, FREQRANGE, to be of size 1x2, but it is of size 1x3.
+4806|ERR|Expected input number 3, FREQRANGE, to be strictly increasing.
+4807|ERR|Expected input number 3, FREQRANGE, to be strictly increasing.
+4808|ERR|The frequency range must be within the range of F for the specified input.
+4809|ERR|The frequency range must be within the range of F for the specified input.
+4810.1|double|1 1 |NaN |0 
+4811.1|double|1 1 |NaN |0 
+4811.2|double|1 1 |NaN |0 
+4811.3|double|1 1 |NaN |0 
+4811.4|double|1 1 |0 |0 
+4812.1|double|1 1 |1.93359375 |0 
+4813.1|double|1 1 |1.93359375 |0 
+4813.2|double|1 1 |0.009765625 |0 
+4813.3|double|1 1 |1.943359375 |0 
+4813.4|double|1 1 |0.98999999999999999 |0 
+4814|ERR|The input must be a non-empty vector or two-dimensional matrix.
+4815|ERR|The input must be a non-empty vector or two-dimensional matrix.
+4816|ERR|Expected X to be nonempty.
+4817|ERR|Expected X to be nonempty.
+4818|ERR|Expected input number 1, X, to be one of these types:  double, single
+4819|ERR|Expected input number 1, X, to be one of these types:  double, single
+4820|ERR|Unrecognized input arguments after power percentage, P.
+4821|ERR|Unrecognized input arguments after power percentage, P.
+4822|ERR|Not enough input arguments.
+4823.1|double|1 1 |0.02880034288442368 |0 
+4824.1|double|1 1 |0.02880034288442368 |0 
+4824.2|double|1 1 |0.61601613275960421 |0 
+4824.3|double|1 1 |0.64481647564402789 |0 
+4824.4|double|1 1 |0.26987488631728584 |0 
+4825.1|double|1 1 |4.5837169327975147 |0 
+4826.1|double|1 1 |4.5837169327975147 |0 
+4826.2|double|1 1 |98.042012553044259 |0 
+4826.3|double|1 1 |102.62572948584177 |0 
+4826.4|double|1 1 |0.26987488631728618 |0 
+4827.1|double|1 1 |500 |0 
+4828.1|double|1 1 |500 |0 
+4828.2|double|1 1 |0 |0 
+4828.3|double|1 1 |500 |0 
+4828.4|double|1 1 |0.62255859375000011 |0 
+4829.1|double|1 1 |500 |0 
+4830.1|double|1 1 |500 |0 
+4830.2|double|1 1 |0 |0 
+4830.3|double|1 1 |500 |0 
+4830.4|double|1 1 |0.62255859375000011 |0 
+4831.1|double|1 1 |500 |0 
+4832.1|double|1 1 |500 |0 
+4832.2|double|1 1 |0 |0 
+4832.3|double|1 1 |500 |0 
+4832.4|double|1 1 |0.62255859375000011 |0 
+4833.1|double|1 1 |17.637246076277066 |0 
+4834.1|double|1 1 |17.637246076277066 |0 
+4834.2|double|1 1 |90.785526717727436 |0 
+4834.3|double|1 1 |108.4227727940045 |0 
+4834.4|double|1 1 |0.45723160466273827 |0 
+4835.1|double|1 1 |500 |0 
+4836.1|double|1 1 |500 |0 
+4836.2|double|1 1 |0 |0 
+4836.3|double|1 1 |500 |0 
+4836.4|double|1 1 |0.62255859375000011 |0 
+4837.1|double|1 1 |3.5155352159777777 |0 
+4838.1|double|1 1 |3.5155352159777777 |0 
+4838.2|double|1 1 |99.49924505039742 |0 
+4838.3|double|1 1 |103.0147802663752 |0 
+4838.4|double|1 1 |0.19116333728723245 |0 
+4839.1|double|1 1 |4.5837169327975147 |0 
+4840.1|double|1 1 |4.5837169327975147 |0 
+4840.2|double|1 1 |98.042012553044259 |0 
+4840.3|double|1 1 |102.62572948584177 |0 
+4840.4|double|1 1 |0.26987488631728618 |0 
+4841.1|double|1 2 |4.5837169327975147 4.5837169327975147 |0 0 
+4842.1|double|1 2 |4.5837169327975147 4.5837169327975147 |0 0 
+4842.2|double|1 2 |98.042012553044259 98.042012553044259 |0 0 
+4842.3|double|1 2 |102.62572948584177 102.62572948584177 |0 0 
+4842.4|double|1 2 |0.26987488631728618 0.26987488631728618 |0 0 
+4843.1|double|1 1 |4.5837169327975147 |0 
+4844.1|double|1 1 |4.5837169327975147 |0 
+4844.2|double|1 1 |-102.62572948584177 |0 
+4844.3|double|1 1 |-98.042012553044259 |0 
+4844.4|double|1 1 |0.26987488631728623 |0 
+4845.1|single|1 1 |4.5837173461914062 |0 
+4846.1|single|1 1 |4.5837173461914062 |0 
+4846.2|single|1 1 |98.042015075683594 |0 
+4846.3|single|1 1 |102.625732421875 |0 
+4846.4|single|1 1 |0.26987496018409729 |0 
+4847|ERR|Expected input number 2, Fs, to be positive.
+4848|ERR|Expected input number 2, Fs, to be positive.
+4849|ERR|Expected R to be nonzero.
+4850|ERR|Expected R to be nonzero.
+4851.1|double|1 1 |500 |0 
+4852.1|double|1 1 |500 |0 
+4852.2|double|1 1 |0 |0 
+4852.3|double|1 1 |500 |0 
+4852.4|double|1 1 |0.62255859375000011 |0 
+4853.1|double|1 1 |500 |0 
+4854.1|double|1 1 |500 |0 
+4854.2|double|1 1 |0 |0 
+4854.3|double|1 1 |500 |0 
+4854.4|double|1 1 |0.62255859375000011 |0 
+4855.1|double|1 1 |4.5680334174213044 |0 
+4856.1|double|1 1 |4.5680334174213044 |0 
+4856.2|double|1 1 |98.054058152677825 |0 
+4856.3|double|1 1 |102.62209157009913 |0 
+4856.4|double|1 1 |0.26921004776737639 |0 
+4857|ERR|Expected input number 3, FREQRANGE, to be of size 1x2, but it is of size 1x3.
+4858|ERR|Expected input number 3, FREQRANGE, to be of size 1x2, but it is of size 1x3.
+4859|ERR|Expected input number 3, FREQRANGE, to be strictly increasing.
+4860|ERR|Expected input number 3, FREQRANGE, to be strictly increasing.
+4861|ERR|The frequency range must be within the range of F for the specified input.
+4862|ERR|The frequency range must be within the range of F for the specified input.
+4863.1|double|1 1 |NaN |0 
+4864.1|double|1 1 |NaN |0 
+4864.2|double|1 1 |NaN |0 
+4864.3|double|1 1 |NaN |0 
+4864.4|double|1 1 |NaN |0 
+4865.1|double|1 1 |0.0038257777652073166 |0 
+4866.1|double|1 1 |0.0038257777652073166 |0 
+4866.2|double|1 1 |0 |0 
+4866.3|double|1 1 |0.0038257777652073166 |0 
+4866.4|double|1 1 |0.0019587982157861505 |0 
+4867|ERR|The input must be a non-empty vector or two-dimensional matrix.
+4868|ERR|The input must be a non-empty vector or two-dimensional matrix.
+4869|ERR|Expected X to be nonempty.
+4870|ERR|Expected X to be nonempty.
+4871|ERR|Expected input number 1, X, to be one of these types:  double, single
+4872|ERR|Expected input number 1, X, to be one of these types:  double, single
+4873|ERR|Unrecognized input arguments after dB reference, R.
+4874|ERR|Unrecognized input arguments after dB reference, R.
+4875|ERR|Not enough input arguments.
+4876.1|double|1 1 |169.46955603090669 |0 
+4877.1|double|1 1 |107.71254403592179 |0 
+4878.1|double|1 1 |60.944597310030375 |0 
+4879.1|double|1 1 |4.5837169327975147 |0 
+4880.1|double|1 1 |7.2720622743228773 |0 
+4881.1|double|1 1 |17.637246076277066 |0 

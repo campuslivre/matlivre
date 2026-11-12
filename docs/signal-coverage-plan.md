@@ -11,10 +11,10 @@ How MatLivre grows to cover the MATLAB Signal Processing Toolbox. The function i
 |---|---:|
 | Functions in scope (R2023b-era, from `signal.tsv`) | 333 |
 | Already in MatLivre before this plan (`xcorr`, `xcov`, `resample`, `rms`, `sinc`, `detrend`, `movmedian`, `movmad`, `isoutlier`, `filloutliers`, `smoothdata`, `islocalmax`, `paddata`, `trimdata`, `resize`, `freqspace`, `ss2tf`) | 17 |
-| Implemented by this plan (`crates/livre-lang/src/signal/`) | 165 |
-| Still to implement | 151 |
+| Implemented by this plan (`crates/livre-lang/src/signal/`) | 168 |
+| Still to implement | 148 |
 
-The 165 are checked against MATLAB: see "How it is tested".
+The 168 are checked against MATLAB: see "How it is tested".
 
 ## How it is tested
 
@@ -86,12 +86,11 @@ cases in `signal_cases.m` and MATLAB's output recorded as above.
    `filtfilt` with second-order sections.
 7. **Spectral estimation and transforms**. Done: `periodogram`, `pwelch`, `mscohere`, `cpsd`, `tfestimate`, `dct`,
    `idct`, `dftmtx`, `goertzel`, `hilbert`, `cconv`, `convmtx`, `bitrevorder`, `czt`, `fwht`, `ifwht`, `cceps`, `rceps`, `icceps`,
-   `digitrevorder`, `corrmtx`, `pyulear`, `pburg`, `pcov`, `pmcov`. To do: `pmtm`, `plomb`, `poctave`, `pspectrum`,
-   `pmusic`, `peig`, `rootmusic`, `rooteig`; `xcorr2`.
+   `digitrevorder`, `corrmtx`, `pyulear`, `pburg`, `pcov`, `pmcov`, `xcorr2`. To do: `pmtm`, `plomb`, `poctave`, `pspectrum`,
+   `pmusic`, `peig`, `rootmusic`, `rooteig`.
 8. **Measurements and modeling**. Done: `peak2peak`, `peak2rms`, `rssq`, `findpeaks`, `enbw`, `bandpower`, `meanfreq`, `medfreq`,
-   `finddelay`, `seqperiod`, `cusum`, `dtw`, `edr`, `alignsignals`. To do:
-   `findchangepts`, `envelope`, `snr`, `sinad`, `thd`, `sfdr`, `toi`, `obw`,
-   `powerbw`,
+   `finddelay`, `seqperiod`, `cusum`, `dtw`, `edr`, `alignsignals`, `obw`, `powerbw`. To do:
+   `findchangepts`, `envelope`, `snr`, `sinad`, `thd`, `sfdr`, `toi`,
    `findsignal`, `zerocrossrate`; pulse metrics (`risetime`, `falltime`,
    `pulsewidth`, `pulseperiod`, `pulsesep`, `dutycycle`, `midcross`, `overshoot`, `undershoot`,
    `settlingtime`, `slewrate`, `statelevels`); `lpc`,
