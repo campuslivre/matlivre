@@ -8,6 +8,7 @@
 pub mod analog;
 pub mod ar;
 pub mod cepstra;
+pub mod change;
 pub mod conversions;
 pub mod db;
 pub mod filtering;
@@ -52,7 +53,15 @@ pub fn call(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
 }
 
 /// Functions whose outputs do not all follow a single-precision input.
-const OWN_PRECISION: &[&str] = &["tripuls", "gauspuls", "zp2tf", "impinvar", "buttord", "cheb1ord", "cheb2ord", "ellipord", "kaiserord", "fir2", "firls", "firpm", "firpmord", "gaussdesign", "rcosdesign", "firtype", "filtord", "filternorm", "impzlength", "enbw", "finddelay"];
+const OWN_PRECISION: &[&str] = &["tripuls", "gauspuls", "zp2tf", "impinvar", "buttord", "cheb1ord", "cheb2ord", "ellipord", "kaiserord", "fir2", "firls", "firpm", "firpmord", "gaussdesign", "rcosdesign", "firtype", "filtord", "filternorm", "impzlength", "enbw", "finddelay", "cusum", "dtw", "edr", "alignsignals"];
+
+/// A matrix with its values rounded to single precision (the class is left to the caller).
+pub(crate) fn cast_single_values(mut m: Matrix) -> Matrix {
+    for x in m.data.iter_mut() {
+        *x = *x as f32 as f64;
+    }
+    m
+}
 
 pub(crate) fn to_single(v: Value) -> Value {
     match v {
@@ -117,6 +126,9 @@ fn dispatch(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
     }
     if ssconv::NAMES.contains(&name) {
         return ssconv::call(it, name, a, nargout);
+    }
+    if change::NAMES.contains(&name) {
+        return change::call(it, name, a, nargout);
     }
     if pspec::NAMES.contains(&name) {
         return pspec::call(it, name, a, nargout);
