@@ -11,10 +11,10 @@ How MatLivre grows to cover the MATLAB Signal Processing Toolbox. The function i
 |---|---:|
 | Functions in scope (R2023b-era, from `signal.tsv`) | 333 |
 | Already in MatLivre before this plan (`xcorr`, `xcov`, `resample`, `rms`, `sinc`, `detrend`, `movmedian`, `movmad`, `isoutlier`, `filloutliers`, `smoothdata`, `islocalmax`, `paddata`, `trimdata`, `resize`, `freqspace`, `ss2tf`) | 17 |
-| Implemented by this plan (`crates/livre-lang/src/signal/`) | 87 |
-| Still to implement | 229 |
+| Implemented by this plan (`crates/livre-lang/src/signal/`) | 89 |
+| Still to implement | 227 |
 
-The 87 are checked against MATLAB: see "How it is tested".
+The 89 are checked against MATLAB: see "How it is tested".
 
 ## How it is tested
 
@@ -71,8 +71,8 @@ cases in `signal_cases.m` and MATLAB's output recorded as above.
    `marcumq`.
 3. **Polynomial and filter conversions**. Done: `lp2lp`, `lp2hp`, `lp2bp`, `lp2bs` (transfer
    function form), `bilinear` (transfer function and zero-pole-gain forms, with pre-warping),
-   `polystab`, `polyscale`, `eqtflength`, `sos2tf`, `tf2zp`, `tf2zpk`, `zp2tf`, `sos2zp`. To do:
-   `tf2sos`, `zp2sos`, `tf2ss`, `zp2ss`, `ss2zp`, `sos2ss`, `ss2sos`, `residuez`, `latc2tf`,
+   `polystab`, `polyscale`, `eqtflength`, `sos2tf`, `tf2zp`, `tf2zpk`, `zp2tf`, `sos2zp`, `zp2sos`, `tf2sos`. To do:
+   `tf2ss`, `zp2ss`, `ss2zp`, `sos2ss`, `ss2sos`, `residuez`, `latc2tf`,
    `tf2latc`, `impinvar`, `cell2sos`, `sos2cell` (these were held back only because the reference
    leaves their conventions open; with MATLAB available they can now be done by comparison).
 4. **Analog prototypes and IIR design**. Done: `buttap`, `cheb1ap`, `cheb2ap`, `butter`,

@@ -19,3 +19,10 @@ r = gauspuls(1i);	complex time input: MATLAB returns Inf, MatLivre rejects it
 [z,p,k] = cheby2(3,35,20,'high','s'); r = {z,p,k};	order of the poles: a rounding error in the state matrix changes the eigenvalue order
 [z,p,k] = cheby2(3,35,[10 40],'s'); r = {z,p,k};	order of the zeros: MATLAB's are 1e-15 off the imaginary axis, MatLivre's exactly on it
 r = roots([1 5 10 10 5 1]);	fivefold root: the result is rounding noise around -1 and differs from MATLAB in the last digits
+[b,a] = butter(5,0.3); r = tf2sos(b,a);	the numerator has a repeated root at z = 1 or -1, so the order and values of the roots follow rounding noise in the coefficients
+[b,a] = butter(5,0.3); [s,g] = tf2sos(b,a); r = {s,g};	the numerator has a repeated root at z = 1 or -1, so the order and values of the roots follow rounding noise in the coefficients
+[b,a] = cheby1(4,1,0.3); r = tf2sos(b,a,'down');	the numerator has a repeated root at z = 1 or -1, so the order and values of the roots follow rounding noise in the coefficients
+[b,a] = cheby1(4,1,0.3); r = tf2sos(b,a,'up','inf');	the numerator has a repeated root at z = 1 or -1, so the order and values of the roots follow rounding noise in the coefficients
+[b,a] = cheby1(4,1,0.3); r = tf2sos(b,a,'down','two');	the numerator has a repeated root at z = 1 or -1, so the order and values of the roots follow rounding noise in the coefficients
+[b,a] = butter(3,0.3,'high'); r = tf2sos(b,a);	the numerator has a repeated root at z = 1 or -1, so the order and values of the roots follow rounding noise in the coefficients
+r = tf2sos([1 2 3 4],[1 0.5]);	poles tied at the origin: MATLAB keeps the pole at -0.5 alone, MatLivre one of the origin poles
