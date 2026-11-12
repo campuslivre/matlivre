@@ -7,6 +7,7 @@
 
 pub mod analog;
 pub mod ar;
+pub mod cepstra;
 pub mod conversions;
 pub mod db;
 pub mod filtering;
@@ -32,6 +33,7 @@ pub mod ssconv;
 pub mod spectral;
 pub mod statespace;
 pub mod transforms;
+pub mod transforms2;
 pub mod waveforms;
 pub mod windows;
 
@@ -114,6 +116,12 @@ fn dispatch(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
     }
     if ssconv::NAMES.contains(&name) {
         return ssconv::call(it, name, a, nargout);
+    }
+    if cepstra::NAMES.contains(&name) {
+        return cepstra::call(it, name, a, nargout);
+    }
+    if transforms2::NAMES.contains(&name) {
+        return transforms2::call(it, name, a, nargout);
     }
     if ar::NAMES.contains(&name) {
         return ar::call(it, name, a, nargout);

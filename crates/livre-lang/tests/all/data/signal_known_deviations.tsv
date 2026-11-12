@@ -86,3 +86,5 @@ r = arcov(x+1i*yy,2);	complex input (conjugate-symmetric correlations) is not su
 r = armcov(x(1:20),5);	the covariance system is rank-deficient to rounding; which columns MATLAB's pivoted QR treats as dependent differs from MatLivre's
 r = armcov(x+1i*yy,2);	complex input (conjugate-symmetric correlations) is not supported
 [a1,b1,c1] = latcfilt([0.5 0.3],x);	MATLAB accepts a third output (the final conditions), which MatLivre does not return
+r = czt(x(1:10),5,2*exp(1i*0.2),0.9*exp(-1i*0.1));	MATLAB evaluates the chirp z-transform by FFT convolution; with |w| = 2 and |a| = 0.9 the values span twelve orders of magnitude and its rounding error reaches the fifth digit of the smallest, where MatLivre sums directly
+r = czt(single(x(1:10)),8);	in single precision MATLAB's FFT-based evaluation and MatLivre's direct sum round differently in the seventh digit
