@@ -11,11 +11,11 @@ How MatLivre grows to cover the MATLAB Signal Processing Toolbox. The function i
 |---|---:|
 | Functions in scope (R2023b-era, from `signal.tsv`) | 333 |
 | Already in MatLivre before this plan (`xcorr`, `xcov`, `resample`, `rms`, `sinc`, `detrend`, `movmedian`, `movmad`, `isoutlier`, `filloutliers`, `smoothdata`, `islocalmax`, `paddata`, `trimdata`, `resize`, `freqspace`, `ss2tf`) | 17 |
-| Implemented by this plan (`crates/livre-lang/src/signal/`) | 222 |
-| Still to implement and verifiable here | 80 |
+| Implemented by this plan (`crates/livre-lang/src/signal/`) | 223 |
+| Still to implement and verifiable here | 79 |
 | Not verifiable: requires Wavelet/Audio Toolbox, not installed (see below) | 14 |
 
-The 222 are checked against MATLAB: see "How it is tested".
+The 223 are checked against MATLAB: see "How it is tested".
 
 ## Not verifiable: requires Wavelet/Audio Toolbox, not installed
 
@@ -109,8 +109,8 @@ cases in `signal_cases.m` and MATLAB's output recorded as above.
    `instbw`, spectral descriptors (`spectralCrest`, `spectralEntropy`, `spectralFlatness`,
    `spectralKurtosis`, `spectralSkewness`) and the wavelet functions (`cwt`, `modwt`,
    `modwpt`, `wsst`, `wcoherence`, `tqwt`, `cqt`): the last two groups are not verifiable here.
-10. **Vibration analysis**. Done: `rainflow`, `envspectrum`. To do: `rpmtrack`, `tachorpm`, `orderspectrum`, `ordertrack`,
-    `orderwaveform`, `rpmordermap`, `rpmfreqmap`, `tsa`, `modalfrf`,
+10. **Vibration analysis**. Done: `rainflow`, `envspectrum`, `tsa`. To do: `rpmtrack`, `tachorpm`, `orderspectrum`, `ordertrack`,
+    `orderwaveform`, `rpmordermap`, `rpmfreqmap`, `modalfrf`,
     `modalfit`, `modalsd`.
 
 ## Known deviations from MATLAB
@@ -159,6 +159,11 @@ not exercise:
 - **`rootmusic`/`rooteig`**: frequencies agree to 1e-12, powers to about 1e-7 relative (MATLAB's
   power system was not recovered); a real correlation matrix with a root at zero frequency returns
   one power where MATLAB returns two.
+- **`tsa`**: cycles run between pulses (a scalar `tp` is an interval; pulses reach the record duration
+  N/fs); one rotation is the shortest spell of PulsesPerRotation pulses, `M = NumRotations * floor(rotation * fs + 0.5 - 1e-9)`,
+  t = (0:M-1)/M * period, windows of NumRotations rotations do not overlap, each rotation is interpolated onto
+  M/NumRotations points (the 'fft' method cuts whole-sample segments and averages their spectra), and
+  ResampleFactor first upsamples the signal by Fourier interpolation. Single precision differs at 1e-6.
 - **`poctave`**: the ANSI S1.11 center frequencies; bands that overlap the limits (the band holding
   Nyquist is kept while its lower edge is under 0.9 of the upper limit and is a highpass of order
   FilterOrder); each band is a Butterworth bandpass of order FilterOrder (the SOS form) and the
