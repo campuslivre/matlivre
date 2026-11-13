@@ -32,6 +32,7 @@ pub mod wigner;
 pub mod instf;
 pub mod envspec;
 pub mod tsa;
+pub mod vmd;
 pub mod waveforms2;
 pub mod conversions;
 pub mod db;
@@ -151,6 +152,9 @@ fn dispatch(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
     }
     if ssconv::NAMES.contains(&name) {
         return ssconv::call(it, name, a, nargout);
+    }
+    if vmd::NAMES.contains(&name) {
+        return vmd::call(it, a, nargout);
     }
     if tsa::NAMES.contains(&name) {
         return tsa::call(it, a, nargout);

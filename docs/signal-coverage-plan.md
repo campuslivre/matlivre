@@ -11,11 +11,11 @@ How MatLivre grows to cover the MATLAB Signal Processing Toolbox. The function i
 |---|---:|
 | Functions in scope (R2023b-era, from `signal.tsv`) | 333 |
 | Already in MatLivre before this plan (`xcorr`, `xcov`, `resample`, `rms`, `sinc`, `detrend`, `movmedian`, `movmad`, `isoutlier`, `filloutliers`, `smoothdata`, `islocalmax`, `paddata`, `trimdata`, `resize`, `freqspace`, `ss2tf`) | 17 |
-| Implemented by this plan (`crates/livre-lang/src/signal/`) | 223 |
-| Still to implement and verifiable here | 79 |
+| Implemented by this plan (`crates/livre-lang/src/signal/`) | 224 |
+| Still to implement and verifiable here | 78 |
 | Not verifiable: requires Wavelet/Audio Toolbox, not installed (see below) | 14 |
 
-The 223 are checked against MATLAB: see "How it is tested".
+The 224 are checked against MATLAB: see "How it is tested".
 
 ## Not verifiable: requires Wavelet/Audio Toolbox, not installed
 
@@ -104,7 +104,7 @@ cases in `signal_cases.m` and MATLAB's output recorded as above.
    Done: `levinson`, `ac2rc`, `rc2ac`, `rc2poly`, `poly2rc`, `ac2poly`, `poly2ac`, `rc2is`, `is2rc`,
    `rc2lar`, `lar2rc`, `poly2lsf`, `lsf2poly`, `aryule`, `arburg`, `arcov`, `armcov`,
    `rlevinson`, `schurrc`, `prony`, `lpc`.
-9. **Time-frequency**. Done: `spectrogram`, `iscola`, `stft`, `istft`, `wvd` (not `smoothedPseudo`), `instfreq` (the 'hilbert' method only; the default 'tfmoment' method needs `pspectrum`'s spectrogram). Not recovered after one round: `xwvd`. To do: `xspectrogram`,
+9. **Time-frequency**. Done: `spectrogram`, `iscola`, `stft`, `istft`, `wvd` (not `smoothedPseudo`), `instfreq` (the 'hilbert' method only; the default 'tfmoment' method needs `pspectrum`'s spectrogram). Not recovered after one round: `xwvd`. `vmd` (explicit ascending `CentralFrequencies` exact; default initialisation not recovered). To do: `xspectrogram`,
    `hht`, `emd`, `vmd`, `ewt`, `fsst`, `ifsst`, `tfridge`, `kurtogram`, `instfreq`,
    `instbw`, spectral descriptors (`spectralCrest`, `spectralEntropy`, `spectralFlatness`,
    `spectralKurtosis`, `spectralSkewness`) and the wavelet functions (`cwt`, `modwt`,
@@ -155,10 +155,17 @@ not exercise:
 - **Test time**: the cfirpm designs of order 16 and above (about 9 s in a debug build) run only in the
   ignored test `signal_heavy_cases_match_matlab` (`cargo test -p livre-lang --test all -- --ignored`);
   the regular `signal_functions_match_matlab` skips them.
-- **Research queue**: `emd` and `vmd` (one `emd` round: spline envelopes through the extrema with or without the end points, Cauchy sifting stop at 0.2, did not reproduce the first IMF; `hht` depends on `emd`); `xwvd` and `wvd(...,'smoothedPseudo')` (plain `wvd`: products x(a) y*(b) with a+b = 2t and lags |m| <= N/2 at N frequencies k/(2N) cycles per sample, real input made analytic from the record zero padded to 2N; the cross distribution does not follow that rule); `pspectrum` (power type only first): the output is always 4096 points from 0 to Nyquist, equal to twice the Kaiser (beta 40(1-leakage)) windowed modified periodogram of the whole record for short signals, but it deviates from the exact DTFT of that window by up to 1e-4 between some frequencies (an interpolation from a coarser grid?) and the Welch regime for long records (more than about 20000 samples) was not probed; `poctave` low-band filters (one round: decimate-then-filter and an independent bilinear design did not match); `rootmusic`/`rooteig` powers (systematic ~1e-7 relative; one round tried: mean noise eigenvalue as the noise variance, p/2 or p signal eigenvalues, exact or least squares; the zero-frequency root case gave P=[-0.24, 44.6] with a 2x2 solve, not MATLAB's [0, 34.29]).
+- **Research queue**: `vmd` initialisation ('peaks' start picks the largest spectral peaks of the signal, order and exact picking unknown), update order for non-ascending starts, odd-length mirror; `emd` and `vmd` (one `emd` round: spline envelopes through the extrema with or without the end points, Cauchy sifting stop at 0.2, did not reproduce the first IMF; `hht` depends on `emd`); `xwvd` and `wvd(...,'smoothedPseudo')` (plain `wvd`: products x(a) y*(b) with a+b = 2t and lags |m| <= N/2 at N frequencies k/(2N) cycles per sample, real input made analytic from the record zero padded to 2N; the cross distribution does not follow that rule); `pspectrum` (power type only first): the output is always 4096 points from 0 to Nyquist, equal to twice the Kaiser (beta 40(1-leakage)) windowed modified periodogram of the whole record for short signals, but it deviates from the exact DTFT of that window by up to 1e-4 between some frequencies (an interpolation from a coarser grid?) and the Welch regime for long records (more than about 20000 samples) was not probed; `poctave` low-band filters (one round: decimate-then-filter and an independent bilinear design did not match); `rootmusic`/`rooteig` powers (systematic ~1e-7 relative; one round tried: mean noise eigenvalue as the noise variance, p/2 or p signal eigenvalues, exact or least squares; the zero-frequency root case gave P=[-0.24, 44.6] with a 2x2 solve, not MATLAB's [0, 34.29]).
 - **`rootmusic`/`rooteig`**: frequencies agree to 1e-12, powers to about 1e-7 relative (MATLAB's
   power system was not recovered); a real correlation matrix with a root at zero frequency returns
   one power where MATLAB returns two.
+- **`vmd`**: ADMM on the one-sided spectrum of the signal mirrored by half its length on each side
+  (mode update 1 / (1 + alpha (f - f_k)^2) with f in cycles per sample, Lagrange update with the
+  mean-square change over the bins, stop when the absolute improvement (sum / bins) < AbsoluteTolerance
+  and the relative one < RelativeTolerance, modes returned by decreasing central frequency, two-sided
+  reconstruction with DC and Nyquist counted once). Recovered exactly for explicit ascending
+  `CentralFrequencies`; the default 'peaks', 'grid' and 'random' starts, descending starts, odd lengths
+  and single precision are listed deviations (research queue).
 - **`tsa`**: cycles run between pulses (a scalar `tp` is an interval; pulses reach the record duration
   N/fs); one rotation is the shortest spell of PulsesPerRotation pulses, `M = NumRotations * floor(rotation * fs + 0.5 - 1e-9)`,
   t = (0:M-1)/M * period, windows of NumRotations rotations do not overlap, each rotation is interpolated onto
