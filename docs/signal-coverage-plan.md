@@ -11,10 +11,10 @@ How MatLivre grows to cover the MATLAB Signal Processing Toolbox. The function i
 |---|---:|
 | Functions in scope (R2023b-era, from `signal.tsv`) | 333 |
 | Already in MatLivre before this plan (`xcorr`, `xcov`, `resample`, `rms`, `sinc`, `detrend`, `movmedian`, `movmad`, `isoutlier`, `filloutliers`, `smoothdata`, `islocalmax`, `paddata`, `trimdata`, `resize`, `freqspace`, `ss2tf`) | 17 |
-| Implemented by this plan (`crates/livre-lang/src/signal/`) | 210 |
-| Still to implement | 106 |
+| Implemented by this plan (`crates/livre-lang/src/signal/`) | 214 |
+| Still to implement | 102 |
 
-The 210 are checked against MATLAB: see "How it is tested".
+The 214 are checked against MATLAB: see "How it is tested".
 
 ## How it is tested
 
@@ -85,8 +85,8 @@ cases in `signal_cases.m` and MATLAB's output recorded as above.
    `filtfilt` with second-order sections.
 7. **Spectral estimation and transforms**. Done: `periodogram`, `pwelch`, `mscohere`, `cpsd`, `tfestimate`, `dct`,
    `idct`, `dftmtx`, `goertzel`, `hilbert`, `cconv`, `convmtx`, `bitrevorder`, `czt`, `fwht`, `ifwht`, `cceps`, `rceps`, `icceps`,
-   `digitrevorder`, `corrmtx`, `pyulear`, `pburg`, `pcov`, `pmcov`, `xcorr2`. To do: `pmtm`, `plomb`, `poctave`, `pspectrum`,
-   `pmusic`, `peig`, `rootmusic`, `rooteig`.
+   `digitrevorder`, `corrmtx`, `pyulear`, `pburg`, `pcov`, `pmcov`, `xcorr2`, `pmusic`, `peig`, `rootmusic`, `rooteig`.
+   To do: `pmtm`, `plomb`, `poctave`, `pspectrum`.
 8. **Measurements and modeling**. Done: `peak2peak`, `peak2rms`, `rssq`, `findpeaks`, `enbw`, `bandpower`, `meanfreq`, `medfreq`,
    `finddelay`, `seqperiod`, `cusum`, `dtw`, `edr`, `alignsignals`, `obw`, `powerbw`, `statelevels`, `midcross`, `risetime`, `falltime`,
    `pulsewidth`, `pulseperiod`, `pulsesep`, `dutycycle`, `overshoot`, `undershoot`, `settlingtime`, `slewrate`, `zerocrossrate`, `findchangepts`, `envelope`, `invfreqz`, `invfreqs` (non-iterative fit), `stmcb`, `findsignal` (fixed time alignment only). To do:
@@ -133,6 +133,14 @@ not exercise:
   are violated by under about 5e-9, so its coefficients differ by 1e-7 to 2e-6 (every numeric
   recorded call is a listed deviation for this reason). The WT and WP/WS/K options of `fircls1` and
   zero lower bounds in `fircls` are not implemented.
+- **`pmusic`/`peig`**: the noise eigenvectors (third output) agree with MATLAB up to the sign of each
+  column (or the basis of a nearly degenerate noise subspace); the pseudospectrum, frequencies and
+  eigenvalues agree. MATLAB's data matrix holds each segment in reverse order, and for an explicit
+  window length the last segment is zero padded and the eigenvalues are normalised by one less than
+  the segment count; `peig` weights use a different normalisation again (see `subspace.rs`).
+- **`rootmusic`/`rooteig`**: frequencies agree to 1e-12, powers to about 1e-7 relative (MATLAB's
+  power system was not recovered); a real correlation matrix with a root at zero frequency returns
+  one power where MATLAB returns two.
 - **`maxflat`**: the second-order-section outputs (`sos`, `g`) are not implemented (MATLAB's section
   order and pairing were not reproduced); orders around 30 and the degenerate Wn = 0.5 designs
   differ at 1e-6 to 1e-8 because the flatness system is ill-conditioned.
