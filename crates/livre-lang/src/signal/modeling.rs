@@ -6,7 +6,7 @@ use crate::interp::Interpreter;
 use crate::signal::poly::*;
 use crate::value::*;
 
-pub const NAMES: &[&str] = &["prony", "lpc", "statelevels", "midcross"];
+pub const NAMES: &[&str] = &["prony", "lpc", "statelevels", "midcross", "risetime", "falltime"];
 
 fn order_arg(a: &[Value], i: usize, label: &str) -> R<usize> {
     let m = match &a[i] {
@@ -35,6 +35,9 @@ pub fn call(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
     }
     if name == "midcross" {
         return midcross(a, nargout);
+    }
+    if name == "risetime" || name == "falltime" {
+        return edge_time(name, a, nargout);
     }
     if a.len() < 3 {
         return rt("Not enough input arguments.");
@@ -366,6 +369,7 @@ pub(crate) struct Transitions {
     pub tol: f64,
     pub mid_pct: f64,
     pub levels: (f64, f64),
+    pub prl: (f64, f64),
 }
 
 /// Parses `(x [, Fs | T] [, name, value]...)` for midcross; the name-value names are listed in `known`.
@@ -406,6 +410,7 @@ pub(crate) fn parse_transitions(a: &[Value], allowed: &[&str]) -> R<Transitions>
         }
     }
     let (mut tol, mut mid_pct, mut levels) = (2.0, 50.0, None::<(f64, f64)>);
+    let mut prl = (10.0, 90.0);
     while i < a.len() {
         let key = a[i].text().unwrap_or_default();
         let lk = key.to_lowercase();
@@ -429,6 +434,15 @@ pub(crate) fn parse_transitions(a: &[Value], allowed: &[&str]) -> R<Transitions>
                     return rt("Expected TOL to be positive.");
                 }
                 tol = m.data[0];
+            }
+            "percentreferencelevels" => {
+                if m.numel() != 2 || m.dims[0] != 1 {
+                    return rt(format!("Expected PCTREFLEVELS to be of size 1x2, but it is of size {}x{}.", m.dims[0], m.dims[1]));
+                }
+                if m.data[1] <= m.data[0] {
+                    return rt("The percent reference levels must be in increasing order.");
+                }
+                prl = (m.data[0], m.data[1]);
             }
             "midpercentreferencelevel" => {
                 if m.numel() != 1 {
@@ -460,7 +474,7 @@ pub(crate) fn parse_transitions(a: &[Value], allowed: &[&str]) -> R<Transitions>
             }
         }
     };
-    Ok(Transitions { x: x.data.clone(), t, row: x.dims[0] == 1, tol, mid_pct, levels })
+    Ok(Transitions { x: x.data.clone(), t, row: x.dims[0] == 1, tol, mid_pct, levels, prl })
 }
 
 /// Settled-state transitions: (start index, end index, rising) between samples within the
@@ -522,5 +536,34 @@ fn midcross(a: &[Value], nargout: usize) -> Ret {
     if nargout > 1 {
         outs.push(scalar_value(mid));
     }
+    out(outs)
+}
+
+fn edge_time(name: &str, a: &[Value], nargout: usize) -> Ret {
+    if nargout > 5 {
+        return rt("Too many output arguments.");
+    }
+    let tr = parse_transitions(a, &["tolerance", "percentreferencelevels", "statelevels"])?;
+    if tr.tol >= tr.prl.0 {
+        return rt("The percent state level tolerance must be less than the lower percent reference level.");
+    }
+    let rising = name == "risetime";
+    let (lo, hi) = tr.levels;
+    let ll = lo + tr.prl.0 / 100.0 * (hi - lo);
+    let ul = lo + tr.prl.1 / 100.0 * (hi - lo);
+    let (mut d, mut lt, mut ut) = (vec![], vec![], vec![]);
+    for (s, e, r) in find_transitions(&tr) {
+        if r != rising {
+            continue;
+        }
+        let (Some(tl), Some(tu)) = (crossing(&tr, s, e, r, ll), crossing(&tr, s, e, r, ul)) else { continue };
+        lt.push(tl);
+        ut.push(tu);
+        d.push(if rising { tu - tl } else { tl - tu });
+    }
+    let empty = || Value::Num(Matrix::from_dims(if tr.row { vec![1, 0] } else { vec![0, 1] }, vec![]));
+    let mk = |v: Vec<f64>| if v.is_empty() { empty() } else { shaped(v, tr.row) };
+    let mut outs = vec![mk(d), mk(lt), mk(ut), scalar_value(ll), scalar_value(ul)];
+    outs.truncate(nargout.max(1));
     out(outs)
 }
