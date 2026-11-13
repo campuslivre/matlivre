@@ -6,7 +6,7 @@ use crate::interp::Interpreter;
 use crate::signal::poly::*;
 use crate::value::*;
 
-pub const NAMES: &[&str] = &["prony", "lpc", "statelevels"];
+pub const NAMES: &[&str] = &["prony", "lpc", "statelevels", "midcross"];
 
 fn order_arg(a: &[Value], i: usize, label: &str) -> R<usize> {
     let m = match &a[i] {
@@ -32,6 +32,9 @@ pub fn call(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
     }
     if name == "statelevels" {
         return statelevels(a, nargout);
+    }
+    if name == "midcross" {
+        return midcross(a, nargout);
     }
     if a.len() < 3 {
         return rt("Not enough input arguments.");
@@ -351,6 +354,173 @@ fn statelevels(a: &[Value], nargout: usize) -> Ret {
     }
     if nargout > 2 {
         outs.push(real_col(c));
+    }
+    out(outs)
+}
+
+/// Options shared by the transition measurements.
+pub(crate) struct Transitions {
+    pub x: Vec<f64>,
+    pub t: Vec<f64>,
+    pub row: bool,
+    pub tol: f64,
+    pub mid_pct: f64,
+    pub levels: (f64, f64),
+}
+
+/// Parses `(x [, Fs | T] [, name, value]...)` for midcross; the name-value names are listed in `known`.
+pub(crate) fn parse_transitions(a: &[Value], allowed: &[&str]) -> R<Transitions> {
+    if a.is_empty() {
+        return rt("Not enough input arguments.");
+    }
+    let x = match &a[0] {
+        Value::Num(m) if m.kind == Kind::Double => m.clone(),
+        other => return rt(format!("Expected X to be one of these types:  double  Instead its type was {}.", other.class_name())),
+    };
+    if x.numel() <= 1 && x.numel() > 0 && x.dims.len() == 2 {
+        return rt("X must be a vector with more than one element.");
+    }
+    if x.numel() == 0 || x.dims.len() > 2 || (x.dims[0] > 1 && x.dims[1] > 1) {
+        return rt("Expected X to be a vector.");
+    }
+    if x.im.is_some() {
+        return rt("Expected X to be real.");
+    }
+    let n = x.numel();
+    let mut t: Vec<f64> = (1..=n).map(|i| i as f64).collect();
+    let mut i = 1;
+    if let Some(Value::Num(m)) = a.get(1) {
+        if m.kind != Kind::Char {
+            if m.numel() == 1 {
+                if m.data[0] <= 0.0 {
+                    return rt("Expected FS to be positive.");
+                }
+                t = (0..n).map(|k| k as f64 / m.data[0]).collect();
+            } else {
+                if m.numel() != n {
+                    return rt("X and T must be of the same length.");
+                }
+                t = m.data.clone();
+            }
+            i = 2;
+        }
+    }
+    let (mut tol, mut mid_pct, mut levels) = (2.0, 50.0, None::<(f64, f64)>);
+    while i < a.len() {
+        let key = a[i].text().unwrap_or_default();
+        let lk = key.to_lowercase();
+        let canon = ["tolerance", "midpercentreferencelevel", "statelevels", "lowerpercentreferencelevel", "upperpercentreferencelevel", "percentreferencelevels"]
+            .iter()
+            .find(|c| c.starts_with(&lk) && !lk.is_empty() && allowed.contains(c))
+            .copied();
+        let Some(canon) = canon else {
+            return rt(format!("Unexpected option: '{key}'."));
+        };
+        if i + 1 >= a.len() {
+            return rt(format!("Parameter {} requires a value.", canon.to_lowercase()));
+        }
+        let m = crate::builtins::m_arg(a, i + 1, "midcross")?;
+        match canon {
+            "tolerance" => {
+                if m.numel() != 1 {
+                    return rt("Expected TOL to be a scalar.");
+                }
+                if m.data[0] <= 0.0 {
+                    return rt("Expected TOL to be positive.");
+                }
+                tol = m.data[0];
+            }
+            "midpercentreferencelevel" => {
+                if m.numel() != 1 {
+                    return rt("Expected MIDREFERENCELEVEL to be a scalar.");
+                }
+                mid_pct = m.data[0];
+            }
+            _ => {
+                if m.numel() != 2 || m.dims[0] != 1 {
+                    return rt(format!("Expected STATELEVELS to be of size 1x2, but it is of size {}x{}.", m.dims[0], m.dims[1]));
+                }
+                if m.data[1] <= m.data[0] {
+                    return rt("The state levels must be in increasing order.");
+                }
+                levels = Some((m.data[0], m.data[1]));
+            }
+        }
+        i += 2;
+    }
+    let levels = match levels {
+        Some(l) => l,
+        None => {
+            let (lb, ub) = (x.data.iter().cloned().fold(f64::INFINITY, f64::min), x.data.iter().cloned().fold(f64::NEG_INFINITY, f64::max));
+            if ub > lb && x.data.iter().all(|v| v.is_finite()) {
+                let (h, c) = state_histogram(&x.data, 100, lb, ub);
+                levels_from_histogram(&h, &c, false)
+            } else {
+                (lb, lb)
+            }
+        }
+    };
+    Ok(Transitions { x: x.data.clone(), t, row: x.dims[0] == 1, tol, mid_pct, levels })
+}
+
+/// Settled-state transitions: (start index, end index, rising) between samples within the
+/// tolerance band of each state level.
+pub(crate) fn find_transitions(tr: &Transitions) -> Vec<(usize, usize, bool)> {
+    let (lo, hi) = tr.levels;
+    let band = tr.tol / 100.0 * (hi - lo);
+    let state = |v: f64| -> i32 {
+        if v <= lo + band {
+            0
+        } else if v >= hi - band {
+            1
+        } else {
+            -1
+        }
+    };
+    let mut res = vec![];
+    let mut last: Option<(usize, i32)> = None;
+    for (i, &v) in tr.x.iter().enumerate() {
+        let s = state(v);
+        if s < 0 {
+            continue;
+        }
+        if let Some((j, ls)) = last {
+            if ls != s {
+                res.push((j, i, s == 1));
+            }
+        }
+        last = Some((i, s));
+    }
+    res
+}
+
+/// Time of the first crossing of `level` within `start..=end`.
+pub(crate) fn crossing(tr: &Transitions, start: usize, end: usize, rising: bool, level: f64) -> Option<f64> {
+    for i in start..end {
+        let (a, b) = (tr.x[i], tr.x[i + 1]);
+        let hit = if rising { a < level && b >= level } else { a > level && b <= level };
+        if hit {
+            return Some(tr.t[i] + (level - a) / (b - a) * (tr.t[i + 1] - tr.t[i]));
+        }
+    }
+    None
+}
+
+fn shaped(v: Vec<f64>, row: bool) -> Value {
+    if row { real_row(v) } else { real_col(v) }
+}
+
+fn midcross(a: &[Value], nargout: usize) -> Ret {
+    if nargout > 2 {
+        return rt("Too many output arguments.");
+    }
+    let tr = parse_transitions(a, &["tolerance", "midpercentreferencelevel", "statelevels"])?;
+    let (lo, hi) = tr.levels;
+    let mid = lo + tr.mid_pct / 100.0 * (hi - lo);
+    let c: Vec<f64> = find_transitions(&tr).into_iter().filter_map(|(s, e, r)| crossing(&tr, s, e, r, mid)).collect();
+    let mut outs = vec![if c.is_empty() { Value::Num(Matrix::from_dims(if tr.row { vec![1, 0] } else { vec![0, 1] }, vec![])) } else { shaped(c, tr.row) }];
+    if nargout > 1 {
+        outs.push(scalar_value(mid));
     }
     out(outs)
 }
