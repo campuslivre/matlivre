@@ -8230,3 +8230,300 @@
 5593.1|double|1 3 |0 0 0 |0 0 0 
 5594.1|double|1 3 |0.050944196437851995 0.14530291398023129 0.13650215674436103 |0 0 0 
 5595.1|double|1 51 |0.050944196437851856 0.20335808857591103 0.35777994002486929 0.3184431276052736 0.16501560311447094 3.6895934913870609e-05 -0.048572174456605138 -0.058629090060157867 -0.0073705823033376801 -0.0029003939611316806 0.02306526148150256 -0.0019265319571635641 0.010791410288684862 -0.011586442570264784 0.0059939154173435493 -0.0087609712025671378 0.0068660794027902289 -0.0049935471606485015 0.0047896734571167502 -0.0029418407634228543 0.0015810246671226205 -0.00038801574198473799 -0.0012111514364727806 0.0025371889549107218 -0.0038518510437158277 0.0051619603955826987 -0.0062913277366527433 0.0073288221437625188 -0.0082239592314065704 0.0089364343887943787 -0.0094833268917209248 0.0098369519917907329 -0.0099909546405256826 0.00994874449064009 -0.0097054261348623379 0.0092679216408175918 -0.0086457038845720886 0.007849757044211144 -0.0068969383142689937 0.0058061660992111408 0 0 0 0 0 0 0 0 0 0 0 |0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+5596.1|double|2 1 |1 2 |0 0 
+5597.1|double|4 3 |1 2 3 4 5 6 7 8 9 10 0 0 |0 0 0 0 0 0 0 0 0 0 0 0 
+5598.1|double|4 3 |1 2 3 4 5 6 7 8 9 10 0 0 |0 0 0 0 0 0 0 0 0 0 0 0 
+5599.1|double|4 5 |0 0 1 2 1 2 3 4 3 4 5 6 5 6 7 8 7 8 9 10 |0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+5600.1|double|4 2 |1 2 3 4 7 8 9 10 |0 0 0 0 0 0 0 0 
+5601.1|double|4 3 |1 2 3 4 4 5 6 7 7 8 9 10 |0 0 0 0 0 0 0 0 0 0 0 0 
+5602.1|double|4 4 |1 2 3 4 3 4 5 6 5 6 7 8 7 8 9 10 |0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+5603.1|double|4 5 |100 200 1 2 1 2 3 4 3 4 5 6 5 6 7 8 7 8 9 10 |0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+5604.1|double|4 5 |100 200 1 2 1 2 3 4 3 4 5 6 5 6 7 8 7 8 9 10 |0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+5605.1|double|4 2 |2 3 4 5 8 9 10 0 |0 0 0 0 0 0 0 0 
+5606.1|double|4 2 |3 4 5 6 9 10 0 0 |0 0 0 0 0 0 0 0 
+5607.1|double|4 2 |1 2 3 4 7 8 9 10 |0 0 0 0 0 0 0 0 
+5608|ERR|Buffer overlap P must be an integer-valued scalar.
+5609.1|double|4 3 |1 2 3 4 5 6 7 8 9 10 0 0 |0 0 0 0 0 0 0 0 0 0 0 0 
+5610.1|double|4 10 |0 0 0 1 0 0 1 2 0 1 2 3 1 2 3 4 2 3 4 5 3 4 5 6 4 5 6 7 5 6 7 8 6 7 8 9 7 8 9 10 |0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+5611.1|double|1 10 |1 2 3 4 5 6 7 8 9 10 |0 0 0 0 0 0 0 0 0 0 
+5612.1|double|10 1 |1 2 3 4 5 6 7 8 9 10 |0 0 0 0 0 0 0 0 0 0 
+5613.1|double|12 1 |1 2 3 4 5 6 7 8 9 10 0 0 |0 0 0 0 0 0 0 0 0 0 0 0 
+5614.1|double|5 2 |1 2 3 4 5 6 7 8 9 10 |0 0 0 0 0 0 0 0 0 0 
+5615.1|double|3 3 |1 2 3 5 6 7 9 10 0 |0 0 0 0 0 0 0 0 0 
+5616.1|double|3 2 |1 2 3 7 0 0 |0 0 0 0 0 0 
+5617.1|double|4 2 |1 2 3 4 5 6 7 8 |0 0 0 0 0 0 0 0 
+5617.2|double|2 1 |9 10 |0 0 
+5618.1|double|4 2 |1 2 3 4 5 6 7 8 |0 0 0 0 0 0 0 0 
+5618.2|double|1 2 |9 10 |0 0 
+5619.1|double|4 5 |0 0 1 2 1 2 3 4 3 4 5 6 5 6 7 8 7 8 9 10 |0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+5619.2|double|0 1 | | 
+5619.3|double|2 1 |9 10 |0 0 
+5620.1|double|4 4 |1 2 3 4 3 4 5 6 5 6 7 8 7 8 9 10 |0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+5620.2|double|0 1 | | 
+5620.3|double|2 1 |9 10 |0 0 
+5621.1|double|4 5 |100 200 1 2 1 2 3 4 3 4 5 6 5 6 7 8 7 8 9 10 |0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+5621.2|double|0 1 | | 
+5621.3|double|2 1 |9 10 |0 0 
+5622.1|double|4 2 |1 2 3 4 7 8 9 10 |0 0 0 0 0 0 0 0 
+5622.2|double|1 0 | | 
+5622.3|double|1 1 |2 |0 
+5623.1|double|4 1 |2 3 4 5 |0 0 0 0 
+5623.2|double|1 3 |8 9 10 |0 0 0 
+5623.3|double|1 1 |0 |0 
+5624.1|double|5 2 |1 2 3 4 5 6 7 8 9 10 |0 0 0 0 0 0 0 0 0 0 
+5624.2|double|0 1 | | 
+5624.3|double|0 0 | | 
+5625.1|double|4 2 |1 2 3 4 5 6 7 8 |0 0 0 0 0 0 0 0 
+5625.2|double|0 1 | | 
+5625.3|double|0 0 | | 
+5626.1|double|4 4 |0 0 1 2 1 2 3 4 3 4 5 6 5 6 7 8 |0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+5626.2|double|0 1 | | 
+5626.3|double|2 1 |7 8 |0 0 
+5627.1|double|4 0 | | 
+5627.2|double|3 1 |1 2 3 |0 0 0 
+5627.3|double|0 0 | | 
+5628.1|double|4 0 | | 
+5628.2|double|1 1 |1 |0 
+5628.3|double|2 1 |1 2 |0 0 
+5629.1|double|4 4 |0 1 2 3 3 4 5 6 6 7 8 9 9 10 0 0 |0 1 2 3 3 4 5 6 6 7 8 9 9 10 0 0 
+5630.1|single|4 4 |0 1 2 3 3 4 5 6 6 7 8 9 9 10 0 0 |0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+5631.1|int8|4 4 |0 1 2 3 3 4 5 6 6 7 8 9 9 10 0 0 |0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+5632.1|logical|4 3 |0 0 0 0 0 1 1 1 1 1 0 0 |0 0 0 0 0 0 0 0 0 0 0 0 
+5633.1|char|3 3 |97 98 99 100 101 102 103 0 0 |0 0 0 0 0 0 0 0 0 
+5634|ERR|Input must be a vector.
+5635.1|double|3 1 |5 0 0 |0 0 0 
+5636|ERR|Input must be a vector.
+5637|ERR|Not enough input arguments.
+5638|ERR|Frame overlap P must be less than the buffer size N.
+5639|ERR|Buffer size N must be a positive integer-valued scalar.
+5640|ERR|Buffer size N must be a positive integer-valued scalar.
+5641|ERR|Frame overlap P must be less than the buffer size N.
+5642|ERR|Frame overlap P must be less than the buffer size N.
+5643|ERR|Buffer overlap P must be an integer-valued scalar.
+5644|ERR|Sample skip offset for case of underlap P must be integer-valued and in the range [0,P].
+5645|ERR|Sample skip offset for case of underlap P must be integer-valued and in the range [0,P].
+5646|ERR|Initial conditions must be specified as a length-P vector.
+5647|ERR|OPT must be 'nodelay' or a vector of initial conditions for overlap buffering.
+5648|ERR|Options argument OPT must be empty if P is 0.
+5649|ERR|Buffer size N must be a positive integer-valued scalar.
+5650|ERR|Buffer overlap P must be an integer-valued scalar.
+5651|ERR|Too many input arguments.
+5652|ERR|Too many output arguments.
+5653|ERR|OPT must be 'nodelay' or a vector of initial conditions for overlap buffering.
+5654.1|double|4 4 |1 2 3 4 3 4 5 6 5 6 7 8 7 8 9 10 |0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+5655.1|double|1 2 |2 1 |0 0 
+5656.1|double|3 3 |8 1 6 3 5 7 4 9 2 |0 0 0 0 0 0 0 0 0 
+5656.2|double|1 2 |2 1 |0 0 
+5657.1|double|3 3 |8 1 6 3 5 7 4 9 2 |0 0 0 0 0 0 0 0 0 
+5657.2|double|1 2 |2 1 |0 0 
+5657.3|double|0 0 | | 
+5658.1|double|3 3 |8 3 4 1 5 9 6 7 2 |0 0 0 0 0 0 0 0 0 
+5658.2|double|1 2 |1 2 |0 0 
+5658.3|double|0 0 | | 
+5659.1|double|1 3 3 |8 3 4 1 5 9 6 7 2 |0 0 0 0 0 0 0 0 0 
+5659.2|double|1 3 |3 1 2 |0 0 0 
+5659.3|double|0 0 | | 
+5660.1|double|5 1 |1 2 3 4 5 |0 0 0 0 0 
+5660.2|double|0 0 | | 
+5660.3|double|1 1 |1 |0 
+5661.1|double|5 1 |1 2 3 4 5 |0 0 0 0 0 
+5661.2|double|0 0 | | 
+5661.3|double|1 1 |0 |0 
+5662.1|double|3 3 |8 3 4 1 5 9 6 7 2 |0 0 0 0 0 0 0 0 0 
+5662.2|double|0 0 | | 
+5662.3|double|1 1 |0 |0 
+5663.1|double|1 1 |5 |0 
+5663.2|double|0 0 | | 
+5663.3|double|1 1 |0 |0 
+5664.1|double|0 0 | | 
+5664.2|double|0 0 | | 
+5664.3|double|1 1 |0 |0 
+5665.1|double|1 3 |3 2 4 |0 0 0 
+5665.2|double|1 3 |2 1 3 |0 0 0 
+5665.3|double|0 0 | | 
+5666.1|double|1 3 |4 2 3 |0 0 0 
+5666.2|double|1 3 |3 1 2 |0 0 0 
+5666.3|double|0 0 | | 
+5667.1|double|1 4 |1 2 3 4 |0 0 0 0 
+5667.2|double|1 4 |4 1 2 3 |0 0 0 0 
+5667.3|double|0 0 | | 
+5668.1|double|1 2 |3 4 |0 0 
+5668.2|double|0 0 | | 
+5668.3|double|1 1 |1 |0 
+5669.1|double|1 2 |12 1 |0 0 
+5669.2|double|0 0 | | 
+5669.3|double|1 1 |2 |0 
+5670.1|double|3 3 |8 3 4 1 5 9 6 7 2 |0 0 0 0 0 0 0 0 0 
+5670.2|double|0 0 | | 
+5670.3|double|1 1 |0 |0 
+5671|ERR|ORDER contains an invalid permutation index.
+5672|ERR|ORDER must have at least N elements for an N-D array.
+5673|ERR|ORDER cannot contain repeated permutation indices.
+5674|ERR|Too many output arguments.
+5675|ERR|Not enough input arguments.
+5676.1|char|3 1 |97 98 99 |0 0 0 
+5677.1|double|1 1 |1 |0 
+5678.1|double|3 3 |8 1 6 3 5 7 4 9 2 |0 0 0 0 0 0 0 0 0 
+5679.1|double|3 3 |8 3 4 1 5 9 6 7 2 |0 0 0 0 0 0 0 0 0 
+5680.1|double|1 3 3 |8 3 4 1 5 9 6 7 2 |0 0 0 0 0 0 0 0 0 
+5681.1|double|1 5 |1 2 3 4 5 |0 0 0 0 0 
+5682.1|double|5 1 |1 2 3 4 5 |0 0 0 0 0 
+5683.1|double|1 1 5 |1 2 3 4 5 |0 0 0 0 0 
+5684.1|double|4 3 2 |1 4 7 10 2 5 8 11 3 6 9 12 13 16 19 22 14 17 20 23 15 18 21 24 |0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+5685.1|double|4 2 3 |1 4 7 10 13 16 19 22 2 5 8 11 14 17 20 23 3 6 9 12 15 18 21 24 |0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+5686.1|double|1 1 3 4 2 |1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 |0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+5687.1|double|1 3 4 2 |1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 |0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+5688.1|double|3 3 |8 1 6 3 5 7 4 9 2 |0 0 0 0 0 0 0 0 0 
+5689|ERR|Not enough input arguments.
+5690.1|double|3 3 |8 3 4 1 5 9 6 7 2 |0 0 0 0 0 0 0 0 0 
+5691.1|double|3 3 |8 1 6 3 5 7 4 9 2 |0 0 0 0 0 0 0 0 0 
+5692|ERR|ORDER contains an invalid permutation index.
+5693.1|double|3 3 |8 3 4 1 5 9 6 7 2 |0 0 0 0 0 0 0 0 0 
+5694.1|double|1 5 |2 4 6 8 10 |0 0 0 0 0 
+5695.1|double|1 3 |2 3 4 |0 0 0 
+5696.1|uint8|1 9 |0 1 2 3 4 5 6 7 7 |0 0 0 0 0 0 0 0 0 
+5697.1|int8|1 9 |-4 -3 -2 -1 0 1 2 3 3 |0 0 0 0 0 0 0 0 0 
+5698.1|uint8|1 9 |0 1 2 3 4 5 6 7 7 |0 0 0 0 0 0 0 0 0 
+5699.1|uint8|1 9 |0 32 64 96 128 160 192 224 255 |0 0 0 0 0 0 0 0 0 
+5700.1|uint16|1 9 |0 64 128 192 256 320 384 448 511 |0 0 0 0 0 0 0 0 0 
+5701.1|uint16|1 9 |0 8192 16384 24576 32768 40960 49152 57344 65535 |0 0 0 0 0 0 0 0 0 
+5702.1|uint32|1 9 |0 16384 32768 49152 65536 81920 98304 114688 131071 |0 0 0 0 0 0 0 0 0 
+5703.1|uint32|1 9 |0 536870912 1073741824 1610612736 2147483648 2684354560 3221225472 3758096384 4294967295 |0 0 0 0 0 0 0 0 0 
+5704.1|uint8|1 9 |0 1 2 3 4 5 6 7 7 |0 0 0 0 0 0 0 0 0 
+5705.1|int8|1 9 |-4 -3 -2 -1 0 1 2 3 3 |0 0 0 0 0 0 0 0 0 
+5706.1|uint8|1 9 |0 0 0 2 4 6 7 7 7 |0 0 0 0 0 0 0 0 0 
+5707.1|uint8|1 9 |0 1 2 3 4 5 6 7 7 |0 0 0 0 0 0 0 0 0 
+5708.1|uint8|1 9 |0 0 0 1 2 2 3 3 3 |0 0 0 0 0 0 0 0 0 
+5709.1|uint8|1 1 |10 |0 
+5710.1|uint8|2 2 |10 5 11 0 |0 0 0 0 
+5711.1|uint8|1 2 |15 0 |0 0 
+5712.1|uint8|1 1 |10 |9 
+5713|ERR|Input value must be a double.
+5714|ERR|Input value must be a double.
+5715|ERR|Number of output bits must be an integer from 2 to 32.
+5716|ERR|Number of output bits must be an integer from 2 to 32.
+5717|ERR|Number of output bits must be an integer from 2 to 32.
+5718|ERR|Number of output bits must be an integer from 2 to 32.
+5719|ERR|Number of output bits must be an integer from 2 to 32.
+5720|ERR|Peak input value must be a positive real scalar.
+5721|ERR|Peak input value must be a positive real scalar.
+5722|ERR|Peak input value must be a positive real scalar.
+5723|ERR|Sign character vector must be either 'unsigned' or 'signed'.
+5724.1|int8|1 5 |-4 -2 0 2 3 |0 0 0 0 0 
+5725.1|int8|1 5 |-4 -2 0 2 3 |0 0 0 0 0 
+5726|ERR|Not enough input arguments.
+5727|ERR|Not enough input arguments.
+5728|ERR|Input value must be a double.
+5729.1|uint8|1 5 |0 2 4 6 7 |0 0 0 0 0 
+5730|ERR|Too many input arguments.
+5731.1|uint8|2 2 2 |5 5 5 5 5 5 5 5 |0 0 0 0 0 0 0 0 
+5732.1|uint8|0 0 | | 
+5733|ERR|Input value must be a double.
+5734.1|double|1 4 |-0.25 0.25 0.5 -1 |0 0 0 0 
+5735.1|double|1 8 |-1 -0.75 -0.5 -0.25 0 0.25 0.5 0.75 |0 0 0 0 0 0 0 0 
+5736.1|double|1 8 |-2 -1.5 -1 -0.5 0 0.5 1 1.5 |0 0 0 0 0 0 0 0 
+5737.1|double|1 8 |-1 -0.75 -0.5 -0.25 0 0.25 0.5 0.75 |0 0 0 0 0 0 0 0 
+5738.1|double|1 8 |-1 -0.75 -0.5 -0.25 0 0.25 0.5 0.75 |0 0 0 0 0 0 0 0 
+5739.1|double|1 10 |-1 -0.75 -0.5 -0.25 0 0.25 0.5 0.75 0.75 0.75 |0 0 0 0 0 0 0 0 0 0 
+5740.1|double|1 10 |-1 -0.75 -0.5 -0.25 0 0.25 0.5 0.75 -1 -0.75 |0 0 0 0 0 0 0 0 0 0 
+5741.1|double|1 10 |-1 -0.75 -0.5 -0.25 0 0.25 0.5 0.75 0.75 0.75 |0 0 0 0 0 0 0 0 0 0 
+5742.1|double|1 4 |-1 -1 0.75 0.75 |0 0 0 0 
+5743.1|double|1 4 |0 0.75 -1 -0.25 |0 0 0 0 
+5744.1|double|1 16 |-1 -0.875 -0.75 -0.625 -0.5 -0.375 -0.25 -0.125 0 0.125 0.25 0.375 0.5 0.625 0.75 0.875 |0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+5745.1|double|1 16 |-3 -2.625 -2.25 -1.875 -1.5 -1.125 -0.75 -0.375 0 0.375 0.75 1.125 1.5 1.875 2.25 2.625 |0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+5746.1|double|1 4 |-1 -0.5 0 0.5 |0 0 0 0 
+5747.1|double|1 4 |-1 -0.5 0 0.5 |0 0 0 0 
+5748.1|double|1 2 |-1 0.9921875 |0 0 
+5749.1|double|1 2 |-1 -0.00390625 |0 0 
+5750.1|double|1 2 |-1 0.9921875 |0 0 
+5751|ERR|Input value must be a signed or unsigned integer.
+5752|ERR|Input value must be a signed or unsigned integer.
+5753|ERR|Input value must be a signed or unsigned integer.
+5754|ERR|Number of output bits must be an integer from 2 to 32.
+5755|ERR|Number of output bits must be an integer from 2 to 32.
+5756|ERR|Number of output bits must be an integer from 2 to 32.
+5757|ERR|Peak input value must be a positive real scalar.
+5758|ERR|Peak input value must be a positive real scalar.
+5759|ERR|Overflow mode character vector must be either 'saturate' or 'wrap'.
+5760.1|double|1 8 |-1 -0.75 -0.5 -0.25 0 0.25 0.5 0.75 |0 0 0 0 0 0 0 0 
+5761|ERR|Not enough input arguments.
+5762|ERR|Not enough input arguments.
+5763|ERR|Input value must be a signed or unsigned integer.
+5764.1|double|2 2 |-1 0 -0.5 0.5 |0 0 0 0 
+5765.1|double|0 0 | | 
+5766.1|double|1 8 |-1 -0.75 -0.5 -0.25 0 0.25 0.5 0.75 |0 0 0 0 0 0 0 0 
+5767|ERR|Too many input arguments.
+5768.1|double|1 8 |-1 -0.75 -0.5 -0.25 0 0.25 0.5 0.75 |0 0 0 0 0 0 0 0 
+5769|ERR|Input value must be a signed or unsigned integer.
+5770.1|double|1 1 |0.5 |0 
+5771.1|double|1 1 |-1 |0 
+5772.1|double|1 1 |0.75 |0 
+5773.1|double|1 1 |0.75 |0 
+5774.1|double|1 1 |-1 |0 
+5775|ERR|Input value must be a signed or unsigned integer.
+5776|ERR|Input value must be a signed or unsigned integer.
+5777|ERR|Too many output arguments.
+5778|ERR|Too many output arguments.
+5779.1|double|4 4 |0 0 1 2 1 2 3 4 3 4 5 6 5 6 7 8 |0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+5779.2|double|1 1 |9 |0 
+5779.3|double|2 1 |7 8 |0 0 
+5780.1|double|4 5 |0 0 1 2 1 2 3 4 3 4 5 6 5 6 7 8 7 8 9 10 |0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+5780.2|double|1 1 |11 |0 
+5780.3|double|2 1 |9 10 |0 0 
+5781.1|double|4 3 |1 2 3 4 3 4 5 6 5 6 7 8 |0 0 0 0 0 0 0 0 0 0 0 0 
+5781.2|double|1 1 |9 |0 
+5781.3|double|2 1 |7 8 |0 0 
+5782.1|double|4 3 |0 1 2 3 3 4 5 6 6 7 8 9 |0 0 0 0 0 0 0 0 0 0 0 0 
+5782.2|double|2 1 |10 11 |0 0 
+5782.3|double|1 1 |9 |0 
+5783.1|double|4 2 |1 2 3 4 4 5 6 7 |0 0 0 0 0 0 0 0 
+5783.2|double|2 1 |8 9 |0 0 
+5783.3|double|1 1 |7 |0 
+5784.1|double|4 2 |1 2 3 4 6 7 8 9 |0 0 0 0 0 0 0 0 
+5784.2|double|1 0 | | 
+5784.3|double|1 1 |1 |0 
+5785.1|double|3 2 |2 3 4 7 8 9 |0 0 0 0 0 0 
+5785.2|double|1 0 | | 
+5785.3|double|1 1 |2 |0 
+5786.1|double|4 4 |0 0 1 2 1 2 3 4 3 4 5 6 5 6 7 8 |0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+5786.2|double|1 1 |9 |0 
+5786.3|double|2 1 |7 8 |0 0 
+5787.1|double|4 1 |1 2 3 4 |0 0 0 0 
+5787.2|double|1 3 |7 8 9 |0 0 0 
+5787.3|double|1 1 |0 |0 
+5788.1|double|3 1 |0 1 2 |0 0 0 
+5788.2|double|0 1 | | 
+5788.3|double|1 1 |2 |0 
+5789.1|double|3 0 | | 
+5789.2|double|1 1 |1 |0 
+5789.3|double|1 1 |1 |0 
+5790.1|double|3 2 |1 2 3 3 4 5 |0 0 0 0 0 0 
+5790.2|double|0 1 | | 
+5790.3|double|1 1 |5 |0 
+5791.1|double|3 2 |1 2 3 3 4 5 |0 0 0 0 0 0 
+5791.2|double|1 1 |6 |0 
+5791.3|double|1 1 |5 |0 
+5792.1|double|3 1 |1 2 3 |0 0 0 
+5792.2|double|0 1 | | 
+5792.3|double|2 1 |2 3 |0 0 
+5793.1|double|3 2 |1 2 3 2 3 4 |0 0 0 0 0 0 
+5793.2|double|0 1 | | 
+5793.3|double|2 1 |3 4 |0 0 
+5794.1|double|4 1 |0 0 1 2 |0 0 0 0 
+5794.2|double|1 1 |3 |0 
+5794.3|double|2 1 |1 2 |0 0 
+5795.1|double|4 0 | | 
+5795.2|double|1 3 |1 2 3 |0 0 0 
+5795.3|double|1 1 |0 |0 
+5796.1|double|4 2 |1 2 3 4 7 8 9 10 |0 0 0 0 0 0 0 0 
+5796.2|double|1 0 | | 
+5796.3|double|1 1 |0 |0 
+5797.1|double|4 1 |1 2 3 4 |0 0 0 0 
+5797.2|double|1 0 | | 
+5797.3|double|1 1 |1 |0 
+5798.1|double|4 0 | | 
+5798.2|double|1 3 |3 4 5 |0 0 0 
+5798.3|double|1 1 |0 |0 
+5799.1|double|4 1 |1 2 3 4 |0 0 0 0 
+5799.2|double|1 0 | | 
+5799.3|double|1 1 |1 |0 

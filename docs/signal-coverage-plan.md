@@ -11,10 +11,10 @@ How MatLivre grows to cover the MATLAB Signal Processing Toolbox. The function i
 |---|---:|
 | Functions in scope (R2023b-era, from `signal.tsv`) | 333 |
 | Already in MatLivre before this plan (`xcorr`, `xcov`, `resample`, `rms`, `sinc`, `detrend`, `movmedian`, `movmad`, `isoutlier`, `filloutliers`, `smoothdata`, `islocalmax`, `paddata`, `trimdata`, `resize`, `freqspace`, `ss2tf`) | 17 |
-| Implemented by this plan (`crates/livre-lang/src/signal/`) | 190 |
-| Still to implement | 126 |
+| Implemented by this plan (`crates/livre-lang/src/signal/`) | 195 |
+| Still to implement | 121 |
 
-The 190 are checked against MATLAB: see "How it is tested".
+The 195 are checked against MATLAB: see "How it is tested".
 
 ## How it is tested
 
@@ -66,9 +66,8 @@ cases in `signal_cases.m` and MATLAB's output recorded as above.
    `hamming`, `hann`, `blackman`, `blackmanharris`, `nuttallwin`, `flattopwin`, `kaiser`,
    `tukeywin`, `gausswin`, `parzenwin`, `bohmanwin`, `barthannwin`, `chebwin`; `mag2db`, `db2mag`,
    `pow2db`, `db2pow`; `square`, `sawtooth`, `rectpuls`, `diric`, `chirp`, `gmonopuls`.
-2. **More waveforms and windows**. Done: `tripuls`, `gauspuls`. To do: `pulstran`, `vco`, `taylorwin`,
-   `dpss`, `buffer`, `modulate`, `demod`, `shiftdata`, `unshiftdata`, `uencode`, `udecode`,
-   `marcumq`.
+2. **More waveforms and windows**. Done: `tripuls`, `gauspuls`, `buffer`, `shiftdata`, `unshiftdata`, `uencode`, `udecode`.
+   To do: `pulstran`, `vco`, `taylorwin`, `dpss`, `modulate`, `demod`, `marcumq`.
 3. **Polynomial and filter conversions**. Done: `lp2lp`, `lp2hp`, `lp2bp`, `lp2bs` (transfer
    function form), `bilinear` (transfer function and zero-pole-gain forms, with pre-warping),
    `polystab`, `polyscale`, `eqtflength`, `sos2tf`, `tf2zp`, `tf2zpk`, `zp2tf`, `sos2zp`, `zp2sos`, `tf2sos`, `tf2ss`, `zp2ss`, `ss2zp`, `sos2ss`, `ss2sos`, `residuez`, `latc2tf`, `tf2latc`, `impinvar`, `cell2sos`, `sos2cell`.

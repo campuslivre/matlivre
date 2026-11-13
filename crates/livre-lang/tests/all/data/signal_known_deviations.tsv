@@ -193,3 +193,4 @@ r = invfreqs(single(ihsn),iws,3,3);	single-precision arithmetic: results agree t
 [a1,b1] = invfreqs(ihs,iws,3,3); r = {a1,b1};	exact data: the numerator coefficients that should be zero differ at round-off level
 r = stmcb(sh,2,3,1,[1 2]);	unstable initial denominator [1 2]: the filtered data grow to 1e12 and the least-squares result differs at 1e-5
 r = stmcb([1 2],1,1);	degenerate two-sample input: the least-squares system is rank deficient
+r = uencode(0.3+0.2i,4);	complex input (complex integer output) is not implemented
