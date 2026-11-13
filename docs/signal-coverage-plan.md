@@ -133,6 +133,9 @@ not exercise:
   are violated by under about 5e-9, so its coefficients differ by 1e-7 to 2e-6 (every numeric
   recorded call is a listed deviation for this reason). The WT and WP/WS/K options of `fircls1` and
   zero lower bounds in `fircls` are not implemented.
+  One extra round tried a stopping tolerance of 5e-9 on the exact active-set iteration (the exchange
+  iteration of the 1996 paper is not reproducible step for step from the published description);
+  no recorded call moved closer, so the exact optimum stays.
 - **`pmusic`/`peig`**: the noise eigenvectors (third output) agree with MATLAB up to the sign of each
   column (or the basis of a nearly degenerate noise subspace); the pseudospectrum, frequencies and
   eigenvalues agree. MATLAB's data matrix holds each segment in reverse order, and for an explicit
