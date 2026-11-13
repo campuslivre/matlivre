@@ -8949,3 +8949,113 @@
 6130|ERR|Matrix dimensions must agree.
 6131|ERR|Output argument "x2" (and possibly others) not assigned a value in the execution with "demod" function.
 6132|ERR|Too many output arguments.
+6133.1|logical|1 1 |0 |0 
+6134.1|logical|1 1 |0 |0 
+6134.2|double|1 1 |0.75 |0 
+6134.3|double|1 1 |0.25000000000000011 |0 
+6135.1|logical|1 1 |1 |0 
+6135.2|double|1 1 |1 |0 
+6135.3|double|1 1 |1.1102230246251565e-16 |0 
+6136.1|logical|1 1 |0 |0 
+6136.2|double|1 1 |0.75 |0 
+6136.3|double|1 1 |0.25000000000000011 |0 
+6137.1|logical|1 1 |0 |0 
+6137.2|double|1 1 |0.65625 |0 
+6137.3|double|1 1 |0.2471706591835513 |0 
+6138.1|logical|1 1 |0 |0 
+6138.2|double|1 1 |0.875 |0 
+6138.3|double|1 1 |0.075484433951209629 |0 
+6139.1|logical|1 1 |0 |0 
+6139.2|double|1 1 |0.79479999999999995 |0 
+6139.3|double|1 1 |0.21160000000000001 |0 
+6140.1|logical|1 1 |1 |0 
+6140.2|double|1 1 |1.0800000000000001 |0 
+6140.3|double|1 1 |0 |0 
+6141.1|logical|1 1 |1 |0 
+6141.2|double|1 1 |1 |0 
+6141.3|double|1 1 |2.2204460492503131e-16 |0 
+6142.1|logical|1 1 |0 |0 
+6142.2|double|1 1 |1.3065629648763766 |0 
+6142.3|double|1 1 |0.30656296487637658 |0 
+6143.1|logical|1 1 |1 |0 
+6143.2|double|1 1 |1.5 |0 
+6143.3|double|1 1 |0 |0 
+6144.1|logical|1 1 |1 |0 
+6144.2|double|1 1 |2 |0 
+6144.3|double|1 1 |0 |0 
+6145.1|logical|1 1 |0 |0 
+6145.2|double|1 1 |0.67677669529663687 |0 
+6145.3|double|1 1 |0.38388347648318444 |0 
+6146.1|logical|1 1 |0 |0 
+6146.2|double|1 1 |0.48927669529663687 |0 
+6146.3|double|1 1 |0.51072330470336313 |0 
+6147.1|logical|1 1 |0 |0 
+6147.2|double|1 1 |0.74999999999999989 |0 
+6147.3|double|1 1 |0.21984631039295432 |0 
+6148.1|logical|1 1 |0 |0 
+6148.2|double|1 1 |0.56249999999999989 |0 
+6148.3|double|1 1 |0.37810186578282656 |0 
+6149.1|logical|1 1 |1 |0 
+6149.2|double|1 1 |2 |0 
+6149.3|double|1 1 |0 |0 
+6150.1|logical|1 1 |1 |0 
+6150.2|double|1 1 |1 |0 
+6150.3|double|1 1 |0 |0 
+6151.1|logical|1 1 |1 |0 
+6151.2|double|1 1 |8 |0 
+6151.3|double|1 1 |0 |0 
+6152.1|logical|1 1 |0 |0 
+6152.2|double|1 1 |1 |0 
+6152.3|double|1 1 |1 |0 
+6153.1|logical|1 1 |0 |0 
+6153.2|double|1 1 |0.75 |0 
+6153.3|double|1 1 |0.25 |0 
+6154.1|logical|1 1 |1 |0 
+6154.2|double|1 1 |1 |0 
+6154.3|double|1 1 |0 |0 
+6155.1|logical|1 1 |1 |0 
+6155.2|double|1 1 |1.6799999999999997 |0 
+6155.3|double|1 1 |4.4408920985006262e-16 |0 
+6156.1|logical|1 1 |0 |0 
+6156.2|double|1 1 |1.2183999999999999 |0 
+6156.3|double|1 1 |0.012800000000000367 |0 
+6157.1|logical|1 1 |0 |0 
+6157.2|double|1 1 |1.5127966758283387 |0 
+6157.3|double|1 1 |0.00018511367933826683 |0 
+6158.1|logical|1 1 |0 |0 
+6158.2|double|1 1 |0.75 |0 
+6158.3|double|1 1 |0.25000000000000011 |0 
+6159.1|logical|1 1 |0 |0 
+6159.2|double|1 1 |1 |0 
+6159.3|double|1 1 |1 |0 
+6160.1|logical|1 1 |1 |0 
+6160.2|double|1 1 |1 |0 
+6160.3|double|1 1 |2.2204460492503131e-16 |0 
+6161.1|logical|1 1 |1 |0 
+6161.2|double|1 1 |1 |0 
+6161.3|double|1 1 |0 |0 
+6162.1|logical|1 1 |1 |0 
+6162.2|double|1 1 |0 |0 
+6162.3|double|1 1 |0 |0 
+6163.1|logical|1 1 |1 |0 
+6163.2|double|1 1 |1 |0 
+6163.3|double|1 1 |1.1102230246251565e-16 |0 
+6164.1|logical|1 1 |1 |0 
+6164.2|double|1 1 |1 |0 
+6164.3|double|1 1 |1.1102230246251565e-16 |0 
+6165|ERR|Expected OverlapLength to be a scalar with value < 8.
+6166|ERR|Expected OverlapLength to be nonnegative.
+6167|ERR|Expected OverlapLength to be integer-valued.
+6168|ERR|Expected OverlapLength to be a scalar.
+6169|ERR|Not enough input arguments.
+6170|ERR|Not enough input arguments.
+6171|ERR|Expected Method to match one of these values:  'ola', 'wola'  The input, 'foo', did not match any of the valid values.
+6172|ERR|Too many input arguments.
+6173.1|logical|1 1 |1 |0 
+6174|ERR|Expected Window to be nonempty.
+6175|ERR|Expected Window to be a vector.
+6176|ERR|Expected Window to be one of these types:  single, double
+6177.1|logical|1 1 |0 |0 
+6178|ERR|Expected Window to be real.
+6179|ERR|Expected Method to match one of these values:  'ola', 'wola'  The input did not match any of the valid values.
+6180|ERR|Too many output arguments.

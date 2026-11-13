@@ -6,7 +6,7 @@ use crate::interp::Interpreter;
 use crate::signal::poly::*;
 use crate::value::*;
 
-pub const NAMES: &[&str] = &["taylorwin", "pulstran", "vco", "modulate", "dpss", "marcumq", "rainflow", "demod"];
+pub const NAMES: &[&str] = &["taylorwin", "pulstran", "vco", "modulate", "dpss", "marcumq", "rainflow", "demod", "iscola"];
 
 const NUM_TYPES: &str = "double, single, uint8, uint16, uint32, uint64, int8, int16, int32, int64";
 
@@ -19,6 +19,7 @@ pub fn call(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
         "marcumq" => marcumq(it, a, nargout),
         "rainflow" => rainflow(it, a, nargout),
         "demod" => demod(it, a, nargout),
+        "iscola" => iscola(a, nargout),
         _ => modulate(it, a, nargout),
     }
 }
@@ -884,6 +885,97 @@ fn demod(it: &mut Interpreter, a: &[Value], nargout: usize) -> Ret {
     let mut outs = vec![cast(x1)];
     if method == "qam" && nargout > 1 {
         outs.push(cast(x2));
+    }
+    out(outs)
+}
+
+fn iscola(a: &[Value], nargout: usize) -> Ret {
+    if a.len() < 2 {
+        return rt("Not enough input arguments.");
+    }
+    if a.len() > 3 {
+        return rt("Too many input arguments.");
+    }
+    if nargout > 3 {
+        return rt("Too many output arguments.");
+    }
+    let w = match &a[0] {
+        Value::Num(m) if matches!(m.kind, Kind::Double | Kind::Single) => m.clone(),
+        _ => return rt("Expected Window to be one of these types:  single, double"),
+    };
+    if w.numel() == 0 {
+        return rt("Expected Window to be nonempty.");
+    }
+    if w.dims.len() > 2 || (w.dims[0] != 1 && w.dims[1] != 1) {
+        return rt("Expected Window to be a vector.");
+    }
+    if w.im.is_some() {
+        return rt("Expected Window to be real.");
+    }
+    let n = w.numel();
+    let ov = match &a[1] {
+        Value::Num(m) if m.kind != Kind::Char => {
+            if m.numel() != 1 {
+                return rt("Expected OverlapLength to be a scalar.");
+            }
+            let v = m.data[0];
+            if v < 0.0 {
+                return rt("Expected OverlapLength to be nonnegative.");
+            }
+            if v.fract() != 0.0 {
+                return rt("Expected OverlapLength to be integer-valued.");
+            }
+            if v >= n as f64 {
+                return rt(format!("Expected OverlapLength to be a scalar with value < {n}."));
+            }
+            v as usize
+        }
+        _ => return rt("Expected OverlapLength to be numeric."),
+    };
+    let mut wola = true;
+    if let Some(v) = a.get(2) {
+        let opts = ["ola", "wola"];
+        match v {
+            Value::Num(m) if m.kind == Kind::Char => {
+                let t = v.text().unwrap_or_default();
+                let l = t.to_lowercase();
+                match opts.iter().position(|o| !l.is_empty() && o.starts_with(&l)) {
+                    Some(i) => wola = i == 1,
+                    None => return rt(format!("Expected Method to match one of these values:  'ola', 'wola'  The input, '{t}', did not match any of the valid values.")),
+                }
+            }
+            _ => return rt("Expected Method to match one of these values:  'ola', 'wola'  The input did not match any of the valid values."),
+        }
+    }
+    let hop = n - ov;
+    let mut sums = vec![0.0; hop];
+    for (i, v) in w.data.iter().enumerate() {
+        sums[i % hop] += if wola { v * v } else { *v };
+    }
+    let mut sorted = sums.clone();
+    sorted.sort_by(|x, y| x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal));
+    let m = if hop % 2 == 1 { sorted[hop / 2] } else { (sorted[hop / 2 - 1] + sorted[hop / 2]) / 2.0 };
+    let dev = sums.iter().fold(0.0f64, |d, v| d.max((v - m).abs()));
+    let k = ((n + hop - 1) / hop) as f64;
+    let tol = if w.kind == Kind::Single { f32::EPSILON as f64 } else { f64::EPSILON } * k;
+    let tf = dev < tol;
+    let single = w.kind == Kind::Single;
+    let num = |v: f64| {
+        let mut mm = Matrix::from_dims(vec![1, 1], vec![v]);
+        if single {
+            mm.data[0] = v as f32 as f64;
+            mm.kind = Kind::Single;
+        }
+        Value::Num(mm)
+    };
+    let mut tfm = Matrix::from_dims(vec![1, 1], vec![if tf { 1.0 } else { 0.0 }]);
+    tfm.kind = Kind::Logical;
+    let mut outs = vec![Value::Num(tfm)];
+    if nargout > 1 {
+        outs.push(num(m));
+    }
+    if nargout > 2 {
+        outs.push(num(dev));
     }
     out(outs)
 }
