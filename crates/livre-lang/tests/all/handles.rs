@@ -103,3 +103,17 @@ fn axes_formatting_functions() {
     // Without the editor's renderer, saving explains why it cannot.
     assert!(text(&it, "msg").contains("renderer"));
 }
+
+/// `line` makes low-level `primitive.Line` objects, `plot` makes `chart.primitive.Line` ones
+/// (classes recorded from MATLAB R2023b).
+#[test]
+fn line_and_plot_classes_differ() {
+    let (it, _) = run(
+        "figure('Visible','off'); a = line([1 2],[3 4]); ca = class(a); mk = a.Marker; ls = a.LineStyle;\n\
+         figure('Visible','off'); b = plot([1 2],[3 4]); cb = class(b);",
+    );
+    assert_eq!(text(&it, "ca"), "matlab.graphics.primitive.Line");
+    assert_eq!(text(&it, "cb"), "matlab.graphics.chart.primitive.Line");
+    assert_eq!(text(&it, "mk"), "none");
+    assert_eq!(text(&it, "ls"), "-");
+}
