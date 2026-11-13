@@ -6,7 +6,7 @@ use crate::interp::Interpreter;
 use crate::signal::poly::*;
 use crate::value::*;
 
-pub const NAMES: &[&str] = &["prony", "lpc"];
+pub const NAMES: &[&str] = &["prony", "lpc", "statelevels"];
 
 fn order_arg(a: &[Value], i: usize, label: &str) -> R<usize> {
     let m = match &a[i] {
@@ -29,6 +29,9 @@ fn order_arg(a: &[Value], i: usize, label: &str) -> R<usize> {
 pub fn call(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Ret {
     if name == "lpc" {
         return lpc(it, a, nargout);
+    }
+    if name == "statelevels" {
+        return statelevels(a, nargout);
     }
     if a.len() < 3 {
         return rt("Not enough input arguments.");
@@ -228,4 +231,126 @@ fn lpc(it: &mut Interpreter, a: &[Value], nargout: usize) -> Ret {
     };
     let g = mk(gs.iter().map(|v| v.0).collect(), gs.iter().map(|v| v.1).collect(), ncols, 1);
     out(vec![mk(re, im, ncols, width), g])
+}
+
+/// Histogram of `x` over `[lb, ub]` in `nb` bins: counts and bin centers.
+fn state_histogram(x: &[f64], nb: usize, lb: f64, ub: f64) -> (Vec<f64>, Vec<f64>) {
+    let w = (ub - lb) / nb as f64;
+    let mut h = vec![0.0; nb];
+    for &v in x {
+        if v >= lb && v <= ub && w > 0.0 {
+            let k = (((v - lb) / w).floor() as usize).min(nb - 1);
+            h[k] += 1.0;
+        }
+    }
+    let c = (0..nb).map(|k| lb + w * (k as f64 + 0.5)).collect();
+    (h, c)
+}
+
+/// Lower and upper state levels of a bilevel waveform from its histogram.
+pub(crate) fn levels_from_histogram(h: &[f64], c: &[f64], mean: bool) -> (f64, f64) {
+    let nz: Vec<usize> = (0..h.len()).filter(|&i| h[i] > 0.0).collect();
+    if nz.is_empty() {
+        return (f64::NAN, f64::NAN);
+    }
+    let (i0, i1) = (nz[0], *nz.last().unwrap());
+    let m = i0 + (i1 - i0) / 2;
+    let level = |lo: usize, hi: usize| -> f64 {
+        if mean {
+            let (sw, sc) = (lo..=hi).fold((0.0, 0.0), |acc, i| (acc.0 + h[i], acc.1 + h[i] * c[i]));
+            sc / sw
+        } else {
+            let mut best = lo;
+            for i in lo..=hi {
+                if h[i] > h[best] {
+                    best = i;
+                }
+            }
+            c[best]
+        }
+    };
+    (level(i0, m), level(m, i1))
+}
+
+fn statelevels(a: &[Value], nargout: usize) -> Ret {
+    if a.is_empty() {
+        return rt("Not enough input arguments.");
+    }
+    if a.len() > 4 {
+        return rt("Too many input arguments.");
+    }
+    if nargout > 3 {
+        return rt("Too many output arguments.");
+    }
+    let x = match &a[0] {
+        Value::Num(m) if m.kind == Kind::Double => m.clone(),
+        other => return rt(format!("Expected X to be one of these types:  double  Instead its type was {}.", other.class_name())),
+    };
+    if x.numel() == 1 {
+        return rt("X must be a vector with more than one element.");
+    }
+    if x.numel() == 0 || x.dims.len() > 2 || (x.dims[0] > 1 && x.dims[1] > 1) {
+        return rt("Expected X to be a vector.");
+    }
+    if x.im.is_some() {
+        return rt("Expected X to be real.");
+    }
+    if x.data.iter().any(|v| !v.is_finite()) {
+        return rt("Expected X to be finite.");
+    }
+    let mut nb = 100usize;
+    if a.len() > 1 {
+        match &a[1] {
+            Value::Num(m) if m.kind == Kind::Double => {
+                if m.numel() != 1 {
+                    return rt("Expected NBINS to be a scalar.");
+                }
+                if m.data[0] <= 1.0 || m.data[0].is_nan() {
+                    return rt("Expected NBINS to be a scalar with value > 1.");
+                }
+                if m.data[0].fract() != 0.0 {
+                    return rt("Expected NBINS to be integer-valued.");
+                }
+                nb = m.data[0] as usize;
+            }
+            _ => return rt("Expected NBINS to be one of these types:  double"),
+        }
+    }
+    let mut mean = false;
+    if a.len() > 2 {
+        let t = a[2].text().unwrap_or_default();
+        match t.to_lowercase().as_str() {
+            "mean" => mean = true,
+            "mode" => {}
+            _ => return rt(format!("Expected METHOD to match one of these values:  'mean', 'mode'  The input, '{t}', did not match any of the valid values.")),
+        }
+    }
+    let (mut lb, mut ub) = (x.data.iter().cloned().fold(f64::INFINITY, f64::min), x.data.iter().cloned().fold(f64::NEG_INFINITY, f64::max));
+    if a.len() > 3 {
+        let m = crate::builtins::m_arg(a, 3, "statelevels")?;
+        if m.numel() != 2 || m.dims[0] != 1 {
+            return rt(format!("Expected BOUNDS to be of size 1x2, but it is of size {}x{}.", m.dims[0], m.dims[1]));
+        }
+        if m.data[1] <= m.data[0] {
+            return rt("Expected BOUNDS to be strictly increasing.");
+        }
+        lb = m.data[0];
+        ub = m.data[1];
+    }
+    let (h, c) = if ub > lb {
+        state_histogram(&x.data, nb, lb, ub)
+    } else {
+        let mut h = vec![0.0; nb];
+        h[0] = x.numel() as f64;
+        (h, vec![lb; nb])
+    };
+    let (lo, hi) = if ub > lb { levels_from_histogram(&h, &c, mean) } else { (lb, lb) };
+    let mut outs = vec![real_row(vec![lo, hi])];
+    if nargout > 1 {
+        outs.push(real_col(h));
+    }
+    if nargout > 2 {
+        outs.push(real_col(c));
+    }
+    out(outs)
 }
