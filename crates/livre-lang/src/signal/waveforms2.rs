@@ -6,7 +6,7 @@ use crate::interp::Interpreter;
 use crate::signal::poly::*;
 use crate::value::*;
 
-pub const NAMES: &[&str] = &["taylorwin", "pulstran", "vco", "modulate", "dpss"];
+pub const NAMES: &[&str] = &["taylorwin", "pulstran", "vco", "modulate", "dpss", "marcumq"];
 
 const NUM_TYPES: &str = "double, single, uint8, uint16, uint32, uint64, int8, int16, int32, int64";
 
@@ -16,6 +16,7 @@ pub fn call(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
         "pulstran" => pulstran(it, a, nargout),
         "vco" => vco(a, nargout),
         "dpss" => dpss(it, a, nargout),
+        "marcumq" => marcumq(it, a, nargout),
         _ => modulate(it, a, nargout),
     }
 }
@@ -497,4 +498,80 @@ fn dpss(it: &mut Interpreter, a: &[Value], nargout: usize) -> Ret {
         outs.push(Value::Num(Matrix::from_dims(vec![ncols, 1], lam)));
     }
     out(outs)
+}
+
+fn marcumq(it: &mut Interpreter, a: &[Value], nargout: usize) -> Ret {
+    if a.len() < 2 {
+        return rt("Not enough input arguments.");
+    }
+    if a.len() > 3 {
+        return rt("Too many input arguments.");
+    }
+    if nargout > 1 {
+        return rt("Too many output arguments.");
+    }
+    let mut ms: Vec<Matrix> = vec![];
+    for v in a {
+        match v {
+            Value::Num(m) if m.kind == Kind::Double => ms.push(m.clone()),
+            _ => return rt("Input arguments must be 'double'."),
+        }
+    }
+    if ms.iter().any(|m| m.im.is_some()) {
+        return rt("Arguments must be real.");
+    }
+    if ms[0].data.iter().chain(ms[1].data.iter()).any(|v| *v < 0.0) {
+        return rt("The first two arguments must be nonnegative.");
+    }
+    let mdef = Matrix::from_dims(vec![1, 1], vec![1.0]);
+    let m3 = ms.get(2).cloned().unwrap_or(mdef);
+    if m3.data.iter().any(|v| !(*v >= 1.0) || v.fract() != 0.0) {
+        return rt("Third argument must be a positive integer.");
+    }
+    let all = [&ms[0], &ms[1], &m3];
+    let shape = all.iter().find(|m| m.numel() != 1).map(|m| m.dims.clone()).unwrap_or_else(|| vec![1, 1]);
+    for m in all {
+        if m.numel() != 1 && m.dims != shape {
+            return rt("Dimensions of arguments do not match.");
+        }
+    }
+    let n: usize = shape.iter().product();
+    let pick = |m: &Matrix, i: usize| if m.numel() == 1 { m.data[0] } else { m.data[i] };
+    let mut y = vec![0.0; n];
+    for i in 0..n {
+        let (aa, bb, mm) = (pick(&ms[0], i), pick(&ms[1], i), pick(&m3, i));
+        let aa = if aa.is_nan() { 0.0 } else { aa };
+        y[i] = if bb.is_nan() {
+            f64::NAN
+        } else if bb == 0.0 {
+            1.0
+        } else if bb.is_infinite() {
+            0.0
+        } else if aa.is_infinite() {
+            1.0
+        } else {
+            let lam = aa * aa / 2.0;
+            let x = bb * bb / 2.0;
+            let kmax = (lam + 14.0 * lam.sqrt() + 60.0).ceil() as usize;
+            let mut total = 0.0;
+            let mut lnfact = 0.0;
+            for k in 0..=kmax {
+                if k > 0 {
+                    lnfact += (k as f64).ln();
+                }
+                let pk = if lam == 0.0 { if k == 0 { 1.0 } else { 0.0 } } else { (-lam + k as f64 * lam.ln() - lnfact).exp() };
+                if pk == 0.0 {
+                    continue;
+                }
+                let q = it
+                    .call_function("gammainc", vec![scalar_value(x), scalar_value(mm + k as f64), Value::chars("upper")], 1)?
+                    .remove(0)
+                    .to_matrix()?
+                    .data[0];
+                total += pk * q;
+            }
+            total
+        };
+    }
+    out(vec![Value::Num(Matrix::from_dims(shape, y))])
 }

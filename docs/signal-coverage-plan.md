@@ -11,10 +11,10 @@ How MatLivre grows to cover the MATLAB Signal Processing Toolbox. The function i
 |---|---:|
 | Functions in scope (R2023b-era, from `signal.tsv`) | 333 |
 | Already in MatLivre before this plan (`xcorr`, `xcov`, `resample`, `rms`, `sinc`, `detrend`, `movmedian`, `movmad`, `isoutlier`, `filloutliers`, `smoothdata`, `islocalmax`, `paddata`, `trimdata`, `resize`, `freqspace`, `ss2tf`) | 17 |
-| Implemented by this plan (`crates/livre-lang/src/signal/`) | 200 |
-| Still to implement | 116 |
+| Implemented by this plan (`crates/livre-lang/src/signal/`) | 201 |
+| Still to implement | 115 |
 
-The 200 are checked against MATLAB: see "How it is tested".
+The 201 are checked against MATLAB: see "How it is tested".
 
 ## How it is tested
 
@@ -67,7 +67,7 @@ cases in `signal_cases.m` and MATLAB's output recorded as above.
    `tukeywin`, `gausswin`, `parzenwin`, `bohmanwin`, `barthannwin`, `chebwin`; `mag2db`, `db2mag`,
    `pow2db`, `db2pow`; `square`, `sawtooth`, `rectpuls`, `diric`, `chirp`, `gmonopuls`.
 2. **More waveforms and windows**. Done: `tripuls`, `gauspuls`, `buffer`, `shiftdata`, `unshiftdata`, `uencode`, `udecode`, `taylorwin`,
-   `pulstran`, `vco`, `modulate` (`pwm` and `ppm` are not implemented), `dpss` (direct method only). To do: `demod`, `marcumq`.
+   `pulstran`, `vco`, `modulate` (`pwm` and `ppm` are not implemented), `dpss` (direct method only), `marcumq`. To do: `demod`.
 3. **Polynomial and filter conversions**. Done: `lp2lp`, `lp2hp`, `lp2bp`, `lp2bs` (transfer
    function form), `bilinear` (transfer function and zero-pole-gain forms, with pre-warping),
    `polystab`, `polyscale`, `eqtflength`, `sos2tf`, `tf2zp`, `tf2zpk`, `zp2tf`, `sos2zp`, `zp2sos`, `tf2sos`, `tf2ss`, `zp2ss`, `ss2zp`, `sos2ss`, `ss2sos`, `residuez`, `latc2tf`, `tf2latc`, `impinvar`, `cell2sos`, `sos2cell`.
