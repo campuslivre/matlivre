@@ -276,6 +276,19 @@ pub fn handles(it: &Interpreter, ids: &[u64]) -> Value {
     Value::Object(Object { class: class_def(class), props: Rc::new(RefCell::new(vec![Value::Num(m)])) })
 }
 
+/// A handle value for `ids` as a row.
+pub fn handles_row(it: &Interpreter, ids: &[u64]) -> Value {
+    let v = handles(it, ids);
+    if let Value::Object(o) = &v {
+        if let Value::Num(m) = &mut o.props.borrow_mut()[0] {
+            if m.numel() > 0 {
+                m.dims = vec![1, ids.len()];
+            }
+        }
+    }
+    v
+}
+
 fn is_data_class(c: &str) -> bool {
     c.starts_with("matlab.graphics.primitive.") || c.starts_with("matlab.graphics.chart.primitive.")
 }
@@ -1526,7 +1539,7 @@ fn short_props(class: &str, it: &Interpreter, id: u64) -> Vec<&'static str> {
         "matlab.graphics.primitive.Text" => vec!["String", "FontSize", "FontWeight", "FontName", "Color", "HorizontalAlignment", "Position", "Units"],
         "matlab.graphics.chart.decoration.ConstantLine" => vec!["InterceptAxis", "Value", "Color", "LineStyle", "LineWidth", "Label", "DisplayName"],
         "matlab.graphics.chart.decoration.ConstantRegion" => vec!["InterceptAxis", "Value", "FaceColor", "FaceAlpha", "DisplayName"],
-        "matlab.graphics.chart.primitive.Line" => {
+        "matlab.graphics.chart.primitive.Line" | "matlab.graphics.primitive.Line" => {
             let _ = (it, id);
             vec!["Color", "LineStyle", "LineWidth", "Marker", "MarkerSize", "MarkerFaceColor", "XData", "YData"]
         }

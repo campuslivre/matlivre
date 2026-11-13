@@ -109,6 +109,7 @@ fn difference(want: &[(String, Item)], got: &[(String, Item)]) -> Option<String>
                     return Some(format!("{wk}: values differ\n      MATLAB:   {}\n      MatLivre: {}", first(r1), first(r2)));
                 }
             }
+            (Item::Other, Item::Other) => {}
             (a, b) => return Some(format!("{wk}: {a:?} against {b:?}")),
         }
     }

@@ -11,10 +11,10 @@ How MatLivre grows to cover the MATLAB Signal Processing Toolbox. The function i
 |---|---:|
 | Functions in scope (R2023b-era, from `signal.tsv`) | 333 |
 | Already in MatLivre before this plan (`xcorr`, `xcov`, `resample`, `rms`, `sinc`, `detrend`, `movmedian`, `movmad`, `isoutlier`, `filloutliers`, `smoothdata`, `islocalmax`, `paddata`, `trimdata`, `resize`, `freqspace`, `ss2tf`) | 17 |
-| Implemented by this plan (`crates/livre-lang/src/signal/`) | 214 |
-| Still to implement | 102 |
+| Implemented by this plan (`crates/livre-lang/src/signal/`) | 215 |
+| Still to implement | 101 |
 
-The 214 are checked against MATLAB: see "How it is tested".
+The 215 are checked against MATLAB: see "How it is tested".
 
 ## How it is tested
 
@@ -78,7 +78,8 @@ cases in `signal_cases.m` and MATLAB's output recorded as above.
 5. **FIR design and filter analysis**. Done: `fir1`, `freqz`, `freqs`, `grpdelay`, `phasez`, `phasedelay`, `zerophase`,
    `isstable`, `impz`, `stepz`, `sgolay`, `fir2`, `firls`, `kaiserord`, `firpm`, `firpmord`, `gaussdesign`, `rcosdesign`, `intfilt`, `impzlength`, `filternorm`, `filtord`,
    `firtype`, `isminphase`, `ismaxphase`, `islinphase`, `isallpass`, `fircls`, `fircls1` (without the WT and
-   WP/WS/K options). To do: `cfirpm`; `zplane`, `designfilt`, `digitalFilter`.
+   WP/WS/K options), `zplane` (zeros, poles, multiplicity labels and axes of the plot; not the `digitalFilter` input).
+   To do: `cfirpm`; `designfilt`, `digitalFilter`.
 6. **Filtering and multirate**. Done: `decimate`, `interp`, `latcfilt`, `filtfilt` (transfer function form), `sosfilt`, `filtic`,
    `medfilt1`, `downsample`, `upsample`, `fftfilt`, `upfirdn`, `sgolayfilt`, `hampel`. To do:
    `lowpass`, `highpass`, `bandpass`, `bandstop`, `fillgaps`;
@@ -144,6 +145,11 @@ not exercise:
 - **`rootmusic`/`rooteig`**: frequencies agree to 1e-12, powers to about 1e-7 relative (MATLAB's
   power system was not recovered); a real correlation matrix with a root at zero frequency returns
   one power where MATLAB returns two.
+- **`zplane`**: the unit circle has 100 points, more as a root nears the circle (round(1/distance),
+  at most 50000); the axis limits are the 10 percent padded extents of everything drawn, widened to
+  the axes box ratio. Not matched: single precision data (MatLivre's line objects store doubles), the
+  limits left by a second call with hold on, and axes made by subplot (their Position is not tracked).
+  `zplane(d)` for a `digitalFilter` is not implemented.
 - **`maxflat`**: the second-order-section outputs (`sos`, `g`) are not implemented (MATLAB's section
   order and pairing were not reproduced); orders around 30 and the degenerate Wn = 0.5 designs
   differ at 1e-6 to 1e-8 because the flatness system is ill-conditioned.

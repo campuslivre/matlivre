@@ -468,7 +468,8 @@ pub fn call(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize) ->
         "line" => {
             // Low-level line: added to the axes without replacing what is there.
             let (head, props) = split_props(a, 0)?;
-            let (series, _, _) = plot_series(head, SeriesKind::Line)?;
+            let (mut series, _, _) = plot_series(head, SeriesKind::Line)?;
+            series.iter_mut().for_each(|s| s.class_hint = Some("matlab.graphics.primitive.Line"));
             let ids = it.add_decoration(series);
             apply_props(it, &ids, &props)?;
             handles_out(it, &ids, nargout)
