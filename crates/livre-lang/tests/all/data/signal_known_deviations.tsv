@@ -207,3 +207,8 @@ r = pulstran(tt,[0.1 0.3],[1 2 3 2 1]',50);	column-vector prototype: MATLAB plac
 r = demod(modulate(dm,100,1000),100,1000,'pwm');	the pwm and ppm demodulators are not implemented
 r = demod(modulate(dm,100,1000),100,1000,'ppm');	the pwm and ppm demodulators are not implemented
 [a1,b1] = istft(single(sS),'Window',sw); r = {a1,b1};	single-precision arithmetic: results agree to about 1e-5 only
+[a1,b1,c1,d1] = maxflat(30,'sym',0.45); r = {a1,b1,c1,d1};	order 30: the 15x15 flatness system is ill-conditioned; coefficients agree to about 1e-6 relative (tried solving the same linear system in double precision with partial pivoting)
+[a1,b1,c1,d1] = maxflat(30,'sym',0.6); r = {a1,b1,c1,d1};	order 30: the 15x15 flatness system is ill-conditioned; coefficients agree to about 1e-6 relative (tried solving the same linear system in double precision with partial pivoting)
+[a1,b1] = maxflat(3,2,0.5); r = {a1,b1};	degenerate Wn=0.5 design: MATLAB's coefficients carry 1e-8 rounding noise that the exact solution does not have
+[a1,b1,c1,d1,e1] = maxflat(4,2,0.4); r = {e1};	second-order-section outputs: MATLAB orders and pairs the sections in a way that tf2sos does not reproduce (compared the section order for four designs)
+[a1,b1,c1,d1,e1,f1] = maxflat(4,2,0.4); r = {e1,f1};	second-order-section outputs: MATLAB orders and pairs the sections in a way that tf2sos does not reproduce (compared the section order for four designs)

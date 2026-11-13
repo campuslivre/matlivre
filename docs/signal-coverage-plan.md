@@ -11,10 +11,10 @@ How MatLivre grows to cover the MATLAB Signal Processing Toolbox. The function i
 |---|---:|
 | Functions in scope (R2023b-era, from `signal.tsv`) | 333 |
 | Already in MatLivre before this plan (`xcorr`, `xcov`, `resample`, `rms`, `sinc`, `detrend`, `movmedian`, `movmad`, `isoutlier`, `filloutliers`, `smoothdata`, `islocalmax`, `paddata`, `trimdata`, `resize`, `freqspace`, `ss2tf`) | 17 |
-| Implemented by this plan (`crates/livre-lang/src/signal/`) | 206 |
-| Still to implement | 110 |
+| Implemented by this plan (`crates/livre-lang/src/signal/`) | 207 |
+| Still to implement | 109 |
 
-The 206 are checked against MATLAB: see "How it is tested".
+The 207 are checked against MATLAB: see "How it is tested".
 
 ## How it is tested
 
@@ -73,8 +73,8 @@ cases in `signal_cases.m` and MATLAB's output recorded as above.
    `polystab`, `polyscale`, `eqtflength`, `sos2tf`, `tf2zp`, `tf2zpk`, `zp2tf`, `sos2zp`, `zp2sos`, `tf2sos`, `tf2ss`, `zp2ss`, `ss2zp`, `sos2ss`, `ss2sos`, `residuez`, `latc2tf`, `tf2latc`, `impinvar`, `cell2sos`, `sos2cell`.
 4. **Analog prototypes and IIR design**. Done: `buttap`, `cheb1ap`, `cheb2ap`, `butter`,
    `cheby1`, `cheby2`, `ellipap`, `besselap`, `ellip`, `besself`, `buttord`, `cheb1ord`, `cheb2ord`, `ellipord` (digital and analog, all four band
-   types, transfer function, zero-pole-gain and state-space outputs). To do: `yulewalk`,
-   `maxflat`.
+   types, transfer function, zero-pole-gain and state-space outputs), `maxflat` (without the second-order-section
+   outputs). To do: `yulewalk`.
 5. **FIR design and filter analysis**. Done: `fir1`, `freqz`, `freqs`, `grpdelay`, `phasez`, `phasedelay`, `zerophase`,
    `isstable`, `impz`, `stepz`, `sgolay`, `fir2`, `firls`, `kaiserord`, `firpm`, `firpmord`, `gaussdesign`, `rcosdesign`, `intfilt`, `impzlength`, `filternorm`, `filtord`,
    `firtype`, `isminphase`, `ismaxphase`, `islinphase`, `isallpass`. To do: `cfirpm`,
