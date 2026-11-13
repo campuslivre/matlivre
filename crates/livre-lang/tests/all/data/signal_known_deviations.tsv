@@ -204,3 +204,5 @@ r = modulate(mx*1i,100,1000);	complex input is not implemented
 r = pulstran(tt,[0.1 0.3],[1 2 3 2 1]',50);	column-vector prototype: MATLAB places the samples half a sample later
 [a1,b1] = dpss(7,1.5,[2 4]); r = {a1,b1};	sign of an odd-order sequence: MATLAB's inverse iteration picks it from rounding, not from a rule
 [a1,b1] = dpss(3,1); r = {a1,b1};	sign of an odd-order sequence: MATLAB's inverse iteration picks it from rounding, not from a rule
+r = demod(modulate(dm,100,1000),100,1000,'pwm');	the pwm and ppm demodulators are not implemented
+r = demod(modulate(dm,100,1000),100,1000,'ppm');	the pwm and ppm demodulators are not implemented
