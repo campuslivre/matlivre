@@ -11,10 +11,10 @@ How MatLivre grows to cover the MATLAB Signal Processing Toolbox. The function i
 |---|---:|
 | Functions in scope (R2023b-era, from `signal.tsv`) | 333 |
 | Already in MatLivre before this plan (`xcorr`, `xcov`, `resample`, `rms`, `sinc`, `detrend`, `movmedian`, `movmad`, `isoutlier`, `filloutliers`, `smoothdata`, `islocalmax`, `paddata`, `trimdata`, `resize`, `freqspace`, `ss2tf`) | 17 |
-| Implemented by this plan (`crates/livre-lang/src/signal/`) | 215 |
-| Still to implement | 101 |
+| Implemented by this plan (`crates/livre-lang/src/signal/`) | 216 |
+| Still to implement | 100 |
 
-The 215 are checked against MATLAB: see "How it is tested".
+The 216 are checked against MATLAB: see "How it is tested".
 
 ## How it is tested
 
@@ -79,7 +79,8 @@ cases in `signal_cases.m` and MATLAB's output recorded as above.
    `isstable`, `impz`, `stepz`, `sgolay`, `fir2`, `firls`, `kaiserord`, `firpm`, `firpmord`, `gaussdesign`, `rcosdesign`, `intfilt`, `impzlength`, `filternorm`, `filtord`,
    `firtype`, `isminphase`, `ismaxphase`, `islinphase`, `isallpass`, `fircls`, `fircls1` (without the WT and
    WP/WS/K options), `zplane` (zeros, poles, multiplicity labels and axes of the plot; not the `digitalFilter` input).
-   To do: `cfirpm`; `designfilt`, `digitalFilter`.
+   `cfirpm` (amplitude vectors and your own response functions; not the predefined `@lowpass` and the other built-in responses).
+   To do: `designfilt`, `digitalFilter`.
 6. **Filtering and multirate**. Done: `decimate`, `interp`, `latcfilt`, `filtfilt` (transfer function form), `sosfilt`, `filtic`,
    `medfilt1`, `downsample`, `upsample`, `fftfilt`, `upfirdn`, `sgolayfilt`, `hampel`. To do:
    `lowpass`, `highpass`, `bandpass`, `bandstop`, `fillgaps`;
@@ -146,6 +147,15 @@ not exercise:
 - **`rootmusic`/`rooteig`**: frequencies agree to 1e-12, powers to about 1e-7 relative (MATLAB's
   power system was not recovered); a real correlation matrix with a root at zero frequency returns
   one power where MATLAB returns two.
+- **`cfirpm`**: MATLAB's result is the exact Chebyshev optimum on its frequency grid (the band edges
+  plus the multiples of 2/L at least half a step from both edges; L = 2^nextpow2(0.8 lgrid (n+1))
+  for the default lgrid of 25, which other lgrid values only approximate; for SYM='none' bands from -1
+  to 1 the last two points become 1 - 1/(lgrid (n+1)); `real` drops the point one step below 1).
+  MatLivre finds that optimum with a barrier method. Listed deviations: positive-frequency-only
+  complex designs (the optimum is not unique), results MATLAB stops short of the optimum by about
+  1e-6, negative band weights, complex amplitude values, and the `res` extremal lists. The
+  predefined responses (`@lowpass`, `@bandpass`, ...) raise a "not implemented" error. Odd-symmetric
+  designs from amplitude vectors return a zero filter, as MATLAB does.
 - **`zplane`**: the unit circle has 100 points, more as a root nears the circle (round(1/distance),
   at most 50000); the axis limits are the 10 percent padded extents of everything drawn, widened to
   the axes box ratio. Not matched: single precision data (MatLivre's line objects store doubles), the
