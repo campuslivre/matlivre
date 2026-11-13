@@ -12,9 +12,17 @@ How MatLivre grows to cover the MATLAB Signal Processing Toolbox. The function i
 | Functions in scope (R2023b-era, from `signal.tsv`) | 333 |
 | Already in MatLivre before this plan (`xcorr`, `xcov`, `resample`, `rms`, `sinc`, `detrend`, `movmedian`, `movmad`, `isoutlier`, `filloutliers`, `smoothdata`, `islocalmax`, `paddata`, `trimdata`, `resize`, `freqspace`, `ss2tf`) | 17 |
 | Implemented by this plan (`crates/livre-lang/src/signal/`) | 220 |
-| Still to implement | 96 |
+| Still to implement and verifiable here | 82 |
+| Not verifiable: requires Wavelet/Audio Toolbox, not installed (see below) | 14 |
 
 The 220 are checked against MATLAB: see "How it is tested".
+
+## Not verifiable: requires Wavelet/Audio Toolbox, not installed
+
+The MATLAB install used for recording has neither the Wavelet nor the Audio Toolbox, so these cannot be
+recorded and are not implemented: `cwt`, `modwt`, `modwpt`, `imodwt`, `wsst`, `wcoherence`, `tqwt`, `cqt`,
+`ewt`, `spectralCrest`, `spectralEntropy`, `spectralFlatness`, `spectralKurtosis`, `spectralSkewness`.
+They stay in the gap count; the `dwt`/`wavedec` family is likewise unrecordable.
 
 ## How it is tested
 
@@ -99,8 +107,8 @@ cases in `signal_cases.m` and MATLAB's output recorded as above.
 9. **Time-frequency**. Done: `spectrogram`, `iscola`, `stft`, `istft`, `wvd` (not `smoothedPseudo`). Not recovered after one round: `xwvd`. To do: `xspectrogram`,
    `hht`, `emd`, `vmd`, `ewt`, `fsst`, `ifsst`, `tfridge`, `kurtogram`, `instfreq`,
    `instbw`, spectral descriptors (`spectralCrest`, `spectralEntropy`, `spectralFlatness`,
-   `spectralKurtosis`, `spectralSkewness`), then the wavelet functions (`cwt`, `modwt`,
-   `modwpt`, `wsst`, `wcoherence`, `tqwt`, `cqt`).
+   `spectralKurtosis`, `spectralSkewness`) and the wavelet functions (`cwt`, `modwt`,
+   `modwpt`, `wsst`, `wcoherence`, `tqwt`, `cqt`): the last two groups are not verifiable here.
 10. **Vibration analysis**. Done: `rainflow`. To do: `rpmtrack`, `tachorpm`, `orderspectrum`, `ordertrack`,
     `orderwaveform`, `rpmordermap`, `rpmfreqmap`, `envspectrum`, `tsa`, `modalfrf`,
     `modalfit`, `modalsd`.
