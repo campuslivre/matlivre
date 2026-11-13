@@ -11,10 +11,10 @@ How MatLivre grows to cover the MATLAB Signal Processing Toolbox. The function i
 |---|---:|
 | Functions in scope (R2023b-era, from `signal.tsv`) | 333 |
 | Already in MatLivre before this plan (`xcorr`, `xcov`, `resample`, `rms`, `sinc`, `detrend`, `movmedian`, `movmad`, `isoutlier`, `filloutliers`, `smoothdata`, `islocalmax`, `paddata`, `trimdata`, `resize`, `freqspace`, `ss2tf`) | 17 |
-| Implemented by this plan (`crates/livre-lang/src/signal/`) | 217 |
-| Still to implement | 99 |
+| Implemented by this plan (`crates/livre-lang/src/signal/`) | 218 |
+| Still to implement | 98 |
 
-The 217 are checked against MATLAB: see "How it is tested".
+The 218 are checked against MATLAB: see "How it is tested".
 
 ## How it is tested
 
@@ -87,8 +87,8 @@ cases in `signal_cases.m` and MATLAB's output recorded as above.
    `filtfilt` with second-order sections.
 7. **Spectral estimation and transforms**. Done: `periodogram`, `pwelch`, `mscohere`, `cpsd`, `tfestimate`, `dct`,
    `idct`, `dftmtx`, `goertzel`, `hilbert`, `cconv`, `convmtx`, `bitrevorder`, `czt`, `fwht`, `ifwht`, `cceps`, `rceps`, `icceps`,
-   `digitrevorder`, `corrmtx`, `pyulear`, `pburg`, `pcov`, `pmcov`, `xcorr2`, `pmusic`, `peig`, `rootmusic`, `rooteig`, `pmtm`.
-   To do: `plomb`, `poctave`, `pspectrum`.
+   `digitrevorder`, `corrmtx`, `pyulear`, `pburg`, `pcov`, `pmcov`, `xcorr2`, `pmusic`, `peig`, `rootmusic`, `rooteig`, `pmtm`, `plomb`.
+   To do: `poctave`, `pspectrum`.
 8. **Measurements and modeling**. Done: `peak2peak`, `peak2rms`, `rssq`, `findpeaks`, `enbw`, `bandpower`, `meanfreq`, `medfreq`,
    `finddelay`, `seqperiod`, `cusum`, `dtw`, `edr`, `alignsignals`, `obw`, `powerbw`, `statelevels`, `midcross`, `risetime`, `falltime`,
    `pulsewidth`, `pulseperiod`, `pulsesep`, `dutycycle`, `overshoot`, `undershoot`, `settlingtime`, `slewrate`, `zerocrossrate`, `findchangepts`, `envelope`, `invfreqz`, `invfreqs` (non-iterative fit), `stmcb`, `findsignal` (fixed time alignment only). To do:
@@ -151,6 +151,11 @@ not exercise:
 - **`rootmusic`/`rooteig`**: frequencies agree to 1e-12, powers to about 1e-7 relative (MATLAB's
   power system was not recovered); a real correlation matrix with a root at zero frequency returns
   one power where MATLAB returns two.
+- **`plomb`**: MATLAB uses the Press-Rybicki fast algorithm (4-point extirpolation, a power-of-two
+  FFT, period ofac*N*ts), so MatLivre does too; a given frequency vector is evaluated exactly. The
+  spectrum is scaled by 2 var ts (psd; ts from the whole record), 2 var / N (power) or 1; the
+  detection thresholds use N*fmax/fNyquist independent frequencies. Differences: single precision and
+  two-to-five-sample records (rounding).
 - **`pmtm`**: the adaptive combination (Thomson weights from an initial two-taper average) stops
   when the summed change of the spectrum over the FFT grid falls below 5e-4 times the signal power
   (the rule that fits every recorded call); the confidence bounds use 2k degrees of freedom for all
