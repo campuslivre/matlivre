@@ -142,6 +142,7 @@ not exercise:
   eigenvalues agree. MATLAB's data matrix holds each segment in reverse order, and for an explicit
   window length the last segment is zero padded and the eigenvalues are normalised by one less than
   the segment count; `peig` weights use a different normalisation again (see `subspace.rs`).
+- **Research queue**: `rootmusic`/`rooteig` powers (systematic ~1e-7 relative; one round tried: mean noise eigenvalue as the noise variance, p/2 or p signal eigenvalues, exact or least squares; the zero-frequency root case gave P=[-0.24, 44.6] with a 2x2 solve, not MATLAB's [0, 34.29]).
 - **`rootmusic`/`rooteig`**: frequencies agree to 1e-12, powers to about 1e-7 relative (MATLAB's
   power system was not recovered); a real correlation matrix with a root at zero frequency returns
   one power where MATLAB returns two.
