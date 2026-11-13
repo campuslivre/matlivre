@@ -6,7 +6,7 @@ use crate::interp::Interpreter;
 use crate::signal::poly::*;
 use crate::value::*;
 
-pub const NAMES: &[&str] = &["taylorwin", "pulstran", "vco", "modulate"];
+pub const NAMES: &[&str] = &["taylorwin", "pulstran", "vco", "modulate", "dpss"];
 
 const NUM_TYPES: &str = "double, single, uint8, uint16, uint32, uint64, int8, int16, int32, int64";
 
@@ -15,6 +15,7 @@ pub fn call(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
         "taylorwin" => taylorwin(a, nargout),
         "pulstran" => pulstran(it, a, nargout),
         "vco" => vco(a, nargout),
+        "dpss" => dpss(it, a, nargout),
         _ => modulate(it, a, nargout),
     }
 }
@@ -364,6 +365,136 @@ fn modulate(it: &mut Interpreter, a: &[Value], nargout: usize) -> Ret {
     if nargout > 1 {
         let tm = Matrix::from_dims(if rows == 1 { vec![1, len] } else { vec![len, 1] }, tvec);
         outs.push(cast_like(tm, single));
+    }
+    out(outs)
+}
+
+fn dpss(it: &mut Interpreter, a: &[Value], nargout: usize) -> Ret {
+    if a.len() < 2 {
+        return rt("Not enough input arguments.");
+    }
+    if nargout > 2 {
+        return rt("Too many output arguments.");
+    }
+    let nv = match &a[0] {
+        Value::Num(m) if m.numel() == 1 && m.kind != Kind::Char => m.data[0],
+        Value::Num(m) if m.numel() > 1 && m.kind != Kind::Char => return rt("The length of the sequence, N, must be a scalar."),
+        _ => return rt("The length of the sequence, N, must be a positive integer."),
+    };
+    if !(nv >= 1.0) {
+        return rt("The length of the sequence, N, must be a positive integer.");
+    }
+    if nv.fract() != 0.0 {
+        return rt("Size inputs must be integers.");
+    }
+    let n = nv as usize;
+    let nw = match &a[1] {
+        Value::Num(m) if m.numel() == 1 && m.kind != Kind::Char => m.data[0],
+        Value::Num(m) if m.numel() > 1 && m.kind != Kind::Char => return rt("The Time-bandwidth product, NW, must be a scalar."),
+        _ => return rt("Time-bandwidth product NW must be a positive number."),
+    };
+    if nw < 0.0 {
+        return rt("Time-bandwidth product NW must be a positive number.");
+    }
+    if nw >= n as f64 / 2.0 {
+        return rt("Time-bandwidth product NW must be less than N/2.");
+    }
+    // optional K and method strings
+    let mut k = (1usize, ((2.0 * nw).round() as usize).max(1));
+    let mut k_given = false;
+    let mut method = "calc".to_string();
+    for v in &a[2..] {
+        match v {
+            Value::Num(m) if m.kind == Kind::Char => {
+                let s = v.text().unwrap_or_default().to_lowercase();
+                match s.as_str() {
+                    "calc" | "spline" | "linear" => method = s,
+                    "trace" => {}
+                    _ => return rt("Invalid character vector option.  Valid character vectors are 'calc', 'spline' and 'linear' for method, or 'trace' to show which method is being used."),
+                }
+            }
+            Value::Num(m) if !k_given && (m.numel() == 1 || m.numel() == 2) => {
+                k_given = true;
+                if m.numel() == 1 {
+                    let kv = m.data[0];
+                    if kv == 0.0 {
+                        k = (1, 0);
+                    } else if kv.fract() != 0.0 || kv < 1.0 || kv > n as f64 {
+                        return rt("K must be a positive integer in the range 1:N");
+                    } else {
+                        k = (1, kv as usize);
+                    }
+                } else {
+                    let (k1, k2) = (m.data[0], m.data[1]);
+                    if k1.fract() != 0.0 || k2.fract() != 0.0 || k1 < 1.0 || k2 > n as f64 {
+                        return rt("K must be a positive integer in the range 1:N");
+                    }
+                    if k2 < k1 {
+                        return rt("Requested array exceeds the maximum possible variable size.");
+                    }
+                    k = (k1 as usize, k2 as usize);
+                }
+            }
+            Value::Num(m) if !k_given && m.numel() > 2 => return rt("K must be either a scalar or a two element vector."),
+            Value::Num(_) if !k_given => return rt("K must be a positive integer in the range 1:N"),
+            _ if !k_given => return rt("K must be a positive integer in the range 1:N"),
+            _ => {}
+        }
+    }
+    if method != "calc" {
+        let g = format!("{nw}");
+        return rt(format!("There is no DPSS with time-bandwidth product NW = {g} in database."));
+    }
+    let ncols = if k.1 >= k.0 { k.1 - k.0 + 1 } else { 0 };
+    let w = nw / n as f64;
+    let c2 = (2.0 * std::f64::consts::PI * w).cos();
+    // tridiagonal matrix whose eigenvectors are the sequences
+    let mut tm = vec![0.0; n * n];
+    for i in 0..n {
+        let d = (n as f64 - 1.0 - 2.0 * i as f64) / 2.0;
+        tm[i + n * i] = d * d * c2;
+        if i + 1 < n {
+            let off = (i + 1) as f64 * (n - 1 - i) as f64 / 2.0;
+            tm[i + n * (i + 1)] = off;
+            tm[i + 1 + n * i] = off;
+        }
+    }
+    let res = it.call_function("eig", vec![Value::Num(Matrix::from_dims(vec![n, n], tm))], 2)?;
+    let vecs = res[0].to_matrix()?;
+    let dm = res[1].to_matrix()?;
+    let mut order: Vec<usize> = (0..n).collect();
+    let eigs: Vec<f64> = (0..n).map(|i| dm.data[i + n * i]).collect();
+    order.sort_by(|&x, &y| eigs[y].partial_cmp(&eigs[x]).unwrap_or(std::cmp::Ordering::Equal));
+    let mut e = vec![0.0; n * ncols];
+    let mut lam = vec![0.0; ncols];
+    for (cidx, kk) in (k.0..=k.1).enumerate().take(ncols) {
+        let src = order[kk - 1];
+        let mut col: Vec<f64> = (0..n).map(|i| vecs.data[i + n * src]).collect();
+        let nrm = col.iter().map(|v| v * v).sum::<f64>().sqrt();
+        col.iter_mut().for_each(|v| *v /= nrm);
+        let sign = if (kk - 1) % 2 == 0 {
+            col.iter().sum::<f64>()
+        } else {
+            col[0]
+        };
+        if sign < 0.0 {
+            col.iter_mut().for_each(|v| *v = -*v);
+        }
+        // concentration in the band |f| <= W
+        let mut q = 0.0;
+        for i in 0..n {
+            for j in 0..n {
+                let d = i as f64 - j as f64;
+                let aij = if i == j { 2.0 * w } else { (2.0 * std::f64::consts::PI * w * d).sin() / (std::f64::consts::PI * d) };
+                q += col[i] * aij * col[j];
+            }
+        }
+        lam[cidx] = q;
+        e[n * cidx..n * (cidx + 1)].copy_from_slice(&col);
+    }
+    let mut outs = vec![Value::Num(Matrix::from_dims(vec![n, ncols], e))];
+    if nargout > 1 {
+        outs.push(Value::Num(Matrix::from_dims(vec![ncols, 1], lam)));
     }
     out(outs)
 }
