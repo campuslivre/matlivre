@@ -130,6 +130,9 @@ not exercise:
 - **`fftfilt`** and **`upfirdn`** filter directly instead of with overlap-add FFTs or a polyphase
   structure; same results up to rounding.
 - **`filtfilt`** takes a transfer function only (no second-order sections).
+- **`maxflat`**: the second-order-section outputs (`sos`, `g`) are not implemented (MATLAB's section
+  order and pairing were not reproduced); orders around 30 and the degenerate Wn = 0.5 designs
+  differ at 1e-6 to 1e-8 because the flatness system is ill-conditioned.
 - **`impz`/`stepz`** choose their automatic length from the poles with the rule inferred from
   MATLAB's output (floor of ln(5e-5)/ln(radius) for stable poles, ln(1e6)/ln(radius) for unstable
   ones, five periods on the unit circle); unusual mixtures of pole radii may differ by a sample.
