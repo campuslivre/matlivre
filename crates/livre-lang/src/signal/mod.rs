@@ -15,6 +15,7 @@ pub mod pulses;
 pub mod zcrate;
 pub mod chgpts;
 pub mod envelope;
+pub mod invfreq;
 pub mod conversions;
 pub mod db;
 pub mod filtering;
@@ -60,7 +61,7 @@ pub fn call(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
 }
 
 /// Functions whose outputs do not all follow a single-precision input.
-const OWN_PRECISION: &[&str] = &["tripuls", "gauspuls", "zp2tf", "impinvar", "buttord", "cheb1ord", "cheb2ord", "ellipord", "kaiserord", "fir2", "firls", "firpm", "firpmord", "gaussdesign", "rcosdesign", "firtype", "filtord", "filternorm", "impzlength", "enbw", "finddelay", "cusum", "dtw", "edr", "alignsignals", "decimate", "interp", "zerocrossrate", "findchangepts", "envelope"];
+const OWN_PRECISION: &[&str] = &["tripuls", "gauspuls", "zp2tf", "impinvar", "buttord", "cheb1ord", "cheb2ord", "ellipord", "kaiserord", "fir2", "firls", "firpm", "firpmord", "gaussdesign", "rcosdesign", "firtype", "filtord", "filternorm", "impzlength", "enbw", "finddelay", "cusum", "dtw", "edr", "alignsignals", "decimate", "interp", "zerocrossrate", "findchangepts", "envelope", "invfreqz", "invfreqs"];
 
 /// A matrix with its values rounded to single precision (the class is left to the caller).
 pub(crate) fn cast_single_values(mut m: Matrix) -> Matrix {
@@ -133,6 +134,9 @@ fn dispatch(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
     }
     if ssconv::NAMES.contains(&name) {
         return ssconv::call(it, name, a, nargout);
+    }
+    if invfreq::NAMES.contains(&name) {
+        return invfreq::call(it, name, a, nargout);
     }
     if envelope::NAMES.contains(&name) {
         return envelope::call(it, a, nargout);

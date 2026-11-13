@@ -188,3 +188,6 @@ r = powerbw(ones(256,1),1000);	flat spectrum edge handling differs
 [a1,b1] = envelope(ev,20,'analytic'); r = {a1,b1};	the N-tap Hilbert filter option of the analytic envelope is not implemented
 [a1,b1] = envelope(ev,5); r = {a1,b1};	the N-tap Hilbert filter option of the analytic envelope is not implemented
 r = envelope(ev,200,'analytic');	the N-tap Hilbert filter option of the analytic envelope is not implemented
+r = invfreqz(single(ihn),iw,3,3);	single-precision arithmetic: results agree to about 1e-5 only
+r = invfreqs(single(ihsn),iws,3,3);	single-precision arithmetic: results agree to about 1e-4 only
+[a1,b1] = invfreqs(ihs,iws,3,3); r = {a1,b1};	exact data: the numerator coefficients that should be zero differ at round-off level
