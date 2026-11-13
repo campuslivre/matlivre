@@ -161,6 +161,6 @@ fn signal_functions_match_matlab() {
         failures.len(),
         texts.len(),
         matching,
-        failures.iter().take(25).cloned().collect::<Vec<_>>().join("\n")
+        failures.iter().take(200).cloned().collect::<Vec<_>>().join("\n")
     );
 }

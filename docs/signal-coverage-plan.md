@@ -11,10 +11,10 @@ How MatLivre grows to cover the MATLAB Signal Processing Toolbox. The function i
 |---|---:|
 | Functions in scope (R2023b-era, from `signal.tsv`) | 333 |
 | Already in MatLivre before this plan (`xcorr`, `xcov`, `resample`, `rms`, `sinc`, `detrend`, `movmedian`, `movmad`, `isoutlier`, `filloutliers`, `smoothdata`, `islocalmax`, `paddata`, `trimdata`, `resize`, `freqspace`, `ss2tf`) | 17 |
-| Implemented by this plan (`crates/livre-lang/src/signal/`) | 208 |
-| Still to implement | 108 |
+| Implemented by this plan (`crates/livre-lang/src/signal/`) | 210 |
+| Still to implement | 106 |
 
-The 208 are checked against MATLAB: see "How it is tested".
+The 210 are checked against MATLAB: see "How it is tested".
 
 ## How it is tested
 
@@ -77,8 +77,8 @@ cases in `signal_cases.m` and MATLAB's output recorded as above.
    outputs). To do: `yulewalk`.
 5. **FIR design and filter analysis**. Done: `fir1`, `freqz`, `freqs`, `grpdelay`, `phasez`, `phasedelay`, `zerophase`,
    `isstable`, `impz`, `stepz`, `sgolay`, `fir2`, `firls`, `kaiserord`, `firpm`, `firpmord`, `gaussdesign`, `rcosdesign`, `intfilt`, `impzlength`, `filternorm`, `filtord`,
-   `firtype`, `isminphase`, `ismaxphase`, `islinphase`, `isallpass`. To do: `cfirpm`,
-   `fircls`, `fircls1`; `zplane`, `designfilt`, `digitalFilter`.
+   `firtype`, `isminphase`, `ismaxphase`, `islinphase`, `isallpass`, `fircls`, `fircls1` (without the WT and
+   WP/WS/K options). To do: `cfirpm`; `zplane`, `designfilt`, `digitalFilter`.
 6. **Filtering and multirate**. Done: `decimate`, `interp`, `latcfilt`, `filtfilt` (transfer function form), `sosfilt`, `filtic`,
    `medfilt1`, `downsample`, `upsample`, `fftfilt`, `upfirdn`, `sgolayfilt`, `hampel`. To do:
    `lowpass`, `highpass`, `bandpass`, `bandstop`, `fillgaps`;
@@ -129,6 +129,10 @@ not exercise:
 - **`fftfilt`** and **`upfirdn`** filter directly instead of with overlap-add FFTs or a polyphase
   structure; same results up to rounding.
 - **`filtfilt`** takes a transfer function only (no second-order sections).
+- **`fircls`/`fircls1`**: MatLivre returns the exact constrained optimum; MATLAB stops when the bounds
+  are violated by under about 5e-9, so its coefficients differ by 1e-7 to 2e-6 (every numeric
+  recorded call is a listed deviation for this reason). The WT and WP/WS/K options of `fircls1` and
+  zero lower bounds in `fircls` are not implemented.
 - **`maxflat`**: the second-order-section outputs (`sos`, `g`) are not implemented (MATLAB's section
   order and pairing were not reproduced); orders around 30 and the degenerate Wn = 0.5 designs
   differ at 1e-6 to 1e-8 because the flatness system is ill-conditioned.
