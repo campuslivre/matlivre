@@ -11,10 +11,10 @@ How MatLivre grows to cover the MATLAB Signal Processing Toolbox. The function i
 |---|---:|
 | Functions in scope (R2023b-era, from `signal.tsv`) | 333 |
 | Already in MatLivre before this plan (`xcorr`, `xcov`, `resample`, `rms`, `sinc`, `detrend`, `movmedian`, `movmad`, `isoutlier`, `filloutliers`, `smoothdata`, `islocalmax`, `paddata`, `trimdata`, `resize`, `freqspace`, `ss2tf`) | 17 |
-| Implemented by this plan (`crates/livre-lang/src/signal/`) | 186 |
-| Still to implement | 130 |
+| Implemented by this plan (`crates/livre-lang/src/signal/`) | 187 |
+| Still to implement | 129 |
 
-The 186 are checked against MATLAB: see "How it is tested".
+The 187 are checked against MATLAB: see "How it is tested".
 
 ## How it is tested
 
@@ -90,8 +90,8 @@ cases in `signal_cases.m` and MATLAB's output recorded as above.
    `pmusic`, `peig`, `rootmusic`, `rooteig`.
 8. **Measurements and modeling**. Done: `peak2peak`, `peak2rms`, `rssq`, `findpeaks`, `enbw`, `bandpower`, `meanfreq`, `medfreq`,
    `finddelay`, `seqperiod`, `cusum`, `dtw`, `edr`, `alignsignals`, `obw`, `powerbw`, `statelevels`, `midcross`, `risetime`, `falltime`,
-   `pulsewidth`, `pulseperiod`, `pulsesep`, `dutycycle`, `overshoot`, `undershoot`, `settlingtime`, `slewrate`, `zerocrossrate`, `findchangepts`. To do:
-   `envelope`, `snr`, `sinad`, `thd`, `sfdr`, `toi`,
+   `pulsewidth`, `pulseperiod`, `pulsesep`, `dutycycle`, `overshoot`, `undershoot`, `settlingtime`, `slewrate`, `zerocrossrate`, `findchangepts`, `envelope`. To do:
+   `snr`, `sinad`, `thd`, `sfdr`, `toi`,
    `findsignal`;
    `stmcb`, `invfreqz`, `invfreqs`.
    Done: `levinson`, `ac2rc`, `rc2ac`, `rc2poly`, `poly2rc`, `ac2poly`, `poly2ac`, `rc2is`, `is2rc`,

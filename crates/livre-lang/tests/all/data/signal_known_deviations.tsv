@@ -182,3 +182,9 @@ r = powerbw(ones(256,1),1000);	flat spectrum edge handling differs
 [w1,lo1,hi1,p1] = powerbw(sg,1000,[],100); r = {w1,lo1,hi1,p1};	power output for a positive reference level differs slightly
 [w1,lo1,hi1,p1] = powerbw(sg,1000,[],101); r = {w1,lo1,hi1,p1};	power output for a positive reference level differs slightly
 [a1,b1] = findchangepts(fa,'MaxNumChanges',5,'MinDistance',10); r = {a1,b1};	MATLAB's search with MinDistance is not exact (it returns [13 31 61 74 86], not the optimal partition)
+[a1,b1] = envelope(ev,5,'analytic'); r = {a1,b1};	the N-tap Hilbert filter option of the analytic envelope is not implemented
+[a1,b1] = envelope(ev,8,'analytic'); r = {a1,b1};	the N-tap Hilbert filter option of the analytic envelope is not implemented
+[a1,b1] = envelope(ev,21,'analytic'); r = {a1,b1};	the N-tap Hilbert filter option of the analytic envelope is not implemented
+[a1,b1] = envelope(ev,20,'analytic'); r = {a1,b1};	the N-tap Hilbert filter option of the analytic envelope is not implemented
+[a1,b1] = envelope(ev,5); r = {a1,b1};	the N-tap Hilbert filter option of the analytic envelope is not implemented
+r = envelope(ev,200,'analytic');	the N-tap Hilbert filter option of the analytic envelope is not implemented
