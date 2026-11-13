@@ -212,3 +212,6 @@ r = demod(modulate(dm,100,1000),100,1000,'ppm');	the pwm and ppm demodulators ar
 [a1,b1] = maxflat(3,2,0.5); r = {a1,b1};	degenerate Wn=0.5 design: MATLAB's coefficients carry 1e-8 rounding noise that the exact solution does not have
 [a1,b1,c1,d1,e1] = maxflat(4,2,0.4); r = {e1};	second-order-section outputs: MATLAB orders and pairs the sections in a way that tf2sos does not reproduce (compared the section order for four designs)
 [a1,b1,c1,d1,e1,f1] = maxflat(4,2,0.4); r = {e1,f1};	second-order-section outputs: MATLAB orders and pairs the sections in a way that tf2sos does not reproduce (compared the section order for four designs)
+[a1,b1,c1] = findsignal(fda,fsg,'MaxNumSegments',3,'Normalization','zscore'); r = {a1,b1,c1};	'zscore' scaling: tried population and sample standard deviation for the data and the signal, a joint standard deviation, and data-only or signal-only scaling; none gives MATLAB's distances (15.1798 against 15.2179 at best)
+[a1,b1,c1] = findsignal(fm1,fm2,'MaxNumSegments',2,'Normalization','center'); r = {a1,b1,c1};	two segments with distances equal to rounding error (4.35917414446321 and ...168): MATLAB returns them in the opposite order
+[a1,b1,c1] = findsignal(fm1,fm2,'MaxNumSegments',2,'Normalization','zscore'); r = {a1,b1,c1};	'zscore' scaling for matrices: same unexplained scaling as the vector case
