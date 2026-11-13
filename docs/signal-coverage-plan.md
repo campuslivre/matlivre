@@ -11,10 +11,10 @@ How MatLivre grows to cover the MATLAB Signal Processing Toolbox. The function i
 |---|---:|
 | Functions in scope (R2023b-era, from `signal.tsv`) | 333 |
 | Already in MatLivre before this plan (`xcorr`, `xcov`, `resample`, `rms`, `sinc`, `detrend`, `movmedian`, `movmad`, `isoutlier`, `filloutliers`, `smoothdata`, `islocalmax`, `paddata`, `trimdata`, `resize`, `freqspace`, `ss2tf`) | 17 |
-| Implemented by this plan (`crates/livre-lang/src/signal/`) | 201 |
-| Still to implement | 115 |
+| Implemented by this plan (`crates/livre-lang/src/signal/`) | 202 |
+| Still to implement | 114 |
 
-The 201 are checked against MATLAB: see "How it is tested".
+The 202 are checked against MATLAB: see "How it is tested".
 
 ## How it is tested
 
@@ -100,8 +100,8 @@ cases in `signal_cases.m` and MATLAB's output recorded as above.
    `instbw`, spectral descriptors (`spectralCrest`, `spectralEntropy`, `spectralFlatness`,
    `spectralKurtosis`, `spectralSkewness`), then the wavelet functions (`cwt`, `modwt`,
    `modwpt`, `wsst`, `wcoherence`, `tqwt`, `cqt`).
-10. **Vibration analysis**: `rpmtrack`, `tachorpm`, `orderspectrum`, `ordertrack`,
-    `orderwaveform`, `rpmordermap`, `rpmfreqmap`, `envspectrum`, `tsa`, `rainflow`, `modalfrf`,
+10. **Vibration analysis**. Done: `rainflow`. To do: `rpmtrack`, `tachorpm`, `orderspectrum`, `ordertrack`,
+    `orderwaveform`, `rpmordermap`, `rpmfreqmap`, `envspectrum`, `tsa`, `modalfrf`,
     `modalfit`, `modalsd`.
 
 ## Known deviations from MATLAB

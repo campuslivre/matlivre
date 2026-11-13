@@ -6,7 +6,7 @@ use crate::interp::Interpreter;
 use crate::signal::poly::*;
 use crate::value::*;
 
-pub const NAMES: &[&str] = &["taylorwin", "pulstran", "vco", "modulate", "dpss", "marcumq"];
+pub const NAMES: &[&str] = &["taylorwin", "pulstran", "vco", "modulate", "dpss", "marcumq", "rainflow"];
 
 const NUM_TYPES: &str = "double, single, uint8, uint16, uint32, uint64, int8, int16, int32, int64";
 
@@ -17,6 +17,7 @@ pub fn call(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
         "vco" => vco(a, nargout),
         "dpss" => dpss(it, a, nargout),
         "marcumq" => marcumq(it, a, nargout),
+        "rainflow" => rainflow(it, a, nargout),
         _ => modulate(it, a, nargout),
     }
 }
@@ -574,4 +575,180 @@ fn marcumq(it: &mut Interpreter, a: &[Value], nargout: usize) -> Ret {
         };
     }
     out(vec![Value::Num(Matrix::from_dims(shape, y))])
+}
+
+fn rainflow(it: &mut Interpreter, a: &[Value], nargout: usize) -> Ret {
+    if a.is_empty() {
+        return rt("Not enough input arguments.");
+    }
+    if a.len() > 3 {
+        return rt("Too many input arguments.");
+    }
+    if nargout > 5 {
+        return rt("Too many output arguments.");
+    }
+    let x = match &a[0] {
+        Value::Num(m) if matches!(m.kind, Kind::Double | Kind::Single) => m.clone(),
+        Value::Num(m) if m.kind == Kind::Char => return rt("Expected X to be one of these types:  single, double"),
+        other => return rt(format!("Expected X to be one of these types:  single, double  Instead its type was {}.", other.class_name())),
+    };
+    if x.im.is_some() {
+        return rt("Expected X to be real.");
+    }
+    if x.dims.len() > 2 || x.numel() == 0 || (x.dims[0] != 1 && x.dims[1] != 1) {
+        return rt("Expected X to be a vector.");
+    }
+    if x.data.iter().any(|v| !v.is_finite()) {
+        return rt("Expected X to be finite.");
+    }
+    let n = x.numel();
+    if n < 3 {
+        return rt("Input time series must have at least 3 samples.");
+    }
+    let single = x.kind == Kind::Single;
+    let mut ext = false;
+    let mut times: Vec<f64> = (1..=n).map(|i| i as f64).collect();
+    for (k, v) in a.iter().enumerate().skip(1) {
+        match v {
+            Value::Num(m) if m.kind == Kind::Char => {
+                if v.text().unwrap_or_default().to_lowercase() == "ext" {
+                    ext = true;
+                } else {
+                    return rt("Invalid option.");
+                }
+            }
+            Value::Num(m) if k == 1 => {
+                if m.numel() == 1 {
+                    let fs = m.data[0];
+                    if !fs.is_finite() || fs == 0.0 {
+                        return rt("Expected T to be finite.");
+                    }
+                    if fs < 0.0 {
+                        return rt("Expected T to be strictly increasing.");
+                    }
+                    times = (0..n).map(|i| i as f64 / fs).collect();
+                } else {
+                    if m.numel() != n {
+                        return rt(format!("Expected T to be an array with number of elements equal to {n}."));
+                    }
+                    if m.data.windows(2).any(|w| !(w[1] > w[0])) {
+                        return rt("Expected T to be strictly increasing.");
+                    }
+                    times = m.data.clone();
+                }
+            }
+            _ => return rt("Invalid option."),
+        }
+    }
+    // reversals
+    let mut rev: Vec<usize> = vec![];
+    if ext {
+        rev = (0..n).collect();
+    } else {
+        rev.push(0);
+        // compress plateaus
+        let mut runs: Vec<(usize, f64)> = vec![]; // first index of each distinct run
+        for i in 0..n {
+            if runs.last().map_or(true, |r| r.1 != x.data[i]) {
+                runs.push((i, x.data[i]));
+            }
+        }
+        for k in 1..runs.len().saturating_sub(1) {
+            let (p, c, q) = (runs[k - 1].1, runs[k].1, runs[k + 1].1);
+            if (c > p && c > q) || (c < p && c < q) {
+                rev.push(runs[k].0);
+            }
+        }
+        rev.push(n - 1);
+    }
+    // ASTM E1049 rainflow counting
+    let mut rows: Vec<[f64; 5]> = vec![];
+    let mut stack: Vec<usize> = vec![];
+    let val = |i: usize| x.data[i];
+    let mut emit = |count: f64, i: usize, j: usize, rows: &mut Vec<[f64; 5]>| {
+        if val(i) != val(j) {
+            rows.push([count, (val(i) - val(j)).abs(), (val(i) + val(j)) / 2.0, times[i], times[j]]);
+        }
+    };
+    for &p in &rev {
+        stack.push(p);
+        while stack.len() >= 3 {
+            let l = stack.len();
+            let xr = (val(stack[l - 1]) - val(stack[l - 2])).abs();
+            let yr = (val(stack[l - 2]) - val(stack[l - 3])).abs();
+            if xr < yr {
+                break;
+            }
+            if l == 3 {
+                emit(0.5, stack[0], stack[1], &mut rows);
+                stack.remove(0);
+            } else {
+                emit(1.0, stack[l - 3], stack[l - 2], &mut rows);
+                stack.remove(l - 2);
+                stack.remove(l - 3);
+            }
+        }
+    }
+    for w in stack.windows(2) {
+        emit(0.5, w[0], w[1], &mut rows);
+    }
+    let nr = rows.len();
+    let mut c = vec![0.0; nr * 5];
+    for (i, r) in rows.iter().enumerate() {
+        for j in 0..5 {
+            c[i + nr * j] = r[j];
+        }
+    }
+    let cast = |m: Matrix| -> Value {
+        let mut m = m;
+        if single {
+            m.data.iter_mut().for_each(|e| *e = *e as f32 as f64);
+            m.kind = Kind::Single;
+        }
+        Value::Num(m)
+    };
+    let mut outs = vec![cast(Matrix::from_dims(vec![nr, 5], c))];
+    if nargout > 1 {
+        let (rm, rmr, rmm) = if nr == 0 {
+            (Matrix::from_dims(vec![1, 1], vec![0.0]), vec![0.0, 1.0], vec![0.0, 1.0])
+        } else {
+            let mut rr = vec![];
+            let mut mm = vec![];
+            for r in &rows {
+                for _ in 0..((2.0 * r[0]).round() as usize) {
+                    rr.push(r[1]);
+                    mm.push(r[2]);
+                }
+            }
+            let edges = |it: &mut Interpreter, v: Vec<f64>| -> R<Vec<f64>> {
+                let res = it.call_function("histcounts", vec![real_col(v)], 2)?;
+                Ok(res[1].to_matrix()?.data.clone())
+            };
+            let er = edges(it, rr)?;
+            let em = edges(it, mm)?;
+            let bin = |e: &[f64], v: f64| -> Option<usize> {
+                let nb = e.len() - 1;
+                (0..nb).find(|&k| v >= e[k] && (v < e[k + 1] || (k == nb - 1 && v <= e[k + 1])))
+            };
+            let (nrb, nmb) = (er.len() - 1, em.len() - 1);
+            let mut h = vec![0.0; nrb * nmb];
+            for r in &rows {
+                if let (Some(i), Some(j)) = (bin(&er, r[1]), bin(&em, r[2])) {
+                    h[i + nrb * j] += r[0];
+                }
+            }
+            (Matrix::from_dims(vec![nrb, nmb], h), er, em)
+        };
+        outs.push(cast(rm));
+        if nargout > 2 {
+            outs.push(cast(Matrix::from_dims(vec![rmr.len(), 1], rmr)));
+        }
+        if nargout > 3 {
+            outs.push(cast(Matrix::from_dims(vec![rmm.len(), 1], rmm)));
+        }
+        if nargout > 4 {
+            outs.push(cast(Matrix::from_dims(vec![rev.len(), 1], rev.iter().map(|&i| (i + 1) as f64).collect())));
+        }
+    }
+    out(outs)
 }
