@@ -46,6 +46,46 @@ fn axes_prop(it: &mut Interpreter, name: &str, value: Option<Value>) -> R<Value>
 
 /// Splits trailing name-value pairs (from the first text argument at an even offset
 /// from `from`) off the arguments.
+/// The (x, y) column pairs `line(x, y)` draws.
+fn line_pairs(x: &Matrix, y: &Matrix) -> R<Vec<(Matrix, Matrix)>> {
+    let col = |m: &Matrix, j: usize| -> Matrix {
+        let r = m.rows();
+        Matrix::from_dims(vec![1, r], m.data[j * r..(j + 1) * r].to_vec())
+    };
+    let flat = |m: &Matrix| Matrix::from_dims(vec![1, m.numel()], m.data.clone());
+    let (xv, yv) = (x.rows() == 1 || x.cols() == 1, y.rows() == 1 || y.cols() == 1);
+    let bad = || rt("Vectors must be the same length.");
+    if x.numel() == 0 && y.numel() == 0 {
+        return Ok(vec![]);
+    }
+    match (xv, yv) {
+        (true, true) => {
+            if x.numel() != y.numel() {
+                return bad();
+            }
+            Ok(vec![(flat(x), flat(y))])
+        }
+        (true, false) => {
+            if y.rows() != x.numel() {
+                return bad();
+            }
+            Ok((0..y.cols()).map(|j| (flat(x), col(y, j))).collect())
+        }
+        (false, true) => {
+            if x.rows() != y.numel() {
+                return bad();
+            }
+            Ok((0..x.cols()).map(|j| (col(x, j), flat(y))).collect())
+        }
+        (false, false) => {
+            if x.rows() != y.rows() || x.cols() != y.cols() {
+                return bad();
+            }
+            Ok((0..x.cols()).map(|j| (col(x, j), col(y, j))).collect())
+        }
+    }
+}
+
 fn split_props(a: &[Value], from: usize) -> R<(&[Value], Vec<(String, Value)>)> {
     let mut i = from;
     while i < a.len() && !is_textlike(&a[i]) {
@@ -468,7 +508,23 @@ pub fn call(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize) ->
         "line" => {
             // Low-level line: added to the axes without replacing what is there.
             let (head, props) = split_props(a, 0)?;
-            let (mut series, _, _) = plot_series(head, SeriesKind::Line)?;
+            let numeric = |v: &Value| matches!(v, Value::Num(m) if m.kind != Kind::Char);
+            let mut series: Vec<Series> = vec![];
+            if head.len() == 1 && numeric(&head[0]) {
+                return rt("Not enough input arguments.");
+            } else if head.iter().any(|v| matches!(v, Value::Cell(_))) {
+                return rt("Invalid data argument.");
+            } else if (head.len() == 2 || head.len() == 3) && head.iter().all(numeric) {
+                // Matrices pair up by column (a vector pairs with every column of a matrix).
+                let (xm, ym) = (head[0].to_matrix()?, head[1].to_matrix()?);
+                let pairs = line_pairs(&xm, &ym)?;
+                for (xc, yc) in pairs {
+                    let (sr, _, _) = plot_series(&[Value::Num(xc), Value::Num(yc)], SeriesKind::Line)?;
+                    series.extend(sr);
+                }
+            } else {
+                series = plot_series(head, SeriesKind::Line)?.0;
+            }
             series.iter_mut().for_each(|s| s.class_hint = Some("matlab.graphics.primitive.Line"));
             let ids = it.add_decoration(series);
             apply_props(it, &ids, &props)?;

@@ -117,3 +117,44 @@ fn line_and_plot_classes_differ() {
     assert_eq!(text(&it, "mk"), "none");
     assert_eq!(text(&it, "ls"), "-");
 }
+
+/// `line` with matrix data draws one line per column and returns a column of handles, the first
+/// handle being the oldest child; a vector pairs with every column of a matrix (all recorded from
+/// MATLAB R2023b).
+#[test]
+fn line_with_matrix_data() {
+    let (it, _) = run(
+        "figure('Visible','off'); h = line([1 2;3 4],[5 6;7 8]); sz1 = size(h); x1 = h(2).XData; y1 = h(2).YData; ax = gca; o1 = [ax.Children(1)==h(2) ax.Children(2)==h(1)];\n\
+         figure('Visible','off'); h = line([1 2 3],[1 2;3 4;5 6]); sz2 = size(h); y2 = h(2).YData; x2 = h(1).XData;\n\
+         figure('Visible','off'); h = line([1 2],[1 2 3;4 5 6]); sz3 = size(h); y3 = h(3).YData;\n\
+         figure('Visible','off'); h = line([1 2;3 4;5 6],[7 8 9]); sz4 = size(h); x4 = h(2).XData; y4 = h(2).YData;\n\
+         figure('Visible','off'); h = line([1 2 3]',[4 5 6]); sz5 = size(h); y5 = h.YData; n5 = numel(gca().Children);\n\
+         figure('Visible','off'); h = line([1 2;3 4],[5 6;7 8],'LineWidth',3); lw = h(2).LineWidth;\n\
+         try, line([1 2;3 4],[1 2 3]); catch e1, m1 = e1.message; end\n\
+         try, line([1 2 3 4],[1 2;3 4]); catch e2, m2 = e2.message; end\n\
+         try, line([1 2;3 4;5 6],[1 2 3;4 5 6]); catch e3, m3 = e3.message; end\n\
+         try, line([1 2 3]); catch e4, m4 = e4.message; end\n\
+         try, line({1},2); catch e5, m5 = e5.message; end",
+    );
+    assert_eq!(num(&it, "sz1"), vec![2.0, 1.0]);
+    assert_eq!(num(&it, "x1"), vec![2.0, 4.0]);
+    assert_eq!(num(&it, "y1"), vec![6.0, 8.0]);
+    assert_eq!(num(&it, "o1"), vec![1.0, 1.0]);
+    assert_eq!(num(&it, "sz2"), vec![2.0, 1.0]);
+    assert_eq!(num(&it, "y2"), vec![2.0, 4.0, 6.0]);
+    assert_eq!(num(&it, "x2"), vec![1.0, 2.0, 3.0]);
+    assert_eq!(num(&it, "sz3"), vec![3.0, 1.0]);
+    assert_eq!(num(&it, "y3"), vec![3.0, 6.0]);
+    assert_eq!(num(&it, "sz4"), vec![2.0, 1.0]);
+    assert_eq!(num(&it, "x4"), vec![2.0, 4.0, 6.0]);
+    assert_eq!(num(&it, "y4"), vec![7.0, 8.0, 9.0]);
+    assert_eq!(num(&it, "sz5"), vec![1.0, 1.0]);
+    assert_eq!(num(&it, "y5"), vec![4.0, 5.0, 6.0]);
+    assert_eq!(num(&it, "n5"), vec![1.0]);
+    assert_eq!(num(&it, "lw"), vec![3.0]);
+    for m in ["m1", "m2", "m3"] {
+        assert_eq!(text(&it, m), "Vectors must be the same length.");
+    }
+    assert_eq!(text(&it, "m4"), "Not enough input arguments.");
+    assert_eq!(text(&it, "m5"), "Invalid data argument.");
+}
