@@ -11,11 +11,11 @@ How MatLivre grows to cover the MATLAB Signal Processing Toolbox. The function i
 |---|---:|
 | Functions in scope (R2023b-era, from `signal.tsv`) | 333 |
 | Already in MatLivre before this plan (`xcorr`, `xcov`, `resample`, `rms`, `sinc`, `detrend`, `movmedian`, `movmad`, `isoutlier`, `filloutliers`, `smoothdata`, `islocalmax`, `paddata`, `trimdata`, `resize`, `freqspace`, `ss2tf`) | 17 |
-| Implemented by this plan (`crates/livre-lang/src/signal/`) | 220 |
-| Still to implement and verifiable here | 82 |
+| Implemented by this plan (`crates/livre-lang/src/signal/`) | 221 |
+| Still to implement and verifiable here | 81 |
 | Not verifiable: requires Wavelet/Audio Toolbox, not installed (see below) | 14 |
 
-The 220 are checked against MATLAB: see "How it is tested".
+The 221 are checked against MATLAB: see "How it is tested".
 
 ## Not verifiable: requires Wavelet/Audio Toolbox, not installed
 
@@ -104,7 +104,7 @@ cases in `signal_cases.m` and MATLAB's output recorded as above.
    Done: `levinson`, `ac2rc`, `rc2ac`, `rc2poly`, `poly2rc`, `ac2poly`, `poly2ac`, `rc2is`, `is2rc`,
    `rc2lar`, `lar2rc`, `poly2lsf`, `lsf2poly`, `aryule`, `arburg`, `arcov`, `armcov`,
    `rlevinson`, `schurrc`, `prony`, `lpc`.
-9. **Time-frequency**. Done: `spectrogram`, `iscola`, `stft`, `istft`, `wvd` (not `smoothedPseudo`). Not recovered after one round: `xwvd`. To do: `xspectrogram`,
+9. **Time-frequency**. Done: `spectrogram`, `iscola`, `stft`, `istft`, `wvd` (not `smoothedPseudo`), `instfreq` (the 'hilbert' method only; the default 'tfmoment' method needs `pspectrum`'s spectrogram). Not recovered after one round: `xwvd`. To do: `xspectrogram`,
    `hht`, `emd`, `vmd`, `ewt`, `fsst`, `ifsst`, `tfridge`, `kurtogram`, `instfreq`,
    `instbw`, spectral descriptors (`spectralCrest`, `spectralEntropy`, `spectralFlatness`,
    `spectralKurtosis`, `spectralSkewness`) and the wavelet functions (`cwt`, `modwt`,
