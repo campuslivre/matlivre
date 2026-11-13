@@ -116,10 +116,47 @@ fn difference(want: &[(String, Item)], got: &[(String, Item)]) -> Option<String>
     None
 }
 
+/// Cases that take long to compute (high-order `cfirpm` designs). The regular test skips them; the
+/// ignored `signal_heavy_cases_match_matlab` runs only them (`cargo test -- --ignored`).
+fn is_heavy(text: &str) -> bool {
+    text.split_once("cfirpm(")
+        .and_then(|(_, rest)| rest.split(',').next()?.trim().parse::<u32>().ok())
+        .map_or(false, |n| n >= 16)
+}
+
+/// The script with the statements of the cases that are not wanted replaced by a no-op.
+fn script_for(heavy: bool) -> String {
+    let start = SCRIPT.find("cases = {").expect("cases list");
+    let mut out = String::with_capacity(SCRIPT.len());
+    out.push_str(&SCRIPT[..start]);
+    let rest = &SCRIPT[start..];
+    let end = rest.find("\n};").expect("end of cases");
+    for (k, line) in rest[..end].lines().enumerate() {
+        if k > 0 && line.starts_with('\'') && is_heavy(&line[1..line.len() - 1]) != heavy {
+            out.push_str("'r = 0;',\n");
+        } else {
+            out.push_str(line);
+            out.push('\n');
+        }
+    }
+    out.push_str(&rest[end + 1..]);
+    out
+}
+
 #[test]
 fn signal_functions_match_matlab() {
+    check(false);
+}
+
+#[test]
+#[ignore = "slow (high-order cfirpm designs); run with --ignored"]
+fn signal_heavy_cases_match_matlab() {
+    check(true);
+}
+
+fn check(heavy: bool) {
     let mut it = Interpreter::new();
-    let _ = it.run_source(SCRIPT);
+    let _ = it.run_source(&script_for(heavy));
     let printed: String = it
         .take_outputs()
         .into_iter()
@@ -144,6 +181,9 @@ fn signal_functions_match_matlab() {
     let mut matching = 0;
     for (i, text) in texts.iter().enumerate() {
         let case = i + 1;
+        if is_heavy(text) != heavy {
+            continue;
+        }
         let w = want.get(&case).map(Vec::as_slice).unwrap_or(&[]);
         let g = got.get(&case).map(Vec::as_slice).unwrap_or(&[]);
         let diff = difference(w, g);
@@ -154,7 +194,7 @@ fn signal_functions_match_matlab() {
             (Some(d), None) => failures.push(format!("[{case}] {text}\n      {d}")),
         }
     }
-    assert!(texts.len() > 800, "only {} cases parsed", texts.len());
+    assert!(heavy || texts.len() > 800, "only {} cases parsed", texts.len());
     assert!(resolved.is_empty(), "these known deviations now match MATLAB; remove them from signal_known_deviations.tsv:\n{}", resolved.join("\n"));
     assert!(
         failures.is_empty(),

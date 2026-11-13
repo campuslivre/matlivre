@@ -145,7 +145,6 @@ fn minimax(ar: &[Vec<f64>], ai: &[Vec<f64>], dr: &[f64], di: &[f64]) -> (Vec<f64
         let mut cnt = 0usize;
         for _it in 0..200 {
             cnt += 1;
-            cnt += 1;
             let (er, ei) = resid(&x);
             let mut gt = mu;
             let mut inv = vec![0.0; n];
@@ -161,18 +160,22 @@ fn minimax(ar: &[Vec<f64>], ai: &[Vec<f64>], dr: &[f64], di: &[f64]) -> (Vec<f64
             for j in 0..m {
                 gx[j] = -(0..n).map(|k| uc[j][k] * inv[k]).sum::<f64>();
             }
+            // Far from the bounds, the constraints that are not close to active hardly change the
+            // Hessian, so only the near-active ones are used once the barrier is sharp.
+            let top = (0..n).map(|k| er[k] * er[k] + ei[k] * ei[k]).fold(0.0, f64::max);
+            let ks: Vec<usize> = if mu * t > 1e5 && top > 0.9 * t * t { (0..n).filter(|&k| er[k] * er[k] + ei[k] * ei[k] > 0.5 * t * t).collect() } else { (0..n).collect() };
             let mut h = vec![vec![0.0; m + 1]; m + 1];
             for j in 0..m {
                 for l in 0..=j {
                     let mut acc = 0.0;
-                    for k in 0..n {
+                    for &k in &ks {
                         acc += uc[j][k] * uc[l][k] * inv2[k] + 2.0 * inv[k] * (arc[j][k] * arc[l][k] + aic[j][k] * aic[l][k]);
                     }
                     h[j][l] = acc;
                 }
-                h[m][j] = (0..n).map(|k| uc[j][k] * 2.0 * t * inv2[k]).sum();
+                h[m][j] = ks.iter().map(|&k| uc[j][k] * 2.0 * t * inv2[k]).sum();
             }
-            h[m][m] = (0..n).map(|k| 4.0 * t * t * inv2[k] - 2.0 * inv[k]).sum();
+            h[m][m] = ks.iter().map(|&k| 4.0 * t * t * inv2[k] - 2.0 * inv[k]).sum();
             for j in 0..=m {
                 for l in 0..j {
                     h[l][j] = h[j][l];
@@ -199,15 +202,15 @@ fn minimax(ar: &[Vec<f64>], ai: &[Vec<f64>], dr: &[f64], di: &[f64]) -> (Vec<f64
             }
             x = xn;
             t = tn;
-            let eps = if n as f64 / mu > 1e-8 * t { 1e-6 } else { 1e-10 };
+            let eps = if n as f64 / mu > 1e-8 * t { 1e-3 } else { 1e-10 };
             let moved = step.iter().zip(x.iter().chain(std::iter::once(&t))).map(|(d, v)| (a * d).abs() / (1.0 + v.abs())).fold(0.0, f64::max);
             if dec < eps || a < 1e-18 || moved < 1e-15 {
                 break;
             }
         }
         if std::env::var("CFDEBUG").is_ok() { eprintln!("outer mu={mu:e} t={t:.15} its={cnt}"); }
-        mu *= 12.0;
-        if n as f64 / mu < 1e-13 * t {
+        mu *= 100.0;
+        if n as f64 / mu < 1e-12 * t {
             break;
         }
     }
