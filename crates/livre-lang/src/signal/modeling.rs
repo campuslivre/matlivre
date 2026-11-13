@@ -245,7 +245,7 @@ fn state_histogram(x: &[f64], nb: usize, lb: f64, ub: f64) -> (Vec<f64>, Vec<f64
     let mut h = vec![0.0; nb];
     for &v in x {
         if v >= lb && v <= ub && w > 0.0 {
-            let k = (((v - lb) / w).floor() as usize).min(nb - 1);
+            let k = ((((v - lb) / (ub - lb)) * nb as f64).ceil() as i64 - 1).clamp(0, nb as i64 - 1) as usize;
             h[k] += 1.0;
         }
     }

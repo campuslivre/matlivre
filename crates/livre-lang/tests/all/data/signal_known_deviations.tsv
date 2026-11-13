@@ -181,4 +181,3 @@ r = powerbw(ones(256,1),1000);	flat spectrum edge handling differs
 [w1,lo1,hi1,p1] = powerbw(sg,1000,[],99); r = {w1,lo1,hi1,p1};	power output for a positive reference level differs slightly
 [w1,lo1,hi1,p1] = powerbw(sg,1000,[],100); r = {w1,lo1,hi1,p1};	power output for a positive reference level differs slightly
 [w1,lo1,hi1,p1] = powerbw(sg,1000,[],101); r = {w1,lo1,hi1,p1};	power output for a positive reference level differs slightly
-r = statelevels(pw,100,'mean',[-0.5 1.5]);	lower mean differs when explicit bounds are given

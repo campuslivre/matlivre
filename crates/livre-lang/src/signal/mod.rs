@@ -11,6 +11,7 @@ pub mod cepstra;
 pub mod change;
 pub mod bandwidth;
 pub mod modeling;
+pub mod pulses;
 pub mod conversions;
 pub mod db;
 pub mod filtering;
@@ -129,6 +130,9 @@ fn dispatch(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
     }
     if ssconv::NAMES.contains(&name) {
         return ssconv::call(it, name, a, nargout);
+    }
+    if pulses::NAMES.contains(&name) {
+        return pulses::call(name, a, nargout);
     }
     if modeling::NAMES.contains(&name) {
         return modeling::call(it, name, a, nargout);
