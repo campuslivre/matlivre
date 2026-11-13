@@ -11,10 +11,10 @@ How MatLivre grows to cover the MATLAB Signal Processing Toolbox. The function i
 |---|---:|
 | Functions in scope (R2023b-era, from `signal.tsv`) | 333 |
 | Already in MatLivre before this plan (`xcorr`, `xcov`, `resample`, `rms`, `sinc`, `detrend`, `movmedian`, `movmad`, `isoutlier`, `filloutliers`, `smoothdata`, `islocalmax`, `paddata`, `trimdata`, `resize`, `freqspace`, `ss2tf`) | 17 |
-| Implemented by this plan (`crates/livre-lang/src/signal/`) | 218 |
-| Still to implement | 98 |
+| Implemented by this plan (`crates/livre-lang/src/signal/`) | 219 |
+| Still to implement | 97 |
 
-The 218 are checked against MATLAB: see "How it is tested".
+The 219 are checked against MATLAB: see "How it is tested".
 
 ## How it is tested
 
@@ -87,8 +87,8 @@ cases in `signal_cases.m` and MATLAB's output recorded as above.
    `filtfilt` with second-order sections.
 7. **Spectral estimation and transforms**. Done: `periodogram`, `pwelch`, `mscohere`, `cpsd`, `tfestimate`, `dct`,
    `idct`, `dftmtx`, `goertzel`, `hilbert`, `cconv`, `convmtx`, `bitrevorder`, `czt`, `fwht`, `ifwht`, `cceps`, `rceps`, `icceps`,
-   `digitrevorder`, `corrmtx`, `pyulear`, `pburg`, `pcov`, `pmcov`, `xcorr2`, `pmusic`, `peig`, `rootmusic`, `rooteig`, `pmtm`, `plomb`.
-   To do: `poctave`, `pspectrum`.
+   `digitrevorder`, `corrmtx`, `pyulear`, `pburg`, `pcov`, `pmcov`, `xcorr2`, `pmusic`, `peig`, `rootmusic`, `rooteig`, `pmtm`, `plomb`, `poctave` (power and PSD smoothing; not `Weighting` or the spectrogram type).
+   To do: `pspectrum`.
 8. **Measurements and modeling**. Done: `peak2peak`, `peak2rms`, `rssq`, `findpeaks`, `enbw`, `bandpower`, `meanfreq`, `medfreq`,
    `finddelay`, `seqperiod`, `cusum`, `dtw`, `edr`, `alignsignals`, `obw`, `powerbw`, `statelevels`, `midcross`, `risetime`, `falltime`,
    `pulsewidth`, `pulseperiod`, `pulsesep`, `dutycycle`, `overshoot`, `undershoot`, `settlingtime`, `slewrate`, `zerocrossrate`, `findchangepts`, `envelope`, `invfreqz`, `invfreqs` (non-iterative fit), `stmcb`, `findsignal` (fixed time alignment only). To do:
@@ -147,10 +147,16 @@ not exercise:
 - **Test time**: the cfirpm designs of order 16 and above (about 9 s in a debug build) run only in the
   ignored test `signal_heavy_cases_match_matlab` (`cargo test -p livre-lang --test all -- --ignored`);
   the regular `signal_functions_match_matlab` skips them.
-- **Research queue**: `rootmusic`/`rooteig` powers (systematic ~1e-7 relative; one round tried: mean noise eigenvalue as the noise variance, p/2 or p signal eigenvalues, exact or least squares; the zero-frequency root case gave P=[-0.24, 44.6] with a 2x2 solve, not MATLAB's [0, 34.29]).
+- **Research queue**: `poctave` low-band filters (one round: decimate-then-filter and an independent bilinear design did not match); `rootmusic`/`rooteig` powers (systematic ~1e-7 relative; one round tried: mean noise eigenvalue as the noise variance, p/2 or p signal eigenvalues, exact or least squares; the zero-frequency root case gave P=[-0.24, 44.6] with a 2x2 solve, not MATLAB's [0, 34.29]).
 - **`rootmusic`/`rooteig`**: frequencies agree to 1e-12, powers to about 1e-7 relative (MATLAB's
   power system was not recovered); a real correlation matrix with a root at zero frequency returns
   one power where MATLAB returns two.
+- **`poctave`**: the ANSI S1.11 center frequencies; bands that overlap the limits (the band holding
+  Nyquist is kept while its lower edge is under 0.9 of the upper limit and is a highpass of order
+  FilterOrder); each band is a Butterworth bandpass of order FilterOrder (the SOS form) and the
+  power is the mean square of its output. Bands with a center frequency below about 1/250 of the
+  sample rate do not match (see the research queue), and `Weighting` and the spectrogram type are
+  not implemented. PSD smoothing (rectangle rule, edge bins at 0 and Nyquist counted twice) matches.
 - **`plomb`**: MATLAB uses the Press-Rybicki fast algorithm (4-point extirpolation, a power-of-two
   FFT, period ofac*N*ts), so MatLivre does too; a given frequency vector is evaluated exactly. The
   spectrum is scaled by 2 var ts (psd; ts from the whole record), 2 var / N (power) or 1; the

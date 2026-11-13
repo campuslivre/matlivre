@@ -27,6 +27,7 @@ pub mod zplane;
 pub mod cfir;
 pub mod mtm;
 pub mod lomb;
+pub mod octave;
 pub mod waveforms2;
 pub mod conversions;
 pub mod db;
@@ -146,6 +147,9 @@ fn dispatch(it: &mut Interpreter, name: &str, a: &[Value], nargout: usize) -> Re
     }
     if ssconv::NAMES.contains(&name) {
         return ssconv::call(it, name, a, nargout);
+    }
+    if octave::NAMES.contains(&name) {
+        return octave::call(it, a, nargout);
     }
     if lomb::NAMES.contains(&name) {
         return lomb::call(a, nargout);
