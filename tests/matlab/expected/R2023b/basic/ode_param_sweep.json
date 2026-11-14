@@ -1,0 +1,970 @@
+{
+  "header": {
+    "release": "2023b",
+    "version": "23.2.0.2409890 (R2023b) Update 3",
+    "computer": "PCWIN64",
+    "recorded": "2026-11-08"
+  },
+  "log": "Done 1 of 3\nDone 2 of 3\nDone 3 of 3\n\nxa =\n\n   39.9583   39.9583   39.9583    4.9977    5.0351    5.0359    0.8044    0.8272    0.8275\n\n\nnsteps =\n\n    61    61    77    61    65    77    61    65    77\n\n\ngood =\n\n  1x9 logical array\n\n   1   1   1   0   1   1   0   0   0\n\n",
+  "error": {
+    "identifier": "",
+    "message": ""
+  },
+  "lastwarn": {
+    "message": "",
+    "identifier": ""
+  },
+  "variables": {
+    "CA0": {
+      "class": "double",
+      "size": [
+        1,
+        1
+      ],
+      "value": {
+        "kind": "numeric",
+        "class": "double",
+        "sparse": false,
+        "size": [
+          1,
+          1
+        ],
+        "real": [
+          "4000000000000000"
+        ]
+      },
+      "display": "\nCA0 =\n\n     2\n\n"
+    },
+    "FA": {
+      "class": "double",
+      "size": [
+        1,
+        1
+      ],
+      "value": {
+        "kind": "numeric",
+        "class": "double",
+        "sparse": false,
+        "size": [
+          1,
+          1
+        ],
+        "real": [
+          "3f4c2e33eff19503"
+        ]
+      },
+      "display": "\nFA =\n\n   8.6000e-04\n\n"
+    },
+    "FB_list": {
+      "class": "double",
+      "size": [
+        1,
+        3
+      ],
+      "value": {
+        "kind": "numeric",
+        "class": "double",
+        "sparse": false,
+        "size": [
+          1,
+          3
+        ],
+        "real": [
+          "0000000000000000",
+          "3f60624dd2f1a9fc",
+          "3f70624dd2f1a9fc"
+        ]
+      },
+      "display": "\nFB_list =\n\n         0    0.0020    0.0040\n\n"
+    },
+    "FH_list": {
+      "class": "double",
+      "size": [
+        1,
+        3
+      ],
+      "value": {
+        "kind": "numeric",
+        "class": "double",
+        "sparse": false,
+        "size": [
+          1,
+          3
+        ],
+        "real": [
+          "0000000000000000",
+          "3f747ae147ae147b",
+          "3f847ae147ae147b"
+        ]
+      },
+      "display": "\nFH_list =\n\n         0    0.0050    0.0100\n\n"
+    },
+    "ax": {
+      "class": "matlab.graphics.axis.Axes",
+      "size": [
+        1,
+        1
+      ],
+      "value": {
+        "kind": "object",
+        "class": "matlab.graphics.axis.Axes",
+        "size": [
+          1,
+          1
+        ],
+        "text": "<Unrecognized function or variable 'v'.>"
+      },
+      "display": "\nax = \n\n  <a href=\"matlab:helpPopup matlab.graphics.axis.Axes\" style=\"font-weight:bold\">Axes</a> (Konverzió térkép, V = 0.1875 m^3) with properties:\n\n             XLim: [0 0.0040]\n             YLim: [0 0.0100]\n           XScale: 'linear'\n           YScale: 'linear'\n    GridLineStyle: '-'\n            Units: 'normalized'\n\n  Show <a href=\"matlab:if exist('ax', 'var'), matlab.graphics.internal.getForDisplay('ax', ax, 'matlab.graphics.axis.Axes'), else, matlab.graphics.internal.getForDisplay('ax'), end\">all properties</a>\n\n"
+    },
+    "fb": {
+      "class": "double",
+      "size": [
+        1,
+        9
+      ],
+      "value": {
+        "kind": "numeric",
+        "class": "double",
+        "sparse": false,
+        "size": [
+          1,
+          9
+        ],
+        "real": [
+          "0000000000000000",
+          "0000000000000000",
+          "0000000000000000",
+          "3f60624dd2f1a9fc",
+          "3f60624dd2f1a9fc",
+          "3f60624dd2f1a9fc",
+          "3f70624dd2f1a9fc",
+          "3f70624dd2f1a9fc",
+          "3f70624dd2f1a9fc"
+        ]
+      },
+      "display": "\nfb =\n\n         0         0         0    0.0020    0.0020    0.0020    0.0040    0.0040    0.0040\n\n"
+    },
+    "fh": {
+      "class": "double",
+      "size": [
+        1,
+        9
+      ],
+      "value": {
+        "kind": "numeric",
+        "class": "double",
+        "sparse": false,
+        "size": [
+          1,
+          9
+        ],
+        "real": [
+          "0000000000000000",
+          "3f747ae147ae147b",
+          "3f847ae147ae147b",
+          "0000000000000000",
+          "3f747ae147ae147b",
+          "3f847ae147ae147b",
+          "0000000000000000",
+          "3f747ae147ae147b",
+          "3f847ae147ae147b"
+        ]
+      },
+      "display": "\nfh =\n\n         0    0.0050    0.0100         0    0.0050    0.0100         0    0.0050    0.0100\n\n"
+    },
+    "good": {
+      "class": "logical",
+      "size": [
+        1,
+        9
+      ],
+      "value": {
+        "kind": "logical",
+        "size": [
+          1,
+          9
+        ],
+        "data": [
+          1,
+          1,
+          1,
+          0,
+          1,
+          1,
+          0,
+          0,
+          0
+        ]
+      },
+      "display": "\ngood =\n\n  1x9 <a href=\"matlab:helpPopup logical\" style=\"font-weight:bold\">logical</a> array\n\n   1   1   1   0   1   1   0   0   0\n\n"
+    },
+    "h": {
+      "class": "double",
+      "size": [
+        1,
+        1
+      ],
+      "value": {
+        "kind": "numeric",
+        "class": "double",
+        "sparse": false,
+        "size": [
+          1,
+          1
+        ],
+        "real": [
+          "4008000000000000"
+        ]
+      },
+      "display": "\nh =\n\n     3\n\n"
+    },
+    "j": {
+      "class": "double",
+      "size": [
+        1,
+        1
+      ],
+      "value": {
+        "kind": "numeric",
+        "class": "double",
+        "sparse": false,
+        "size": [
+          1,
+          1
+        ],
+        "real": [
+          "4008000000000000"
+        ]
+      },
+      "display": "\nj =\n\n     3\n\n"
+    },
+    "jo_idx": {
+      "class": "logical",
+      "size": [
+        1,
+        9
+      ],
+      "value": {
+        "kind": "logical",
+        "size": [
+          1,
+          9
+        ],
+        "data": [
+          1,
+          1,
+          1,
+          0,
+          1,
+          1,
+          0,
+          0,
+          0
+        ]
+      },
+      "display": "\njo_idx =\n\n  1x9 <a href=\"matlab:helpPopup logical\" style=\"font-weight:bold\">logical</a> array\n\n   1   1   1   0   1   1   0   0   0\n\n"
+    },
+    "lg": {
+      "class": "matlab.graphics.illustration.Legend",
+      "size": [
+        1,
+        1
+      ],
+      "value": {
+        "kind": "object",
+        "class": "matlab.graphics.illustration.Legend",
+        "size": [
+          1,
+          1
+        ],
+        "text": "<Unrecognized function or variable 'v'.>"
+      },
+      "display": "\nlg = \n\n  <a href=\"matlab:helpPopup matlab.graphics.illustration.Legend\" style=\"font-weight:bold\">Legend</a> (X < 5%, X \\geq 5%) with properties:\n\n         String: {'X < 5%'  'X \\geq 5%'}\n       Location: 'best'\n    Orientation: 'vertical'\n       FontSize: 9\n          Units: 'normalized'\n\n  Show <a href=\"matlab:if exist('lg', 'var'), matlab.graphics.internal.getForDisplay('lg', lg, 'matlab.graphics.illustration.Legend'), else, matlab.graphics.internal.getForDisplay('lg'), end\">all properties</a>\n\n"
+    },
+    "nsteps": {
+      "class": "double",
+      "size": [
+        1,
+        9
+      ],
+      "value": {
+        "kind": "numeric",
+        "class": "double",
+        "sparse": false,
+        "size": [
+          1,
+          9
+        ],
+        "real": [
+          "404e800000000000",
+          "404e800000000000",
+          "4053400000000000",
+          "404e800000000000",
+          "4050400000000000",
+          "4053400000000000",
+          "404e800000000000",
+          "4050400000000000",
+          "4053400000000000"
+        ]
+      },
+      "display": "\nnsteps =\n\n    61    61    77    61    65    77    61    65    77\n\n"
+    },
+    "rhs": {
+      "class": "function_handle",
+      "size": [
+        1,
+        1
+      ],
+      "value": {
+        "kind": "function_handle",
+        "text": "@(y,FB,FH)[0;(FA*CA0-(FA+FB)*y(2))/y(1)-0.05*exp(-2000/y(6))*y(2)*y(3);(FB*1.5-(FA+FB)*y(3))/y(1)-0.05*exp(-2000/y(6))*y(2)*y(3);0.05*exp(-2000/y(6))*y(2)*y(3)-(FA+FB)*y(4)/y(1);0.01*y(4)-(FA+FB)*y(5)/y(1);(FA+FB)*(293.15-y(6))/y(1)+50*0.05*exp(-2000/y(6))*y(2)*y(3)+2e-3*(y(7)-y(6));FH*(350-y(7))/0.05-2e-3*(y(7)-y(6))]"
+      },
+      "display": "\nrhs =\n\n  <a href=\"matlab:helpPopup function_handle\" style=\"font-weight:bold\">function_handle</a> with value:\n\n    @(y,FB,FH)[0;(FA*CA0-(FA+FB)*y(2))/y(1)-0.05*exp(-2000/y(6))*y(2)*y(3);(FB*1.5-(FA+FB)*y(3))/y(1)-0.05*exp(-2000/y(6))*y(2)*y(3);0.05*exp(-2000/y(6))*y(2)*y(3)-(FA+FB)*y(4)/y(1);0.01*y(4)-(FA+FB)*y(5)/y(1);(FA+FB)*(293.15-y(6))/y(1)+50*0.05*exp(-2000/y(6))*y(2)*y(3)+2e-3*(y(7)-y(6));FH*(350-y(7))/0.05-2e-3*(y(7)-y(6))]\n\n"
+    },
+    "rossz_idx": {
+      "class": "logical",
+      "size": [
+        1,
+        9
+      ],
+      "value": {
+        "kind": "logical",
+        "size": [
+          1,
+          9
+        ],
+        "data": [
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          1,
+          1,
+          1
+        ]
+      },
+      "display": "\nrossz_idx =\n\n  1x9 <a href=\"matlab:helpPopup logical\" style=\"font-weight:bold\">logical</a> array\n\n   0   0   0   1   0   0   1   1   1\n\n"
+    },
+    "s1": {
+      "class": "matlab.graphics.chart.primitive.Scatter",
+      "size": [
+        1,
+        1
+      ],
+      "value": {
+        "kind": "object",
+        "class": "matlab.graphics.chart.primitive.Scatter",
+        "size": [
+          1,
+          1
+        ],
+        "text": "<Unrecognized function or variable 'v'.>"
+      },
+      "display": "\ns1 = \n\n  <a href=\"matlab:helpPopup matlab.graphics.chart.primitive.Scatter\" style=\"font-weight:bold\">Scatter</a> (X < 5%) with properties:\n\n             Marker: 'o'\n    MarkerEdgeColor: 'none'\n    MarkerFaceColor: 'flat'\n          LineWidth: 0.5000\n              XData: [0.0020 0.0040 0.0040 0.0040]\n              YData: [0 0 0.0050 0.0100]\n           SizeData: 20\n              CData: [1 0 0]\n\n  Show <a href=\"matlab:if exist('s1', 'var'), matlab.graphics.internal.getForDisplay('s1', s1, 'matlab.graphics.chart.primitive.Scatter'), else, matlab.graphics.internal.getForDisplay('s1'), end\">all properties</a>\n\n"
+    },
+    "s2": {
+      "class": "matlab.graphics.chart.primitive.Scatter",
+      "size": [
+        1,
+        1
+      ],
+      "value": {
+        "kind": "object",
+        "class": "matlab.graphics.chart.primitive.Scatter",
+        "size": [
+          1,
+          1
+        ],
+        "text": "<Unrecognized function or variable 'v'.>"
+      },
+      "display": "\ns2 = \n\n  <a href=\"matlab:helpPopup matlab.graphics.chart.primitive.Scatter\" style=\"font-weight:bold\">Scatter</a> (X \\geq 5%) with properties:\n\n             Marker: 'o'\n    MarkerEdgeColor: 'none'\n    MarkerFaceColor: 'flat'\n          LineWidth: 0.5000\n              XData: [0 0 0 0.0020 0.0020]\n              YData: [0 0.0050 0.0100 0.0050 0.0100]\n           SizeData: 20\n              CData: [0 1 0]\n\n  Show <a href=\"matlab:if exist('s2', 'var'), matlab.graphics.internal.getForDisplay('s2', s2, 'matlab.graphics.chart.primitive.Scatter'), else, matlab.graphics.internal.getForDisplay('s2'), end\">all properties</a>\n\n"
+    },
+    "xa": {
+      "class": "double",
+      "size": [
+        1,
+        9
+      ],
+      "value": {
+        "kind": "numeric",
+        "class": "double",
+        "sparse": false,
+        "size": [
+          1,
+          9
+        ],
+        "real": [
+          "4043faaa2a0a9585",
+          "4043faaa2a0a9585",
+          "4043faaa2a0a9585",
+          "4013fd9cae21101b",
+          "401423fd0d0678c0",
+          "401424c2f837b4a2",
+          "3fe9bd96638433d7",
+          "3fea784cad57bc7f",
+          "3fea7a9e2bcf91a3"
+        ]
+      },
+      "display": "\nxa =\n\n   39.9583   39.9583   39.9583    4.9977    5.0351    5.0359    0.8044    0.8272    0.8275\n\n"
+    },
+    "y0": {
+      "class": "double",
+      "size": [
+        1,
+        7
+      ],
+      "value": {
+        "kind": "numeric",
+        "class": "double",
+        "sparse": false,
+        "size": [
+          1,
+          7
+        ],
+        "real": [
+          "3fc8000000000000",
+          "0000000000000000",
+          "0000000000000000",
+          "0000000000000000",
+          "0000000000000000",
+          "4072526666666666",
+          "4072526666666666"
+        ]
+      },
+      "display": "\ny0 =\n\n    0.1875         0         0         0         0  293.1500  293.1500\n\n"
+    }
+  },
+  "figures": [
+    {
+      "type": "figure",
+      "Name": {
+        "kind": "char",
+        "size": [
+          1,
+          19
+        ],
+        "rows": [
+          "Konverzió 2D térkép"
+        ]
+      },
+      "NumberTitle": {
+        "kind": "char",
+        "size": [
+          1,
+          3
+        ],
+        "rows": [
+          "off"
+        ]
+      },
+      "Color": {
+        "kind": "numeric",
+        "class": "double",
+        "sparse": false,
+        "size": [
+          1,
+          3
+        ],
+        "real": [
+          "3fee147ae147ae14",
+          "3fee147ae147ae14",
+          "3fee147ae147ae14"
+        ]
+      },
+      "children": [
+        {
+          "type": "legend",
+          "String": {
+            "kind": "cell",
+            "size": [
+              1,
+              2
+            ],
+            "items": [
+              {
+                "kind": "char",
+                "size": [
+                  1,
+                  6
+                ],
+                "rows": [
+                  "X < 5%"
+                ]
+              },
+              {
+                "kind": "char",
+                "size": [
+                  1,
+                  9
+                ],
+                "rows": [
+                  "X \\geq 5%"
+                ]
+              }
+            ]
+          },
+          "Location": {
+            "kind": "char",
+            "size": [
+              1,
+              4
+            ],
+            "rows": [
+              "best"
+            ]
+          },
+          "Orientation": {
+            "kind": "char",
+            "size": [
+              1,
+              8
+            ],
+            "rows": [
+              "vertical"
+            ]
+          },
+          "Box": {
+            "kind": "char",
+            "size": [
+              1,
+              2
+            ],
+            "rows": [
+              "on"
+            ]
+          },
+          "Visible": {
+            "kind": "char",
+            "size": [
+              1,
+              2
+            ],
+            "rows": [
+              "on"
+            ]
+          },
+          "children": []
+        },
+        {
+          "type": "axes",
+          "XLim": {
+            "kind": "numeric",
+            "class": "double",
+            "sparse": false,
+            "size": [
+              1,
+              2
+            ],
+            "real": [
+              "0000000000000000",
+              "3f70624dd2f1a9fc"
+            ]
+          },
+          "YLim": {
+            "kind": "numeric",
+            "class": "double",
+            "sparse": false,
+            "size": [
+              1,
+              2
+            ],
+            "real": [
+              "0000000000000000",
+              "3f847ae147ae147b"
+            ]
+          },
+          "ZLim": {
+            "kind": "numeric",
+            "class": "double",
+            "sparse": false,
+            "size": [
+              1,
+              2
+            ],
+            "real": [
+              "bff0000000000000",
+              "3ff0000000000000"
+            ]
+          },
+          "XScale": {
+            "kind": "char",
+            "size": [
+              1,
+              6
+            ],
+            "rows": [
+              "linear"
+            ]
+          },
+          "YScale": {
+            "kind": "char",
+            "size": [
+              1,
+              6
+            ],
+            "rows": [
+              "linear"
+            ]
+          },
+          "XGrid": {
+            "kind": "char",
+            "size": [
+              1,
+              2
+            ],
+            "rows": [
+              "on"
+            ]
+          },
+          "YGrid": {
+            "kind": "char",
+            "size": [
+              1,
+              2
+            ],
+            "rows": [
+              "on"
+            ]
+          },
+          "ZGrid": {
+            "kind": "char",
+            "size": [
+              1,
+              2
+            ],
+            "rows": [
+              "on"
+            ]
+          },
+          "Box": {
+            "kind": "char",
+            "size": [
+              1,
+              3
+            ],
+            "rows": [
+              "off"
+            ]
+          },
+          "Visible": {
+            "kind": "char",
+            "size": [
+              1,
+              2
+            ],
+            "rows": [
+              "on"
+            ]
+          },
+          "Color": {
+            "kind": "numeric",
+            "class": "double",
+            "sparse": false,
+            "size": [
+              1,
+              3
+            ],
+            "real": [
+              "3ff0000000000000",
+              "3ff0000000000000",
+              "3ff0000000000000"
+            ]
+          },
+          "LineWidth": {
+            "kind": "numeric",
+            "class": "double",
+            "sparse": false,
+            "size": [
+              1,
+              1
+            ],
+            "real": [
+              "3fe0000000000000"
+            ]
+          },
+          "Title": {
+            "kind": "char",
+            "size": [
+              1,
+              32
+            ],
+            "rows": [
+              "Konverzió térkép, V = 0.1875 m^3"
+            ]
+          },
+          "XLabel": {
+            "kind": "char",
+            "size": [
+              1,
+              26
+            ],
+            "rows": [
+              "B betáplálás (F_B) [m^3/s]"
+            ]
+          },
+          "YLabel": {
+            "kind": "char",
+            "size": [
+              1,
+              24
+            ],
+            "rows": [
+              "Fűtés (F_{H,be}) [m^3/s]"
+            ]
+          },
+          "children": [
+            {
+              "type": "scatter",
+              "XData": {
+                "kind": "numeric",
+                "class": "double",
+                "sparse": false,
+                "size": [
+                  1,
+                  5
+                ],
+                "real": [
+                  "0000000000000000",
+                  "0000000000000000",
+                  "0000000000000000",
+                  "3f60624dd2f1a9fc",
+                  "3f60624dd2f1a9fc"
+                ]
+              },
+              "YData": {
+                "kind": "numeric",
+                "class": "double",
+                "sparse": false,
+                "size": [
+                  1,
+                  5
+                ],
+                "real": [
+                  "0000000000000000",
+                  "3f747ae147ae147b",
+                  "3f847ae147ae147b",
+                  "3f747ae147ae147b",
+                  "3f847ae147ae147b"
+                ]
+              },
+              "ZData": {
+                "kind": "numeric",
+                "class": "double",
+                "sparse": false,
+                "size": [
+                  1,
+                  0
+                ],
+                "real": []
+              },
+              "SizeData": {
+                "kind": "numeric",
+                "class": "double",
+                "sparse": false,
+                "size": [
+                  1,
+                  1
+                ],
+                "real": [
+                  "4034000000000000"
+                ]
+              },
+              "CData": {
+                "kind": "numeric",
+                "class": "double",
+                "sparse": false,
+                "size": [
+                  1,
+                  3
+                ],
+                "real": [
+                  "0000000000000000",
+                  "3ff0000000000000",
+                  "0000000000000000"
+                ]
+              },
+              "Marker": {
+                "kind": "char",
+                "size": [
+                  1,
+                  1
+                ],
+                "rows": [
+                  "o"
+                ]
+              },
+              "MarkerFaceColor": {
+                "kind": "char",
+                "size": [
+                  1,
+                  4
+                ],
+                "rows": [
+                  "flat"
+                ]
+              },
+              "MarkerEdgeColor": {
+                "kind": "char",
+                "size": [
+                  1,
+                  4
+                ],
+                "rows": [
+                  "none"
+                ]
+              },
+              "LineWidth": {
+                "kind": "numeric",
+                "class": "double",
+                "sparse": false,
+                "size": [
+                  1,
+                  1
+                ],
+                "real": [
+                  "3fe0000000000000"
+                ]
+              },
+              "Visible": {
+                "kind": "char",
+                "size": [
+                  1,
+                  2
+                ],
+                "rows": [
+                  "on"
+                ]
+              },
+              "children": []
+            },
+            {
+              "type": "scatter",
+              "XData": {
+                "kind": "numeric",
+                "class": "double",
+                "sparse": false,
+                "size": [
+                  1,
+                  4
+                ],
+                "real": [
+                  "3f60624dd2f1a9fc",
+                  "3f70624dd2f1a9fc",
+                  "3f70624dd2f1a9fc",
+                  "3f70624dd2f1a9fc"
+                ]
+              },
+              "YData": {
+                "kind": "numeric",
+                "class": "double",
+                "sparse": false,
+                "size": [
+                  1,
+                  4
+                ],
+                "real": [
+                  "0000000000000000",
+                  "0000000000000000",
+                  "3f747ae147ae147b",
+                  "3f847ae147ae147b"
+                ]
+              },
+              "ZData": {
+                "kind": "numeric",
+                "class": "double",
+                "sparse": false,
+                "size": [
+                  1,
+                  0
+                ],
+                "real": []
+              },
+              "SizeData": {
+                "kind": "numeric",
+                "class": "double",
+                "sparse": false,
+                "size": [
+                  1,
+                  1
+                ],
+                "real": [
+                  "4034000000000000"
+                ]
+              },
+              "CData": {
+                "kind": "numeric",
+                "class": "double",
+                "sparse": false,
+                "size": [
+                  1,
+                  3
+                ],
+                "real": [
+                  "3ff0000000000000",
+                  "0000000000000000",
+                  "0000000000000000"
+                ]
+              },
+              "Marker": {
+                "kind": "char",
+                "size": [
+                  1,
+                  1
+                ],
+                "rows": [
+                  "o"
+                ]
+              },
+              "MarkerFaceColor": {
+                "kind": "char",
+                "size": [
+                  1,
+                  4
+                ],
+                "rows": [
+                  "flat"
+                ]
+              },
+              "MarkerEdgeColor": {
+                "kind": "char",
+                "size": [
+                  1,
+                  4
+                ],
+                "rows": [
+                  "none"
+                ]
+              },
+              "LineWidth": {
+                "kind": "numeric",
+                "class": "double",
+                "sparse": false,
+                "size": [
+                  1,
+                  1
+                ],
+                "real": [
+                  "3fe0000000000000"
+                ]
+              },
+              "Visible": {
+                "kind": "char",
+                "size": [
+                  1,
+                  2
+                ],
+                "rows": [
+                  "on"
+                ]
+              },
+              "children": []
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "nfigures": 1
+}

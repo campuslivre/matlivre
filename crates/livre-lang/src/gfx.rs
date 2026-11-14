@@ -452,6 +452,12 @@ fn canonical(class: &str, name: &str) -> Option<String> {
 
 fn default_value(it: &mut Interpreter, class: &str, name: &str) -> Value {
     let lit = props_of(class).iter().find(|(n, _)| *n == name).map(|p| p.1).unwrap_or("[]");
+    // The table holds the Live Editor's defaults; `matlab -batch` starts figures visible and
+    // axes with a box.
+    let lit = match (class.rsplit('.').next().unwrap_or(""), name) {
+        ("Figure", "Visible") | ("Axes", "Box") if it.command_window => "'on'",
+        _ => lit,
+    };
     if lit.starts_with('<') {
         return Value::empty();
     }
@@ -539,6 +545,11 @@ fn to_u8(c: [f64; 3]) -> [u8; 3] {
 }
 
 fn on_off(v: &Value) -> R<bool> {
+    if let Value::Object(o) = v {
+        if let Some(t) = crate::class::on_off_text(o) {
+            return Ok(t == "on");
+        }
+    }
     if v.is_text() || matches!(v, Value::Str(_)) {
         return match v.text()?.to_lowercase().as_str() {
             "on" => Ok(true),
@@ -677,8 +688,33 @@ pub fn format_tick(format: Option<&str>, v: f64) -> String {
     }
 }
 
+/// The graphics properties MATLAB holds as `matlab.lang.OnOffSwitchState` (the others that show
+/// `on`/`off`, such as `HandleVisibility`, are text).
+const ON_OFF_PROPS: &[&str] = &[
+    "AffectAutoLimits", "AlignVertexCenters", "AutoUpdate", "BeingDeleted", "Box", "Clipping", "DockControls", "Editing",
+    "FitBoxToText", "FontSmoothing", "GraphicsSmoothing", "HitTest", "Horizontal", "IntegerHandle", "Interruptible",
+    "InvertHardcopy", "NumberTitle", "Resize", "Scrollable", "Selected", "SelectionHighlight", "ShowBaseLine", "Visible",
+    "XGrid", "XMinorGrid", "XMinorTick", "YGrid", "YMinorGrid", "YMinorTick", "ZGrid", "ZMinorGrid", "ZMinorTick",
+];
+
 /// Property `name` (MATLAB's spelling) of handle `id`.
 pub(crate) fn get_prop(it: &mut Interpreter, id: u64, name: &str) -> R<Value> {
+    let v = get_prop_raw(it, id, name)?;
+    if ON_OFF_PROPS.contains(&name) {
+        if let Value::Num(m) = &v {
+            if m.kind == crate::value::Kind::Char {
+                match m.to_string_lossy().as_str() {
+                    "on" => return Ok(crate::class::on_off_switch(true)),
+                    "off" => return Ok(crate::class::on_off_switch(false)),
+                    _ => {}
+                }
+            }
+        }
+    }
+    Ok(v)
+}
+
+fn get_prop_raw(it: &mut Interpreter, id: u64, name: &str) -> R<Value> {
     let t = resolve(it, id).ok_or_else(|| LangError::new("Invalid or deleted object.", 0))?;
     let class = class_of(it, t);
     // Charts keep their own properties; their drawn parts are rebuilt from them.
@@ -731,10 +767,14 @@ fn computed(it: &mut Interpreter, id: u64, t: Target, name: &str) -> R<Option<Va
             "Number" => Value::num(it.figures[f].id as f64),
             "Colormap" => colormap_value(it.figures[f].colormap.clone().unwrap_or_else(|| graphics::colormap("parula", 256).unwrap_or_default())),
             "Children" => {
-                let n = it.figures[f].axes.len();
-                let ids: Vec<u64> = (0..n).rev().map(|a| axes_id(it, f, a)).collect();
+                let n = if it.figures[f].has_axes() { it.figures[f].axes.len() } else { 0 };
+                // A legend is a child of the figure, listed before its axes.
+                let with_legend: Vec<usize> = (0..n).rev().filter(|&a| it.figures[f].axes[a].legend.is_some()).collect();
+                let mut ids: Vec<u64> = with_legend.into_iter().map(|a| axes_id(it, f, a) + Part::Legend as u64).collect();
+                ids.extend((0..n).rev().map(|a| axes_id(it, f, a)));
                 handles(it, &ids)
             }
+            "CurrentAxes" if !it.figures[f].has_axes() => handles(it, &[]),
             "CurrentAxes" => {
                 let a = it.figures[f].current_axes;
                 let id = axes_id(it, f, a);
@@ -805,7 +845,8 @@ fn computed(it: &mut Interpreter, id: u64, t: Target, name: &str) -> R<Option<Va
                 "XScale" => Value::chars(if ax.xlog { "log" } else { "linear" }),
                 "YScale" => Value::chars(if ax.ylog { "log" } else { "linear" }),
                 "YDir" => Value::chars(if ax.y_reverse { "reverse" } else { "normal" }),
-                "XGrid" | "YGrid" => on_off_value(ax.grid),
+                "XGrid" | "YGrid" | "ZGrid" => on_off_value(ax.grid),
+                "Box" => on_off_value(ax.box_on),
                 "XTick" => row(&tick_values(&ax.xticks, x0, x1)),
                 "YTick" => row(&tick_values(&ax.yticks, y0, y1)),
                 "XTickLabel" => label_value(&ax.xticks, &tick_labels(&ax.xticks, &tick_values(&ax.xticks, x0, x1))),
@@ -913,6 +954,7 @@ fn computed(it: &mut Interpreter, id: u64, t: Target, name: &str) -> R<Option<Va
                 "LineWidth" => Value::num(s.line_width as f64),
                 "Marker" => Value::chars(marker_name(s.marker)),
                 "MarkerSize" => Value::num(s.marker_size as f64),
+                "SizeData" if s.size_data.is_some() => Value::num(s.size_data.unwrap_or(36.0)),
                 "DisplayName" => Value::chars(s.name.as_deref().unwrap_or("")),
                 "Visible" => on_off_value(s.visible),
                 "String" if s.kind == SeriesKind::Text => Value::chars(&s.label),
@@ -1147,6 +1189,7 @@ pub(crate) fn set_prop(it: &mut Interpreter, id: u64, name: &str, v: Value) -> R
                 "YScale" => ax.ylog = v.text()?.eq_ignore_ascii_case("log"),
                 "YDir" => ax.y_reverse = v.text()?.eq_ignore_ascii_case("reverse"),
                 "XGrid" | "YGrid" | "ZGrid" => ax.grid = on_off(&v)?,
+                "Box" => ax.box_on = on_off(&v)?,
                 "XTick" => ax.xticks.values = Some(v.to_matrix()?.data),
                 "YTick" => ax.yticks.values = Some(v.to_matrix()?.data),
                 "XTickMode" if auto => ax.xticks.values = None,
@@ -1278,7 +1321,10 @@ pub(crate) fn set_prop(it: &mut Interpreter, id: u64, name: &str, v: Value) -> R
                 "LineWidth" => s.line_width = v.scalar()? as f32,
                 "Marker" => s.marker = parse_marker(&v.text()?),
                 "MarkerSize" => s.marker_size = v.scalar()? as f32,
-                "SizeData" => s.marker_size = (v.scalar()?.sqrt() as f32).max(2.0),
+                "SizeData" => {
+                    s.marker_size = (v.scalar()?.sqrt() as f32).max(2.0);
+                    s.size_data = Some(v.scalar()?);
+                }
                 "DisplayName" => s.name = Some(v.text()?),
                 "Visible" => s.visible = on_off(&v)?,
                 "String" | "Label" => s.label = texts(&v)?.join("\n"),
@@ -1549,6 +1595,7 @@ fn object_title(it: &mut Interpreter, id: u64, t: Target) -> String {
     let class = class_of(it, t);
     match t {
         Target::Root => "Graphics Root".to_string(),
+        Target::Part(f, a, Part::Legend) => format!("Legend ({})", it.figures[f].axes[a].legend.clone().unwrap_or_default().join(", ")),
         Target::Figure(f) => {
             let n = it.figures[f].id;
             match stored(it, id, "Name").map(|v| v.text().unwrap_or_default()).filter(|s| !s.is_empty()) {
@@ -1563,7 +1610,13 @@ fn object_title(it: &mut Interpreter, id: u64, t: Target) -> String {
         }
         // MATLAB names the object by its Tag, else its DisplayName: `Line (data1)`.
         _ => {
-            let label = ["Tag", "DisplayName"].iter().find_map(|p| get_prop(it, id, p).ok().and_then(|v| v.text().ok()).filter(|s| !s.is_empty()));
+            // The command window names an axes by its title: `Axes (Squares)`.
+            let titled = if it.command_window && class.ends_with(".Axes") {
+                get_prop(it, id + Part::Title as u64, "String").ok().and_then(|v| v.text().ok()).filter(|s| !s.is_empty())
+            } else {
+                None
+            };
+            let label = titled.or_else(|| ["Tag", "DisplayName"].iter().find_map(|p| get_prop(it, id, p).ok().and_then(|v| v.text().ok()).filter(|s| !s.is_empty())));
             match label {
                 Some(l) => format!("{} ({l})", short(class)),
                 None => short(class).to_string(),
@@ -1624,6 +1677,10 @@ pub fn display(it: &mut Interpreter, name: &str, v: &Value) -> R<String> {
         s.set(p, v);
     }
     let body = crate::display::struct_fields_body(&s, it.format);
+    if it.command_window {
+        // The command window: blank line first, `Show all properties` last (a link there).
+        return Ok(format!("\n{name} = \n\n  {title} with properties:\n\n{body}\n  Show all properties\n"));
+    }
     Ok(format!("{name} = \n  {title} with properties:\n\n{body}\n  Use GET to show all properties"))
 }
 

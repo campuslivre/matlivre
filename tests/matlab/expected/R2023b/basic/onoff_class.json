@@ -1,0 +1,129 @@
+{
+  "header": {
+    "release": "2023b",
+    "version": "23.2.0.2409890 (R2023b) Update 3",
+    "computer": "PCWIN64",
+    "recorded": "2026-11-08"
+  },
+  "log": "",
+  "error": {
+    "identifier": "",
+    "message": ""
+  },
+  "lastwarn": {
+    "message": "",
+    "identifier": ""
+  },
+  "variables": {
+    "c": {
+      "class": "char",
+      "size": [
+        1,
+        28
+      ],
+      "value": {
+        "kind": "char",
+        "size": [
+          1,
+          28
+        ],
+        "rows": [
+          "matlab.lang.OnOffSwitchState"
+        ]
+      },
+      "display": "\nc =\n\n    'matlab.lang.OnOffSwitchState'\n\n"
+    },
+    "f": {
+      "class": "matlab.ui.Figure",
+      "size": [
+        1,
+        1
+      ],
+      "value": {
+        "kind": "object",
+        "class": "matlab.ui.Figure",
+        "size": [
+          1,
+          1
+        ],
+        "text": "<Unrecognized function or variable 'v'.>"
+      },
+      "display": "\nf = \n\n  <a href=\"matlab:helpPopup matlab.ui.Figure\" style=\"font-weight:bold\">Figure</a> (1) with properties:\n\n      Number: 1\n        Name: ''\n       Color: [0.9400 0.9400 0.9400]\n       Units: 'pixels'\n\n  Show <a href=\"matlab:if exist('f', 'var'), matlab.graphics.internal.getForDisplay('f', f, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('f'), end\">all properties</a>\n\n"
+    },
+    "isc": {
+      "class": "logical",
+      "size": [
+        1,
+        1
+      ],
+      "value": {
+        "kind": "logical",
+        "size": [
+          1,
+          1
+        ],
+        "data": 0
+      },
+      "display": "\nisc =\n\n  <a href=\"matlab:helpPopup logical\" style=\"font-weight:bold\">logical</a>\n\n   0\n\n"
+    },
+    "v": {
+      "class": "matlab.lang.OnOffSwitchState",
+      "size": [
+        1,
+        1
+      ],
+      "value": {
+        "kind": "char",
+        "size": [
+          1,
+          2
+        ],
+        "rows": [
+          "on"
+        ]
+      },
+      "display": "\nv = \n\n  <a href=\"matlab:helpPopup matlab.lang.OnOffSwitchState\" style=\"font-weight:bold\">OnOffSwitchState</a> enumeration\n\n    on\n\n"
+    }
+  },
+  "figures": [
+    {
+      "type": "figure",
+      "Name": {
+        "kind": "char",
+        "size": [
+          0,
+          0
+        ],
+        "rows": [
+          ""
+        ]
+      },
+      "NumberTitle": {
+        "kind": "char",
+        "size": [
+          1,
+          2
+        ],
+        "rows": [
+          "on"
+        ]
+      },
+      "Color": {
+        "kind": "numeric",
+        "class": "double",
+        "sparse": false,
+        "size": [
+          1,
+          3
+        ],
+        "real": [
+          "3fee147ae147ae14",
+          "3fee147ae147ae14",
+          "3fee147ae147ae14"
+        ]
+      },
+      "children": []
+    }
+  ],
+  "nfigures": 1
+}

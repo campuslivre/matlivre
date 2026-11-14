@@ -76,6 +76,8 @@ pub struct Token {
     pub line: usize,
     /// Whitespace immediately preceded this token.
     pub space_before: bool,
+    /// The source text of a number (`2e-3`, `3i`), which `func2str` shows as typed.
+    pub text: Option<String>,
 }
 
 const OPS: [&str; 30] = [
@@ -86,7 +88,7 @@ const OPS: [&str; 30] = [
 pub fn tokenize(src: &str) -> Result<Vec<Token>, LangError> {
     // A UTF-8 byte order mark (files saved by Notepad or PowerShell) is not code.
     let src = src.strip_prefix('\u{feff}').unwrap_or(src);
-    Lexer { s: src.as_bytes(), src, i: 0, line: 1, out: Vec::new(), brackets: Vec::new(), after_params: false, in_args: false }.run()
+    Lexer { s: src.as_bytes(), src, i: 0, line: 1, out: Vec::new(), brackets: Vec::new(), after_params: false, in_args: false, num_text: None }.run()
 }
 
 struct Lexer<'a> {
@@ -102,6 +104,8 @@ struct Lexer<'a> {
     after_params: bool,
     /// Inside a function's `arguments` block, where `x double` is a declaration, not a command.
     in_args: bool,
+    /// Source text of the number about to be pushed.
+    num_text: Option<String>,
 }
 
 impl<'a> Lexer<'a> {
@@ -111,7 +115,8 @@ impl<'a> Lexer<'a> {
 
     fn push(&mut self, tok: Tok, space_before: bool) {
         self.after_params = false;
-        self.out.push(Token { tok, line: self.line, space_before });
+        let text = self.num_text.take();
+        self.out.push(Token { tok, line: self.line, space_before, text });
     }
 
     fn in_matrix(&self) -> bool {
@@ -199,12 +204,15 @@ impl<'a> Lexer<'a> {
             }
 
             if c.is_ascii_digit() || (c == b'.' && self.peek(1).is_ascii_digit()) {
+                let start = self.i;
                 let n = self.number()?;
                 // `3i` / `2.5j` are imaginary literals.
                 if matches!(self.peek(0), b'i' | b'j') && !(self.peek(1).is_ascii_alphanumeric() || self.peek(1) == b'_') {
                     self.i += 1;
+                    self.num_text = Some(self.src[start..self.i].to_string());
                     self.push(Tok::Imag(n), space);
                 } else {
+                    self.num_text = Some(self.src[start..self.i].to_string());
                     self.push(Tok::Num(n), space);
                 }
                 continue;

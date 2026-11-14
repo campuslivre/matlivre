@@ -1,0 +1,111 @@
+{
+  "header": {
+    "release": "2023b",
+    "version": "23.2.0.2409890 (R2023b) Update 3",
+    "computer": "PCWIN64",
+    "recorded": "2026-11-08"
+  },
+  "log": "",
+  "error": {
+    "identifier": "",
+    "message": ""
+  },
+  "lastwarn": {
+    "message": "",
+    "identifier": ""
+  },
+  "variables": {
+    "f": {
+      "class": "function_handle",
+      "size": [
+        1,
+        1
+      ],
+      "value": {
+        "kind": "function_handle",
+        "text": "@(t)t.^2+1"
+      },
+      "display": "\nf =\n\n  <a href=\"matlab:helpPopup function_handle\" style=\"font-weight:bold\">function_handle</a> with value:\n\n    @(t)t.^2+1\n\n"
+    },
+    "g": {
+      "class": "function_handle",
+      "size": [
+        1,
+        1
+      ],
+      "value": {
+        "kind": "function_handle",
+        "text": "@(a,b)a*b-sin(a)"
+      },
+      "display": "\ng =\n\n  <a href=\"matlab:helpPopup function_handle\" style=\"font-weight:bold\">function_handle</a> with value:\n\n    @(a,b)a*b-sin(a)\n\n"
+    },
+    "h": {
+      "class": "function_handle",
+      "size": [
+        1,
+        1
+      ],
+      "value": {
+        "kind": "function_handle",
+        "text": "sin"
+      },
+      "display": "\nh =\n\n  <a href=\"matlab:helpPopup function_handle\" style=\"font-weight:bold\">function_handle</a> with value:\n\n    @sin\n\n"
+    },
+    "s1": {
+      "class": "char",
+      "size": [
+        1,
+        10
+      ],
+      "value": {
+        "kind": "char",
+        "size": [
+          1,
+          10
+        ],
+        "rows": [
+          "@(t)t.^2+1"
+        ]
+      },
+      "display": "\ns1 =\n\n    '@(t)t.^2+1'\n\n"
+    },
+    "s2": {
+      "class": "char",
+      "size": [
+        1,
+        16
+      ],
+      "value": {
+        "kind": "char",
+        "size": [
+          1,
+          16
+        ],
+        "rows": [
+          "@(a,b)a*b-sin(a)"
+        ]
+      },
+      "display": "\ns2 =\n\n    '@(a,b)a*b-sin(a)'\n\n"
+    },
+    "s3": {
+      "class": "char",
+      "size": [
+        1,
+        3
+      ],
+      "value": {
+        "kind": "char",
+        "size": [
+          1,
+          3
+        ],
+        "rows": [
+          "sin"
+        ]
+      },
+      "display": "\ns3 =\n\n    'sin'\n\n"
+    }
+  },
+  "figures": [],
+  "nfigures": 0
+}

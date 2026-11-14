@@ -580,6 +580,64 @@ pub fn display_value(name: &str, v: &Value, f: NumFormat) -> String {
     }
 }
 
+/// The command window's layout of `name = v` (what `matlab -batch` prints and `diary` records):
+/// a blank line, `name =`, a blank line, the body, and a blank line (the caller adds the last
+/// newline). The bodies are the ones `disp` shows. `None` for the types not covered yet, which
+/// then show in the Live Editor style.
+pub fn display_value_cw(name: &str, v: &Value, f: NumFormat) -> Option<String> {
+    let ascii = |dims: &[usize]| nd::size_text(dims).replace('\u{d7}', "x");
+    let block = |head: &str, body: String| format!("\n{name} ={head}\n\n{}\n", body.trim_end_matches('\n'));
+    match v {
+        Value::Num(m) if !m.sparse => {
+            if m.kind == Kind::Char {
+                if m.is_2d() && m.rows() == 1 && m.cols() > 0 && !m.to_string_lossy().contains('\n') {
+                    return Some(block("", format!("    '{}'", m.to_string_lossy())));
+                }
+                return None;
+            }
+            if m.is_empty() {
+                return (m.dims == [0, 0] && m.kind == Kind::Double).then(|| block("", "     []".to_string()));
+            }
+            if !m.is_2d() {
+                return None;
+            }
+            if m.is_scalar() {
+                let body = disp_value(v, f);
+                return Some(match m.kind {
+                    Kind::Double => block("", body),
+                    k => block("", format!("  {}\n\n{body}", if m.is_complex() { format!("{} complex", k.name()) } else { k.name().into() })),
+                });
+            }
+            let body = matrix_body(m, f, name);
+            Some(match m.kind {
+                Kind::Double => block("", body),
+                Kind::Logical | Kind::Char => block("", format!("  {} {} array\n\n{}", ascii(&m.dims), m.kind.name(), body.trim_end_matches('\n'))),
+                k => block("", format!("  {} {}{} {}\n\n{}", ascii(&m.dims), if m.is_complex() { "complex " } else { "" }, k.name(), shape_word(&m.dims), body.trim_end_matches('\n'))),
+            })
+        }
+        Value::Str(s) if s.dims.len() == 2 && !s.data.is_empty() => {
+            if s.data.len() == 1 {
+                return Some(block("", format!("    {}", summary(v, f))));
+            }
+            Some(block("", format!("  {} string array\n\n{}", ascii(&s.dims), str_body(s).trim_end_matches('\n'))))
+        }
+        Value::Cell(c) if c.dims.len() == 2 && !c.data.is_empty() => {
+            Some(block("", format!("  {} cell array\n\n{}", ascii(&c.dims), cell_body(c, f).trim_end_matches('\n'))))
+        }
+        Value::Struct(s) if s.dims.len() == 2 && !s.fields.is_empty() => {
+            if s.elems.len() == 1 {
+                return Some(block(" ", format!("  struct with fields:\n\n{}", struct_fields_body(s, f).trim_end_matches('\n'))));
+            }
+            if s.elems.is_empty() {
+                return None;
+            }
+            Some(block(" ", format!("  {} struct array with fields:\n\n{}", ascii(&s.dims), struct_names_body(s).trim_end_matches('\n'))))
+        }
+        Value::Func(fv) => Some(block("", format!("  function_handle with value:\n\n    {}", func_text(fv)))),
+        _ => None,
+    }
+}
+
 /// Text produced by `disp(v)`.
 pub fn disp_value(v: &Value, f: NumFormat) -> String {
     match v {

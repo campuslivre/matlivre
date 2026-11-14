@@ -169,6 +169,34 @@ impl PartialEq for Object {
     }
 }
 
+/// Class of the values graphics properties such as `Visible` and `Box` hold.
+pub const ON_OFF_CLASS: &str = "matlab.lang.OnOffSwitchState";
+
+thread_local! {
+    static ON_OFF: Rc<ClassDef> = Rc::new(ClassDef {
+        name: ON_OFF_CLASS.to_string(),
+        supers: Vec::new(),
+        ancestors: Vec::new(),
+        is_handle: false,
+        props: vec![PropDef { name: ENUM_PROP.into(), default: None, constant: false, dependent: false, hidden: true }],
+        methods: HashMap::new(),
+        statics: HashSet::new(),
+        ctor: None,
+        events: Vec::new(),
+        enums: vec![("on".to_string(), None), ("off".to_string(), None)],
+    });
+}
+
+/// `matlab.lang.OnOffSwitchState.on` or `.off`.
+pub fn on_off_switch(on: bool) -> Value {
+    ON_OFF.with(|c| Value::Object(Object { class: c.clone(), props: Rc::new(RefCell::new(vec![Value::chars(if on { "on" } else { "off" })])) }))
+}
+
+/// The text of an `OnOffSwitchState` value (`on` / `off`).
+pub fn on_off_text(o: &Object) -> Option<String> {
+    if o.class.name == ON_OFF_CLASS { enum_name(o) } else { None }
+}
+
 /// The member name of an enumeration value.
 pub fn enum_name(o: &Object) -> Option<String> {
     if o.class.enums.is_empty() {

@@ -99,6 +99,9 @@ pub struct Interpreter {
     /// Class whose method is executing (for `obj@Super` and `method@Super`).
     class_stack: Vec<Rc<ClassDef>>,
     pub format: NumFormat,
+    /// Show statement results the way MATLAB's command window does (`x =`, blank line, value)
+    /// instead of the Live Editor style (`x = 5`). Used to compare with `matlab -batch`.
+    pub command_window: bool,
     pub(crate) figures: Vec<Figure>,
     pub(crate) current_figure: Option<usize>,
     pub(crate) next_figure_id: u32,
@@ -172,6 +175,7 @@ impl Interpreter {
             not_on_path: HashSet::new(),
             class_stack: Vec::new(),
             format: NumFormat::Short,
+            command_window: false,
             figures: Vec::new(),
             current_figure: None,
             next_figure_id: 1,
@@ -918,10 +922,20 @@ impl Interpreter {
             }
             if let Some(m) = crate::class::enum_name(o) {
                 let short = o.class.name.rsplit('.').next().unwrap_or(&o.class.name);
-                let text = format!("{name} = 
+                let text = if self.command_window {
+                    format!("
+{name} =
+
   {short} enumeration
 
-    {m}");
+    {m}
+")
+                } else {
+                    format!("{name} = 
+  {short} enumeration
+
+    {m}")
+                };
                 self.emit(OutputKind::Value { name: name.to_string(), text });
                 return Ok(());
             }
@@ -930,7 +944,8 @@ impl Interpreter {
             self.emit(OutputKind::Value { name: name.to_string(), text });
             return Ok(());
         }
-        let text = display_value(name, v, self.format);
+        let text = if self.command_window { crate::display::display_value_cw(name, v, self.format) } else { None };
+        let text = text.unwrap_or_else(|| display_value(name, v, self.format));
         self.emit(OutputKind::Value { name: name.to_string(), text });
         Ok(())
     }
@@ -1540,6 +1555,7 @@ impl Interpreter {
             },
             Expr::Colon => Ok(Value::chars(":")),
             Expr::Tilde => rt("'~' is only valid on the left side of an assignment."),
+            Expr::Paren(e) | Expr::Lit(e, _) => self.eval(e),
             Expr::Matrix(rows) => self.eval_matrix(rows),
             Expr::Cell(rows) => self.eval_cell(rows),
             Expr::AnonFn(f) => {

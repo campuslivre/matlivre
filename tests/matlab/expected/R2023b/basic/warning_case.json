@@ -1,0 +1,61 @@
+{
+  "header": {
+    "release": "2023b",
+    "version": "23.2.0.2409890 (R2023b) Update 3",
+    "computer": "PCWIN64",
+    "recorded": "2026-11-08"
+  },
+  "log": "\nx =\n\n   Inf\n\n[\bWarning: Careful 7]\b \n[\b> In difftest_run (line 15)\nIn dt_driver (line 8)\nIn run (line 99)]\b \n\ny =\n\n     2\n\n",
+  "error": {
+    "identifier": "",
+    "message": ""
+  },
+  "lastwarn": {
+    "message": "Careful 7",
+    "identifier": "my:id"
+  },
+  "variables": {
+    "x": {
+      "class": "double",
+      "size": [
+        1,
+        1
+      ],
+      "value": {
+        "kind": "numeric",
+        "class": "double",
+        "sparse": false,
+        "size": [
+          1,
+          1
+        ],
+        "real": [
+          "7ff0000000000000"
+        ]
+      },
+      "display": "\nx =\n\n   Inf\n\n"
+    },
+    "y": {
+      "class": "double",
+      "size": [
+        1,
+        1
+      ],
+      "value": {
+        "kind": "numeric",
+        "class": "double",
+        "sparse": false,
+        "size": [
+          1,
+          1
+        ],
+        "real": [
+          "4000000000000000"
+        ]
+      },
+      "display": "\ny =\n\n     2\n\n"
+    }
+  },
+  "figures": [],
+  "nfigures": 0
+}

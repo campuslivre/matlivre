@@ -83,6 +83,8 @@ pub struct Series {
     pub marker: Option<Marker>,
     pub line_width: f32,
     pub marker_size: f32,
+    /// `SizeData` of a scatter as given (marker area, points squared); `marker_size` is its root.
+    pub size_data: Option<f64>,
     pub name: Option<String>,
     /// Bar width in x units (histograms); `None` = 0.8 of the spacing.
     pub bar_width: Option<f64>,
@@ -146,6 +148,7 @@ impl Series {
             },
             line_width: 0.5,
             marker_size: 6.0,
+            size_data: None,
             name: None,
             bar_width: None,
             id: 0,
@@ -197,6 +200,9 @@ pub struct Axes {
     pub grid: bool,
     pub hold: bool,
     pub legend: Option<Vec<String>>,
+    /// `Box`. In command-window mode a plotting command that creates the axes turns it on (the
+    /// Live Editor's axes start with it off, as do axes made by `hold`, `gca` or `axes`).
+    pub box_on: bool,
     pub series: Vec<Series>,
     pub xlim: Option<(f64, f64)>,
     pub ylim: Option<(f64, f64)>,
@@ -722,15 +728,24 @@ pub struct Figure {
     pub next_tile: usize,
     /// `colororder` of the figure: used by axes without their own.
     pub color_order: Option<Vec<[f64; 3]>>,
+    /// False for a new figure: MATLAB makes the first axes only when something needs them
+    /// (`plot`, `gca`, `axes`, `subplot`), so `Children` is empty until then.
+    pub axes_made: bool,
 }
 
 impl Figure {
     pub fn new(id: u32) -> Self {
-        Self { id, name: String::new(), grid: (1, 1), axes: vec![Axes::default()], current_axes: 0, colormap: None, flow: false, objects: Vec::new(), next_tile: 0, color_order: None }
+        Self { id, name: String::new(), grid: (1, 1), axes: vec![Axes::default()], current_axes: 0, colormap: None, flow: false, objects: Vec::new(), next_tile: 0, color_order: None, axes_made: false }
     }
 
     pub fn axes_mut(&mut self) -> &mut Axes {
+        self.axes_made = true;
         &mut self.axes[self.current_axes]
+    }
+
+    /// Whether the figure has axes yet (a grid of several always does).
+    pub fn has_axes(&self) -> bool {
+        self.axes_made || self.axes.len() != 1
     }
 }
 

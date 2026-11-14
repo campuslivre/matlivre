@@ -9,6 +9,7 @@ mod data_files;
 mod datafun;
 mod datatips;
 mod dates;
+mod difftest;
 mod dates_types;
 mod elfun;
 mod elmat;

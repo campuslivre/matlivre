@@ -40,7 +40,11 @@ impl Interpreter {
         for (s, &id) in series.iter_mut().zip(&ids) {
             s.id = id;
         }
+        let fresh = self.command_window && !self.current_figure().has_axes();
         let ax = self.current_figure().axes_mut();
+        if fresh {
+            ax.box_on = true;
+        }
         let mut removed = Vec::new();
         let mut side_colors = Vec::new();
         let mut reset = 0;
@@ -59,9 +63,9 @@ impl Interpreter {
                 }
             }
         } else if !ax.hold {
-            let (grid, id) = (ax.grid, ax.id);
+            let (grid, id, box_on) = (ax.grid, ax.id, ax.box_on);
             removed = ax.series.iter().map(|s| s.id).collect();
-            *ax = Axes { grid, id, overlay_of: ax.overlay_of, ..Axes::default() };
+            *ax = Axes { grid, id, box_on, overlay_of: ax.overlay_of, ..Axes::default() };
             reset = id;
         }
         if ax.series.is_empty() {
@@ -94,6 +98,7 @@ impl Interpreter {
     /// The handle of the current axes.
     pub(crate) fn current_axes_handle(&mut self) -> Value {
         let f = self.current_figure_index();
+        self.figures[f].axes_made = true;
         let a = self.figures[f].current_axes;
         let id = crate::gfx::axes_id(self, f, a);
         crate::gfx::handle(self, id)
@@ -338,7 +343,14 @@ pub fn call(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize) ->
             one(crate::gfx::handle(it, id as u64))
         }
         "gca" => one(it.current_axes_handle()),
-        "box" => none(),
+        "box" => {
+            let ax = it.current_figure().axes_mut();
+            ax.box_on = match a.first() {
+                Some(v) => v.text()? == "on",
+                None => !ax.box_on,
+            };
+            none()
+        }
         "close" => {
             let all = a.iter().any(|v| v.text().map(|s| s == "all").unwrap_or(false));
             if all {
@@ -455,7 +467,8 @@ pub fn call(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize) ->
         "legend" => {
             let mut names: Vec<String> = Vec::new();
             let mut show = true;
-            for v in a {
+            let mut options: Vec<(String, Value)> = Vec::new();
+            for (k, v) in a.iter().enumerate() {
                 match v {
                     Value::Cell(_) | Value::Str(_) if !v.is_text() => names.extend(text_of(v)?.split('\n').map(String::from)),
                     other => {
@@ -463,7 +476,14 @@ pub fn call(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize) ->
                         match t.as_str() {
                             "off" => show = false,
                             "show" | "boxoff" | "boxon" => {}
-                            "Location" | "location" | "Orientation" | "NumColumns" => break,
+                            // The rest are name-value pairs for the legend.
+                            "Location" | "location" | "Orientation" | "NumColumns" => {
+                                let mut pairs = a[k..].chunks(2);
+                                while let Some([n, val]) = pairs.next() {
+                                    options.push((n.text()?, val.clone()));
+                                }
+                                break;
+                            }
                             _ => names.push(t),
                         }
                     }
@@ -487,12 +507,26 @@ pub fn call(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize) ->
                         .collect(),
                 );
             } else {
+                // The labels become the DisplayName of the plotted objects, in order.
+                let shown = ax.series.iter_mut().filter(|s| !matches!(s.kind, SeriesKind::Text | SeriesKind::ConstantLine | SeriesKind::Region) && s.visible);
+                for (s, n) in shown.zip(&names) {
+                    s.name = Some(n.clone());
+                }
                 ax.legend = Some(names);
             }
             if !show {
                 return none();
             }
             let legend = crate::gfx::ids_of(&it.current_axes_handle()).unwrap()[0] + crate::gfx::Part::Legend as u64;
+            for (n, v) in options {
+                let name = match n.to_lowercase().as_str() {
+                    "location" => "Location".to_string(),
+                    "orientation" => "Orientation".to_string(),
+                    "numcolumns" => "NumColumns".to_string(),
+                    _ => n,
+                };
+                crate::gfx::store(it, legend, &name, v);
+            }
             handles_out(it, &[legend], nargout)
         }
         "axis" | "xlim" | "ylim" => {
@@ -692,6 +726,7 @@ pub fn call(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize) ->
             if let Some(sz) = size {
                 for s in series.iter_mut() {
                     s.marker_size = (sz.sqrt() as f32).max(2.0);
+                    s.size_data = Some(sz);
                 }
             }
             let ends: Vec<(Vec<f64>, Vec<f64>)> = series
