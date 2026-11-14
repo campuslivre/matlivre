@@ -3,14 +3,14 @@
 Every function in the MATLAB R2023b and Symbolic Math Toolbox function references (the
 installation's `help/*/helpfuncbycat.xml`), plus key classes and undocumented public functions
 found in the toolbox folders, checked against MatLivre. Regenerate with
-`tools/coverage/update.sh` after merging work (2026-11-08).
+`tools/coverage/update.sh` after merging work (2026-11-12).
 
 | Status | Count |
 |---|---:|
-| Implemented | 1882 |
+| Implemented | 1889 |
 | In a branch not merged yet | 0 |
 | Language keyword (check it works) | 25 |
-| **To implement** | **132** |
+| **To implement** | **125** |
 | Out of scope | 1340 |
 
 Out of scope, by category of the function reference: app building, external language
@@ -316,7 +316,7 @@ Implemented: `&amp;`, `&gt;`, `&gt;=`, `&lt;`, `&lt;=`, `'`, `*`, `+`, `-`, `.'`
 
 Implemented: 84. To implement: 0. In a branch: 0. Out of scope: 0.
 
-Implemented: `addboundary`, `alphaShape`, `alphaSpectrum`, `alphaTriangulation`, `area`, `barycentricToCartesian`, `baryToCart`, `boundary`, `boundaryFacets`, `boundaryshape`, `boundingbox`, `cartesianToBarycentric`, `cartToBary`, `centroid`, `circumcenter`, `circumcenters`, `convexHull`, `convhull`, `convhulln`, `criticalAlpha`, `delaunay`, `delaunayn`, `DelaunayTri`, `delaunayTriangulation`, `dsearchn`, `edgeAttachments`, `edges`, `faceNormal`, `faceNormals`, `featureEdges`, `freeBoundary`, `holes`, `incenter`, `incenters`, `inOutStatus`, `inpolygon`, `inShape`, `isConnected`, `isEdge`, `ishole`, `isInterior`, `isinterior`, `issimplified`, `nearestNeighbor`, `nearestvertex`, `nsidedpoly`, `numboundaries`, `numRegions`, `numsides`, `overlaps`, `patch`, `perimeter`, `pointLocation`, `polyarea`, `polybuffer`, `polyshape`, `rectint`, `regions`, `rmboundary`, `rmholes`, `rmslivers`, `rotate`, `scale`, `sortboundaries`, `sortregions`, `stlread`, `stlwrite`, `subtract`, `surfaceArea`, `tetramesh`, `translate`, `triangulation`, `trimesh`, `triplot`, `TriRep`, `trisurf`, `tsearchn`, `turningdist`, `vertexAttachments`, `vertexNormal`, `volume`, `voronoi`, `voronoiDiagram`, `voronoin`
+Implemented: `addboundary`, `alphaShape`, `alphaSpectrum`, `alphaTriangulation`, `area`, `barycentricToCartesian`, `baryToCart`, `boundary`, `boundaryFacets`, `boundaryshape`, `boundingbox`, `cartesianToBarycentric`, `cartToBary`, `centroid`, `circumcenter`, `circumcenters`, `convexHull`, `convhull`, `convhulln`, `criticalAlpha`, `delaunay`, `delaunayn`, `DelaunayTri`, `delaunayTriangulation`, `dsearchn`, `edgeAttachments`, `edges`, `faceNormal`, `faceNormals`, `featureEdges`, `freeBoundary`, `holes`, `incenter`, `incenters`, `inOutStatus`, `inpolygon`, `inShape`, `isConnected`, `isEdge`, `ishole`, `isinterior`, `isInterior`, `issimplified`, `nearestNeighbor`, `nearestvertex`, `nsidedpoly`, `numboundaries`, `numRegions`, `numsides`, `overlaps`, `patch`, `perimeter`, `pointLocation`, `polyarea`, `polybuffer`, `polyshape`, `rectint`, `regions`, `rmboundary`, `rmholes`, `rmslivers`, `rotate`, `scale`, `sortboundaries`, `sortregions`, `stlread`, `stlwrite`, `subtract`, `surfaceArea`, `tetramesh`, `translate`, `triangulation`, `trimesh`, `triplot`, `TriRep`, `trisurf`, `tsearchn`, `turningdist`, `vertexAttachments`, `vertexNormal`, `volume`, `voronoi`, `voronoiDiagram`, `voronoin`
 
 ## MATLAB > Mathematics > Elementary Math
 
@@ -711,19 +711,17 @@ Out of scope: `allMuPADNotebooks` (desktop, IDE, GUI, printing or interactive to
 
 ## Symbolic Math Toolbox > Code Generation
 
-Implemented: 2. To implement: 7. In a branch: 0. Out of scope: 0.
+Implemented: 4. To implement: 5. In a branch: 0. Out of scope: 0.
 
 To implement:
 
-- [ ] `ccode`
-- [ ] `fortran`
 - [ ] `matlabFunctionBlock`
 - [ ] `simscapeEquation`
 - [ ] `symReadSSCParameters`
 - [ ] `symReadSSCVariables`
 - [ ] `symWriteSSC`
 
-Implemented: `latex`, `mathml`
+Implemented: `ccode`, `fortran`, `latex`, `mathml`
 
 ## Symbolic Math Toolbox > Graphics
 
@@ -771,13 +769,9 @@ Implemented: `daeFunction`, `dsolve`, `eliminate`, `equationsToMatrix`, `findDec
 
 ## Symbolic Math Toolbox > Mathematics > Formula Manipulation and Simplification
 
-Implemented: 12. To implement: 1. In a branch: 0. Out of scope: 0.
+Implemented: 13. To implement: 0. In a branch: 0. Out of scope: 0.
 
-To implement:
-
-- [ ] `subexpr`
-
-Implemented: `coeffs`, `collect`, `combine`, `displayFormula`, `divisors`, `expand`, `horner`, `lhs`, `numden`, `partfrac`, `rhs`, `simplifyFraction`
+Implemented: `coeffs`, `collect`, `combine`, `displayFormula`, `divisors`, `expand`, `horner`, `lhs`, `numden`, `partfrac`, `rhs`, `simplifyFraction`, `subexpr`
 
 ## Symbolic Math Toolbox > Mathematics > Linear Algebra
 
@@ -829,16 +823,9 @@ Implemented: `and`, `ge`, `gt`, `in`, `isAlways`, `ldivide`, `le`, `lt`, `minus`
 
 ## Symbolic Math Toolbox > Symbolic Computations in MATLAB > Symbolic Variables, Expressions, Functions, and Preferences
 
-Implemented: 18. To implement: 4. In a branch: 0. Out of scope: 0.
+Implemented: 22. To implement: 0. In a branch: 0. Out of scope: 0.
 
-To implement:
-
-- [ ] `symfunmatrix`
-- [ ] `symfunmatrix2symfun`
-- [ ] `symmatrix`
-- [ ] `symmatrix2sym`
-
-Implemented: `argnames`, `children`, `findSymType`, `fold`, `formula`, `has`, `hasSymType`, `isSymType`, `mapSymType`, `piecewise`, `pretty`, `str2sym`, `sym`, `symfun`, `symFunType`, `sympref`, `syms`, `symType`
+Implemented: `argnames`, `children`, `findSymType`, `fold`, `formula`, `has`, `hasSymType`, `isSymType`, `mapSymType`, `piecewise`, `pretty`, `str2sym`, `sym`, `symfun`, `symfunmatrix`, `symfunmatrix2symfun`, `symFunType`, `symmatrix`, `symmatrix2sym`, `sympref`, `syms`, `symType`
 
 ## Symbolic Math Toolbox > Symbolic Computations in MATLAB > Units of Measurement
 

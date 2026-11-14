@@ -46,6 +46,8 @@ pub struct VarInfo {
     pub size: String,
     pub value: String,
     pub bytes: usize,
+    /// The first rows and columns of a matrix whose `value` is only its size.
+    pub preview: Option<String>,
 }
 
 pub(crate) enum Flow {
@@ -520,9 +522,14 @@ impl Interpreter {
             .into_iter()
             .map(|n| {
                 let v = &self.base.vars[n];
-                VarInfo { name: n.clone(), class: v.class_name(), size: nd::size_text(&v.dims()), value: summary(v, self.format), bytes: approx_bytes(v) }
+                VarInfo { name: n.clone(), class: v.class_name(), size: nd::size_text(&v.dims()), value: summary(v, self.format), bytes: approx_bytes(v), preview: crate::varview::preview(v, self.format) }
             })
             .collect()
+    }
+
+    /// The contents of a base workspace variable for the variable viewer.
+    pub fn inspect(&self, name: &str) -> Option<crate::varview::VarView> {
+        self.base.vars.get(name).map(|v| crate::varview::view(name, v, self.format))
     }
 
     // ---- search path -------------------------------------------------------------------
@@ -2008,16 +2015,27 @@ impl Interpreter {
         if !LEND.contains(&name) || self.functions.contains_key(name) || !crate::builtins::exists(name) {
             return Ok(None);
         }
-        let mut lent: Vec<(usize, &str)> = Vec::new();
+        let mut lent: Vec<(usize, &str, bool)> = Vec::new();
         for (k, a) in args.iter().enumerate() {
             match a {
                 Expr::CellIndex(..) | Expr::Field(..) | Expr::Colon => return Ok(None),
                 Expr::Ident(n) if !self.frame().globals.contains(n.as_str()) => {
                     if matches!(self.frame().vars.get(n.as_str()), Some(Value::Num(m)) if m.numel() >= 4096) {
-                        if lent.iter().any(|(_, o)| o == n) {
+                        if lent.iter().any(|(_, o, _)| o == n) {
                             return Ok(None);
                         }
-                        lent.push((k, n.as_str()));
+                        lent.push((k, n.as_str(), false));
+                    }
+                }
+                // `var(:)` is lent too, with its shape flattened for the call.
+                Expr::Index(base, idx) if idx.len() == 1 && matches!(idx[0], Expr::Colon) => {
+                    if let Expr::Ident(n) = base.as_ref() {
+                        if !self.frame().globals.contains(n.as_str()) && matches!(self.frame().vars.get(n.as_str()), Some(Value::Num(m)) if m.numel() >= 4096 && !m.sparse) {
+                            if lent.iter().any(|(_, o, _)| o == n) {
+                                return Ok(None);
+                            }
+                            lent.push((k, n.as_str(), true));
+                        }
                     }
                 }
                 _ => {}
@@ -2029,7 +2047,7 @@ impl Interpreter {
         // Evaluate the other arguments first (they may read the lent variables), in order.
         let mut slots: Vec<Option<Value>> = Vec::with_capacity(args.len());
         for (k, a) in args.iter().enumerate() {
-            slots.push(if lent.iter().any(|(p, _)| *p == k) { None } else { Some(self.eval(a)?) });
+            slots.push(if lent.iter().any(|(p, _, _)| *p == k) { None } else { Some(self.eval(a)?) });
         }
         if slots.iter().flatten().any(|v| matches!(v, Value::Object(_))) {
             // An object argument may dispatch to a method: take the ordinary path with copies.
@@ -2037,22 +2055,42 @@ impl Interpreter {
             for (k, s) in slots.into_iter().enumerate() {
                 argv.push(match s {
                     Some(v) => v,
-                    None => match lent.iter().find(|(p, _)| *p == k) {
-                        Some((_, n)) => self.get_var(n).cloned().unwrap_or_else(Value::empty),
+                    None => match lent.iter().find(|(p, _, _)| *p == k) {
+                        Some((_, n, flat)) => {
+                            let v = self.get_var(n).cloned().unwrap_or_else(Value::empty);
+                            match (flat, v) {
+                                (true, Value::Num(mut m)) => {
+                                    m.dims = vec![m.numel(), 1];
+                                    Value::Num(m)
+                                }
+                                (_, v) => v,
+                            }
+                        }
                         None => Value::empty(),
                     },
                 });
             }
             return self.call_function(name, argv, nargout).map(Some);
         }
-        for (k, n) in &lent {
+        let mut saved: Vec<Option<Vec<usize>>> = Vec::with_capacity(lent.len());
+        for (k, n, flat) in &lent {
             slots[*k] = self.frame_mut().vars.remove(*n);
+            saved.push(match (flat, slots[*k].as_mut()) {
+                (true, Some(Value::Num(m))) => {
+                    let flat = vec![m.numel(), 1];
+                    Some(std::mem::replace(&mut m.dims, flat))
+                }
+                _ => None,
+            });
         }
         let argv: Vec<Value> = slots.into_iter().map(|s| s.unwrap_or_else(Value::empty)).collect();
         let res = crate::builtins::call_ref(self, name, &argv, nargout);
         let mut argv = argv;
-        for (k, n) in &lent {
-            let v = std::mem::replace(&mut argv[*k], Value::empty());
+        for ((k, n, _), dims) in lent.iter().zip(saved) {
+            let mut v = std::mem::replace(&mut argv[*k], Value::empty());
+            if let (Some(d), Value::Num(m)) = (dims, &mut v) {
+                m.dims = d;
+            }
             self.frame_mut().vars.insert((*n).to_string(), v);
         }
         match res? {

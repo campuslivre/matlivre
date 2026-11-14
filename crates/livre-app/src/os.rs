@@ -141,11 +141,24 @@ mod imp {
     pub fn left_button_down() -> Option<bool> {
         Some(unsafe { GetAsyncKeyState(VK_LBUTTON as i32) } as u16 & 0x8000 != 0)
     }
+
+    /// The user's display language as a locale name (`pt-BR`, `en-US`).
+    pub fn ui_language() -> Option<String> {
+        use windows_sys::Win32::Globalization::{GetUserDefaultUILanguage, LCIDToLocaleName};
+        let mut buf = [0u16; 85];
+        let n = unsafe { LCIDToLocaleName(GetUserDefaultUILanguage() as u32, buf.as_mut_ptr(), buf.len() as i32, 0) };
+        (n > 1).then(|| String::from_utf16_lossy(&buf[..n as usize - 1]))
+    }
 }
 
 #[cfg(target_os = "macos")]
 mod imp {
     pub use crate::macos::{cursor_pos, left_button_down, Under, Window};
+
+    /// The first of the user's preferred languages (System Settings), else the locale.
+    pub fn ui_language() -> Option<String> {
+        crate::macos::preferred_language().or_else(super::env_language)
+    }
 }
 
 #[cfg(not(any(windows, target_os = "macos")))]
@@ -185,9 +198,21 @@ mod imp {
     pub fn left_button_down() -> Option<bool> {
         None
     }
+
+    pub fn ui_language() -> Option<String> {
+        super::env_language()
+    }
 }
 
 pub use imp::*;
+
+/// The language of the POSIX locale: `LANGUAGE`'s first entry, else `LC_ALL`, `LC_MESSAGES`
+/// or `LANG` (`pt_BR.UTF-8`).
+#[cfg(not(windows))]
+fn env_language() -> Option<String> {
+    let first = |k: &str| std::env::var(k).ok().and_then(|v| v.split(':').next().map(str::to_string)).filter(|v| !v.is_empty());
+    first("LANGUAGE").or_else(|| first("LC_ALL")).or_else(|| first("LC_MESSAGES")).or_else(|| first("LANG"))
+}
 
 /// Shortcut text in the platform's style: `Ctrl+Shift+S` becomes `⇧⌘S` on macOS.
 pub fn keys(s: &str) -> String {

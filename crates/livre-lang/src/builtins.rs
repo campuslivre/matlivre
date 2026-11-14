@@ -1,7 +1,7 @@
 //! Built-in functions. `call` returns `Ok(None)` when the name is not a builtin. Type-specific
 //! families live in `builtins_text`, `builtins_plot`, `time`, `table` and `sym`.
 
-use crate::cplx::{poly_roots, C};
+use crate::cplx::C;
 use crate::display::{disp_value, fmt_g, NumFormat};
 use crate::error::{rt, LangError};
 use crate::format::sprintf;
@@ -51,7 +51,7 @@ pub fn function_names() -> Vec<&'static str> {
 fn all_names() -> &'static std::collections::HashSet<&'static str> {
     static ALL: std::sync::OnceLock<std::collections::HashSet<&'static str>> = std::sync::OnceLock::new();
     ALL.get_or_init(|| {
-        [NAMES, crate::builtins_elfun::NAMES, crate::builtins_datafun::NAMES, crate::builtins_lang::NAMES, crate::builtins_strings::NAMES, crate::builtins_types::NAMES, crate::builtins_dates::NAMES, crate::builtins_files::NAMES, crate::builtins_textio::NAMES, crate::builtins_data::NAMES, crate::builtins_media::NAMES, crate::builtins_archive::NAMES, crate::builtins_structio::NAMES, crate::gfx::NAMES, crate::builtins_plotfmt::NAMES, crate::builtins_graph3d::NAMES, crate::builtins_funfun::NAMES, crate::builtins_matfun::NAMES, crate::builtins_elmat::NAMES, crate::builtins_ops::NAMES, crate::builtins_specfun::NAMES, crate::polyshape::NAMES, crate::builtins_polyfun::NAMES, crate::builtins_geom::NAMES, crate::polyfun_classes::NAMES, crate::builtins_text::NAMES, crate::builtins_plot::NAMES, crate::time::NAMES, crate::table::NAMES, crate::sym::NAMES, crate::sym::extra::NAMES, crate::sym::special::NAMES, crate::sym::tools::NAMES, crate::sym::units::NAMES, crate::sym::transforms::NAMES, crate::sym::forms::NAMES, crate::sym::ode::NAMES, crate::sym::formula::NAMES, crate::sym::dae::NAMES, crate::containers::NAMES, crate::table_ops::NAMES, crate::builtins_plotmore::NAMES, crate::patterns::NAMES, crate::builtins_validate::NAMES, crate::graphs::NAMES, crate::graphs::FUNCS, crate::builtins_excel::NAMES, crate::builtins_sparse::NAMES, crate::builtins_ode::NAMES, crate::timetable::NAMES, crate::io_more::NAMES, crate::lang_more::NAMES, crate::plot_extra::NAMES, crate::volume::NAMES, crate::timeseries::NAMES, crate::charts::NAMES, crate::images::NAMES, crate::math_more::NAMES, crate::func_objects::NAMES, crate::files_more::NAMES, crate::random::NAMES, crate::timers::NAMES, crate::session_more::NAMES, crate::settings::NAMES, crate::sysobj::NAMES, crate::tiff::NAMES, crate::decomp::NAMES, crate::messages::NAMES, crate::ode_objects::NAMES, crate::gfx_util::NAMES, crate::figfile::NAMES, crate::xml_dom::NAMES, crate::gfx_defaults::NAMES]
+        [NAMES, crate::builtins_elfun::NAMES, crate::builtins_datafun::NAMES, crate::builtins_lang::NAMES, crate::builtins_strings::NAMES, crate::builtins_types::NAMES, crate::builtins_dates::NAMES, crate::builtins_files::NAMES, crate::builtins_textio::NAMES, crate::builtins_data::NAMES, crate::builtins_media::NAMES, crate::builtins_archive::NAMES, crate::builtins_structio::NAMES, crate::gfx::NAMES, crate::builtins_plotfmt::NAMES, crate::builtins_graph3d::NAMES, crate::builtins_funfun::NAMES, crate::builtins_matfun::NAMES, crate::builtins_elmat::NAMES, crate::builtins_ops::NAMES, crate::builtins_specfun::NAMES, crate::polyshape::NAMES, crate::builtins_polyfun::NAMES, crate::builtins_geom::NAMES, crate::polyfun_classes::NAMES, crate::builtins_text::NAMES, crate::builtins_plot::NAMES, crate::time::NAMES, crate::table::NAMES, crate::sym::NAMES, crate::sym::extra::NAMES, crate::sym::special::NAMES, crate::sym::tools::NAMES, crate::sym::units::NAMES, crate::sym::transforms::NAMES, crate::sym::forms::NAMES, crate::sym::ode::NAMES, crate::sym::formula::NAMES, crate::sym::dae::NAMES, crate::containers::NAMES, crate::table_ops::NAMES, crate::builtins_plotmore::NAMES, crate::patterns::NAMES, crate::builtins_validate::NAMES, crate::graphs::NAMES, crate::graphs::FUNCS, crate::builtins_excel::NAMES, crate::builtins_sparse::NAMES, crate::builtins_ode::NAMES, crate::timetable::NAMES, crate::io_more::NAMES, crate::lang_more::NAMES, crate::plot_extra::NAMES, crate::volume::NAMES, crate::timeseries::NAMES, crate::charts::NAMES, crate::images::NAMES, crate::math_more::NAMES, crate::func_objects::NAMES, crate::files_more::NAMES, crate::random::NAMES, crate::timers::NAMES, crate::session_more::NAMES, crate::settings::NAMES, crate::sysobj::NAMES, crate::tiff::NAMES, crate::decomp::NAMES, crate::messages::NAMES, crate::ode_objects::NAMES, crate::gfx_util::NAMES, crate::figfile::NAMES, crate::xml_dom::NAMES, crate::gfx_defaults::NAMES, crate::signal::windows::NAMES, crate::signal::waveforms::NAMES, crate::signal::db::NAMES, crate::signal::analog::NAMES, crate::signal::iir::NAMES, crate::signal::fir::NAMES, crate::signal::response::NAMES, crate::signal::filtering::NAMES, crate::signal::conversions::NAMES, crate::signal::measures::NAMES, crate::signal::spectral::NAMES, crate::signal::transforms::NAMES, crate::signal::peaks::NAMES, crate::signal::smoothing::NAMES, crate::signal::lpc::NAMES, crate::signal::sos::NAMES, crate::signal::rational::NAMES, crate::signal::elliptic::NAMES, crate::signal::order::NAMES, crate::signal::firdes::NAMES, crate::signal::remez::NAMES, crate::signal::fanalysis::NAMES, crate::signal::measure2::NAMES, crate::signal::lpc2::NAMES, crate::signal::ar::NAMES, crate::signal::transforms2::NAMES, crate::signal::cepstra::NAMES, crate::signal::pspec::NAMES, crate::signal::change::NAMES, crate::signal::resamp::NAMES, crate::signal::bandwidth::NAMES, crate::signal::modeling::NAMES, crate::signal::pulses::NAMES, crate::signal::zcrate::NAMES, crate::signal::chgpts::NAMES, crate::signal::envelope::NAMES, crate::signal::invfreq::NAMES, crate::signal::stmcb::NAMES, crate::signal::framing::NAMES, crate::signal::waveforms2::NAMES, crate::signal::ssconv::NAMES]
             .iter()
             .flat_map(|n| n.iter().copied())
             .collect()
@@ -932,6 +932,9 @@ fn call_dense(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize) 
             return Ok(Some(r));
         }
     }
+    if let Some(r) = crate::signal::call(it, name, &args, nargout)? {
+        return Ok(Some(r));
+    }
     if crate::gfx_defaults::NAMES.contains(&name) {
         if let Some(r) = crate::gfx_defaults::call(it, name, &args, nargout)? {
             return Ok(Some(r));
@@ -1561,7 +1564,7 @@ fn call_dense(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize) 
                 Value::Num(m) => {
                     if kind == Kind::Logical {
                         if m.data.iter().any(|x| x.is_nan()) {
-                            return rt("NaN's cannot be converted to logicals.");
+                            return rt("NaN values cannot be converted to logicals.");
                         }
                         if m.is_complex() {
                             return rt("Conversion to logical from complex is not possible.");
@@ -2589,7 +2592,14 @@ fn call_dense(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize) 
         }
         "trace" => {
             let m = m_arg(a, 0, name)?;
-            num((0..m.rows().min(m.cols())).map(|i| m.get(i, i)).sum())
+            let k = m.rows().min(m.cols());
+            if m.is_complex() {
+                let (re, im): (f64, f64) = (0..k).fold((0.0, 0.0), |(r, i), d| (r + m.get(d, d), i + m.im_at(d * m.rows() + d)));
+                let mut out = Matrix::complex(vec![1, 1], vec![re], vec![im]);
+                out.narrow();
+                return one(Value::Num(out));
+            }
+            num((0..k).map(|i| m.get(i, i)).sum())
         }
         "transpose" => one(ops::unary(crate::ast::UnOp::Transpose, arg(a, 0, name)?)?),
         "ctranspose" => one(ops::unary(crate::ast::UnOp::CTranspose, arg(a, 0, name)?)?),
@@ -2620,7 +2630,7 @@ fn call_dense(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize) 
         "roots" => {
             let p = m_arg(a, 0, name)?;
             let c: Vec<C> = (0..p.numel()).map(|i| C::new(p.data[i], p.im_at(i))).collect();
-            let r = poly_roots(&c);
+            let r = crate::signal::poly::roots_matlab(&c)?;
             let n = r.len();
             mat(Matrix::complex(vec![n, if n == 0 { 0 } else { 1 }], r.iter().map(|z| z.re).collect(), r.iter().map(|z| z.im).collect()))
         }

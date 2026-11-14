@@ -6,6 +6,24 @@ use num_rational::BigRational;
 use super::expr::{Const, Expr, Num, Rel};
 use crate::display::fmt_g;
 
+thread_local! {
+    /// Set while `char` or `string` prints: sums then follow MATLAB's internal order
+    /// (y + x^2) rather than the display's (x^2 + y).
+    static CHAR_ORDER: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// `f()` with sums printed in `char`'s order.
+pub fn with_char_order<T>(f: impl FnOnce() -> T) -> T {
+    let old = CHAR_ORDER.with(|c| c.replace(true));
+    let r = f();
+    CHAR_ORDER.with(|c| c.set(old));
+    r
+}
+
+fn char_order() -> bool {
+    CHAR_ORDER.with(|c| c.get())
+}
+
 #[derive(Clone, Copy, PartialEq)]
 pub enum Style {
     Matlab,
@@ -184,11 +202,12 @@ fn pr(e: &Expr, style: Style) -> (String, u8) {
             P_ATOM,
         ),
         Expr::Add(terms) => {
-            let mut ordered = ordered_terms(terms);
+            let in_char = style == Style::Matlab && char_order();
+            let mut ordered = if in_char { super::codegen::internal_order(terms) } else { ordered_terms(terms) };
             // As MATLAB prints them, a sum leads with a positive term when it has one (3 - x^2).
             // MATLAB keeps a leading negative term of degree 2 or more (- x^2 + x) unless the
-            // only other term is a number (3 - x^2).
-            let swap = |ts: &[Expr]| ts.len() == 2 && ts.iter().any(|t| t.as_num().is_some()) || ts.first().is_some_and(|t| max_exponent(t) <= 1.0);
+            // only other term is a number (3 - x^2); `char` always brings one forward.
+            let swap = |ts: &[Expr]| in_char || ts.len() == 2 && ts.iter().any(|t| t.as_num().is_some()) || ts.first().is_some_and(|t| max_exponent(t) <= 1.0);
             if ordered.first().is_some_and(|t| t.split_coeff().0.is_neg()) && swap(&ordered) {
                 if let Some(k) = ordered.iter().position(|t| !t.split_coeff().0.is_neg()) {
                     let t = ordered.remove(k);
@@ -269,7 +288,11 @@ fn pr(e: &Expr, style: Style) -> (String, u8) {
                 num_parts.push(num_text(&cp, style));
             }
             // The imaginary unit goes last in a product (w*1i).
-            let (imag, real): (Vec<&Expr>, Vec<&Expr>) = num.iter().partition(|f| style == Style::Matlab && matches!(f, Expr::Const(Const::I)));
+            let (imag, mut real): (Vec<&Expr>, Vec<&Expr>) = num.iter().partition(|f| style == Style::Matlab && matches!(f, Expr::Const(Const::I)));
+            // `char` writes constants after the variables (x*pi).
+            if style == Style::Matlab && char_order() {
+                real.sort_by_key(|f| super::codegen::is_numeric(f));
+            }
             for f in real.into_iter().chain(imag) {
                 num_parts.push(wrap(pr(f, style), P_MUL));
             }

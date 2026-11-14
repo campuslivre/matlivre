@@ -1,0 +1,12 @@
+n = 2^17; k = (1:n); x = mod(k*7919, 10007)/10007 - 0.5;
+F = fft(x); fprintf('t1 %d %.7g %.7g %.7g %.7g\n', numel(F), sum(abs(F)), abs(F(2)), abs(F(1000)), abs(F(n/2+1)));
+fprintf('t2 %d %d\n', isequal(F(2:n/2), conj(F(n:-1:n/2+2))), isreal(F));
+y = ifft(F); fprintf('t3 %d %d\n', max(abs(y - x)) < 1e-12, isreal(y));
+c = x + 1i*sin(k/1000); G = fft(c); fprintf('t4 %.7g %.7g\n', sum(abs(G)), abs(G(12345)));
+H = ifft(G); fprintf('t5 %d\n', max(abs(H - c)) < 1e-12);
+m = 100000; z = cos(2*pi*(1:m)*37/m); Z = fft(z); fprintf('t6 %.7g %d %d\n', abs(Z(38)), abs(Z(39)) < 1e-8, sum(abs(Z) > 1));
+P = fft(x(1:70000), 2^17); fprintf('t7 %.7g\n', sum(abs(P)));
+Q = fft(x, 70000); fprintf('t8 %.7g\n', sum(abs(Q)));
+col = x(:); Fc = fft(col); fprintf('t9 %s %.7g\n', mat2str(size(Fc)), sum(abs(Fc)));
+pr = 65537; w = fft(x(1:pr)); fprintf('t10 %d %.7g\n', numel(w), sum(abs(w)));
+s = single(x); Fs = fft(s); fprintf('t11 %s %.5g\n', class(Fs), double(sum(abs(Fs))) / 1e4);

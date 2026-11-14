@@ -2,6 +2,7 @@
 
 pub mod algebra;
 pub mod calculus;
+pub mod codegen;
 pub mod dae;
 pub mod expr;
 pub mod forms;
@@ -12,6 +13,8 @@ pub mod ode;
 pub mod print;
 pub mod special;
 pub mod specnum;
+pub mod symmatrix;
+pub mod subexpr;
 pub mod tools;
 pub mod transforms;
 pub mod units;
@@ -51,19 +54,22 @@ pub struct SymArray {
     /// The input arguments of a symbolic function (`f(x, y) = ...`, class symfun); empty for
     /// a plain sym array.
     pub args: Vec<String>,
+    /// Set for a `symmatrix` (`M|text`) or `symfunmatrix` (`F|name|args|rows|cols`): the
+    /// matrix expression as displayed; `data` then holds the expanded elements.
+    pub label: Option<String>,
 }
 
 impl SymArray {
     pub fn empty() -> Self {
-        Self { dims: vec![0, 0], data: Vec::new(), args: Vec::new() }
+        Self { dims: vec![0, 0], data: Vec::new(), args: Vec::new(), label: None }
     }
 
     pub fn scalar(e: Expr) -> Self {
-        Self { dims: vec![1, 1], data: vec![e], args: Vec::new() }
+        Self { dims: vec![1, 1], data: vec![e], args: Vec::new(), label: None }
     }
 
     pub fn from_dims(dims: Dims, data: Vec<Expr>) -> Self {
-        Self { dims: nd::normalize(dims), data, args: Vec::new() }
+        Self { dims: nd::normalize(dims), data, args: Vec::new(), label: None }
     }
 
     pub fn from_value(v: &Value) -> R<SymArray> {
@@ -98,7 +104,7 @@ impl SymArray {
     }
 
     pub fn map(&self, f: impl Fn(&Expr) -> Expr) -> SymArray {
-        SymArray { dims: self.dims.clone(), data: self.data.iter().map(f).collect(), args: self.args.clone() }
+        SymArray { dims: self.dims.clone(), data: self.data.iter().map(f).collect(), args: self.args.clone(), label: None }
     }
 
     /// `double(s)`.
@@ -155,6 +161,9 @@ impl SymArray {
     }
 
     pub fn summary(&self) -> String {
+        if let Some(t) = symmatrix::shown(self, "") {
+            return t.trim_start_matches(" = ").to_string();
+        }
         if self.data.len() == 1 {
             let s = self.data[0].to_string();
             if s.chars().count() > 48 { format!("1×1 sym") } else { s }
@@ -186,6 +195,9 @@ impl SymArray {
     }
 
     pub fn display(&self, name: &str) -> String {
+        if let Some(t) = symmatrix::shown(self, name) {
+            return t;
+        }
         // A symbolic function shows its signature: f(x, y) = ...
         let signature;
         let name = if self.args.is_empty() {
@@ -208,6 +220,9 @@ impl SymArray {
     }
 
     pub fn disp(&self) -> String {
+        if let Some(t) = symmatrix::shown(self, "") {
+            return t.trim_start_matches(" = ").to_string();
+        }
         if self.data.len() == 1 {
             return self.data[0].to_string();
         }
@@ -421,6 +436,9 @@ fn contains_i(e: &Expr) -> bool {
 pub fn binary(op: BinOp, a: &Value, b: &Value) -> R<Value> {
     let x = SymArray::from_value(a)?;
     let y = SymArray::from_value(b)?;
+    if (x.label.is_some() || y.label.is_some()) && matches!(op, BinOp::MatMul) && x.data.len() != 1 && y.data.len() != 1 && x.dims.get(1) != y.dims.first() {
+        return rt("Dimensions do not match.");
+    }
     let scalar = x.data.len() == 1 || y.data.len() == 1;
     let out = match op {
         BinOp::Add => elementwise(&x, &y, |p, q| Expr::add(vec![p.clone(), q.clone()]))?,
@@ -459,12 +477,15 @@ pub fn binary(op: BinOp, a: &Value, b: &Value) -> R<Value> {
     if out.args.is_empty() {
         out.args = if x.args.is_empty() { y.args.clone() } else { x.args.clone() };
     }
+    if x.label.is_some() || y.label.is_some() {
+        out = symmatrix::relabel(op, &x, &y, out)?;
+    }
     Ok(Value::Sym(out))
 }
 
 pub fn unary(op: UnOp, v: &Value) -> R<Value> {
     let Value::Sym(s) = v else { unreachable!() };
-    Ok(Value::Sym(match op {
+    Ok(Value::Sym(symmatrix::relabel_unary(op, s, match op {
         UnOp::Neg => s.map(|e| Expr::neg(e.clone())),
         UnOp::Plus => s.clone(),
         UnOp::Transpose | UnOp::CTranspose => {
@@ -473,7 +494,7 @@ pub fn unary(op: UnOp, v: &Value) -> R<Value> {
             if op == UnOp::CTranspose { t.map(conj) } else { t }
         }
         UnOp::Not => return rt("Symbolic NOT is not supported."),
-    }))
+    })))
 }
 
 // ---- builtins -------------------------------------------------------------------------------
@@ -481,7 +502,7 @@ pub fn unary(op: UnOp, v: &Value) -> R<Value> {
 /// Functions that exist only for symbolic inputs.
 pub const NAMES: &[&str] = &[
     "syms", "sym", "symvar", "subs", "int", "limit", "taylor", "simplify", "expand", "collect", "numden", "coeffs", "sym2poly", "poly2sym", "solve",
-    "vpa", "digits", "latex", "pretty", "matlabFunction", "fplot", "isAlways", "jacobian", "lhs", "rhs", "assume", "assumeAlso", "symfun", "children",
+    "symmatrix", "symmatrix2sym", "symfunmatrix", "symfunmatrix2symfun", "vpa", "digits", "latex", "ccode", "fortran", "pretty", "matlabFunction", "fplot", "isAlways", "jacobian", "lhs", "rhs", "assume", "assumeAlso", "symfun", "children",
 ];
 
 /// Elementwise functions that also accept numbers (dispatched here only for sym inputs).
@@ -594,6 +615,9 @@ pub fn call(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize) 
         let s = sym_arg(&args, 0)?;
         return one(Value::Sym(s.map(|e| Expr::func(name, vec![e.clone()]))));
     }
+    if matches!(name, "symmatrix" | "symmatrix2sym" | "symfunmatrix" | "symfunmatrix2symfun") {
+        return symmatrix::call(it, name, &args);
+    }
     match name {
         "log10" | "log2" if any_sym => {
             let base = if name == "log10" { 10 } else { 2 };
@@ -643,7 +667,7 @@ pub fn call(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize) 
                                 it.set_var(a, sym_val(Expr::var(a)));
                             }
                             let body = Expr::Fn(fname.to_string(), fargs.iter().map(|a| Expr::var(a)).collect());
-                            it.set_var(fname, Value::Sym(SymArray { dims: vec![1, 1], data: vec![body], args: fargs }));
+                            it.set_var(fname, Value::Sym(SymArray { dims: vec![1, 1], data: vec![body], args: fargs, label: None }));
                             continue;
                         }
                         if !is_sym_name(&t) {
@@ -1006,12 +1030,37 @@ pub fn call(it: &mut Interpreter, name: &str, args: Vec<Value>, nargout: usize) 
             it.emit(crate::interp::OutputKind::Text(format!("\nDigits = {old}\n\n")));
             Ok(Some(Vec::new()))
         }
-        "char" => one(Value::chars(&sym_arg(&args, 0)?.disp())),
+        "char" => {
+            let s = sym_arg(&args, 0)?;
+            // A matrix is one line: [a, b; c, d].
+            let text = print::with_char_order(|| {
+                if s.data.len() == 1 {
+                    return s.data[0].to_string();
+                }
+                if s.data.is_empty() || s.dims.len() > 2 {
+                    return s.disp();
+                }
+                let (r, c) = (s.dims[0], s.dims.get(1).copied().unwrap_or(1));
+                let rows: Vec<String> = (0..r).map(|i| (0..c).map(|j| s.data[j * r + i].to_string()).collect::<Vec<_>>().join(", ")).collect();
+                format!("[{}]", rows.join("; "))
+            });
+            one(Value::chars(&text))
+        }
         "string" => {
             let s = sym_arg(&args, 0)?;
-            one(Value::Str(StrArray::from_dims(s.dims.clone(), s.data.iter().map(|e| Some(e.to_string())).collect())))
+            let texts = print::with_char_order(|| s.data.iter().map(|e| Some(e.to_string())).collect());
+            one(Value::Str(StrArray::from_dims(s.dims.clone(), texts)))
         }
         "latex" => one(Value::chars(&print::latex(&expr_of_scalar(&args[0])?))),
+        "ccode" | "fortran" => {
+            let s = sym_arg(&args, 0)?;
+            if args.len() > 1 {
+                return rt(format!("{name}(f, options) is not supported; use {name}(f)."));
+            }
+            let lang = if name == "ccode" { codegen::Lang::C } else { codegen::Lang::Fortran };
+            let (r, c) = (s.dims[0], s.dims.get(1).copied().unwrap_or(1));
+            one(Value::chars(&codegen::generate(&s.data, r, c, lang)))
+        }
         "pretty" => {
             let s = sym_arg(&args, 0)?;
             it.emit(crate::interp::OutputKind::Text(format!("{}\n", s.disp())));

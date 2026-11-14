@@ -7,6 +7,7 @@ mod complete;
 mod engine;
 mod files;
 mod highlight;
+mod i18n;
 mod suggest;
 mod icons;
 mod mcp;
@@ -18,6 +19,7 @@ mod theme;
 mod transfer;
 mod widgets;
 mod updater;
+mod varview;
 mod file_types;
 mod linux_types;
 

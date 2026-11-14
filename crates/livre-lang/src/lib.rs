@@ -10,6 +10,7 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 pub mod ast;
 pub mod sparse_lu;
 pub mod sparse_ops;
+pub mod fft_big;
 pub mod fuse;
 pub mod builtins;
 pub mod containers;
@@ -65,6 +66,7 @@ pub mod parser;
 pub mod patterns;
 pub mod polyfun_classes;
 pub mod polyshape;
+pub mod signal;
 pub mod sym;
 pub mod sysobj;
 pub mod table;
@@ -90,12 +92,14 @@ pub mod timers;
 pub mod zones;
 pub mod time;
 pub mod value;
+pub mod varview;
 
 pub use display::NumFormat;
 pub use error::LangError;
 pub use graphics::{Axes, ExportFormat, Figure, LineStyle, Marker, Series, SeriesKind, Ticks, XAxisKind};
 pub use interp::{Interpreter, Output, OutputKind, VarInfo};
 pub use value::Value;
+pub use varview::{VarBody, VarView};
 
 /// Names that the editor highlights as keywords.
 pub const KEYWORDS: &[&str] = &[

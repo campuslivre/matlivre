@@ -460,7 +460,7 @@ pub fn unary(op: UnOp, v: &Value) -> R<Value> {
         }
         (UnOp::Not, Value::Num(m)) => {
             if m.data.iter().any(|x| x.is_nan()) {
-                return rt("NaN's cannot be converted to logicals.");
+                return rt("NaN values cannot be converted to logicals.");
             }
             let mut out = Matrix::from_dims(m.dims.clone(), (0..m.numel()).map(|i| b2f(m.data[i] == 0.0 && m.im_at(i) == 0.0)).collect()).with_kind(Kind::Logical);
             out.sparse = m.sparse;

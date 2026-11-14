@@ -343,6 +343,55 @@ pub fn semibold(size: f32) -> FontId {
 /// Loads Segoe UI Variable (the ModernWinForms UI font) and a code font from the Windows
 /// font folder, falling back to egui's bundled fonts elsewhere.
 pub fn install_fonts(ctx: &egui::Context) {
+    ctx.set_fonts(definitions(None));
+}
+
+/// Where a Chinese or a Japanese font may be, with the face to use in a collection: the
+/// Windows font folder's file names first, then macOS and Linux paths (Noto Sans CJK holds
+/// Japanese at face 0 and Simplified Chinese at face 2).
+fn cjk_candidates(japanese: bool) -> Vec<(std::path::PathBuf, u32)> {
+    let win = std::env::var("WINDIR").map(|w| std::path::PathBuf::from(w).join("Fonts")).ok();
+    let (names, noto): (&[&str], u32) = if japanese { (&["YuGothM.ttc", "meiryo.ttc", "msgothic.ttc"], 0) } else { (&["msyh.ttc", "simsun.ttc"], 2) };
+    let mut out: Vec<(std::path::PathBuf, u32)> = win.iter().flat_map(|d| names.iter().map(move |n| (d.join(n), 0))).collect();
+    let mac: &[&str] = if japanese {
+        &["/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc", "/System/Library/Fonts/Hiragino Sans GB.ttc"]
+    } else {
+        &["/System/Library/Fonts/PingFang.ttc", "/System/Library/Fonts/STHeiti Light.ttc", "/System/Library/Fonts/Hiragino Sans GB.ttc"]
+    };
+    out.extend(mac.iter().map(|p| (p.into(), 0)));
+    for dir in ["/usr/share/fonts/opentype/noto", "/usr/share/fonts/noto-cjk", "/usr/share/fonts/google-noto-cjk", "/usr/share/fonts/opentype/noto-cjk"] {
+        out.push((std::path::Path::new(dir).join("NotoSansCJK-Regular.ttc"), noto));
+    }
+    out.push(("/usr/share/fonts/truetype/wqy/wqy-microhei.ttc".into(), 0));
+    out
+}
+
+/// The Chinese or Japanese font, read once (they are large, so only when first needed).
+fn cjk_font(japanese: bool) -> Option<&'static (Vec<u8>, u32)> {
+    static FONTS: [std::sync::OnceLock<Option<(Vec<u8>, u32)>>; 2] = [std::sync::OnceLock::new(), std::sync::OnceLock::new()];
+    FONTS[usize::from(japanese)]
+        .get_or_init(|| cjk_candidates(japanese).into_iter().find_map(|(p, i)| std::fs::read(p).ok().map(|b| (b, i))))
+        .as_ref()
+}
+
+/// Adds a CJK fallback font for Chinese or Japanese text: Japanese forms when `japanese` is
+/// `Some(true)`, Chinese when `Some(false)`, and whichever is loaded already when `None`. The
+/// fonts are swapped only when that changes.
+pub fn use_cjk(ctx: &egui::Context, japanese: Option<bool>) {
+    static CURRENT: std::sync::Mutex<Option<bool>> = std::sync::Mutex::new(None);
+    let mut current = CURRENT.lock().unwrap();
+    let want = match (japanese, *current) {
+        (None, Some(_)) => return,
+        (None, None) => false,
+        (Some(j), Some(c)) if j == c => return,
+        (Some(j), _) => j,
+    };
+    *current = Some(want);
+    ctx.set_fonts(definitions(Some(want)));
+}
+
+/// The app's fonts, with the Chinese (`Some(false)`) or Japanese (`Some(true)`) fallback.
+fn definitions(cjk: Option<bool>) -> FontDefinitions {
     let mut fonts = FontDefinitions::default();
     let dir = std::env::var("WINDIR").map(|w| std::path::PathBuf::from(w).join("Fonts")).unwrap_or_default();
     let load = |names: &[&str]| -> Option<Vec<u8>> { names.iter().find_map(|n| std::fs::read(dir.join(n)).ok()) };
@@ -377,6 +426,10 @@ pub fn install_fonts(ctx: &egui::Context) {
         fonts.font_data.insert("symbols".into(), FontData::from_owned(sym));
         fonts.families.entry(FontFamily::Proportional).or_default().push("symbols".into());
     }
+    if let Some((bytes, index)) = cjk.and_then(cjk_font) {
+        fonts.font_data.insert("cjk".into(), FontData { font: std::borrow::Cow::Borrowed(&bytes[..]), index: *index, tweak: Default::default() });
+        fonts.families.entry(FontFamily::Proportional).or_default().push("cjk".into());
+    }
     if let Some(mono) = load(&["consola.ttf", "CascadiaMono.ttf"]) {
         fonts.font_data.insert("code".into(), FontData::from_owned(mono));
         fonts.families.entry(FontFamily::Monospace).or_default().insert(0, "code".into());
@@ -390,5 +443,8 @@ pub fn install_fonts(ctx: &egui::Context) {
     let proportional = fonts.families.get(&FontFamily::Proportional).cloned().unwrap_or_default();
     semibold_family.extend(proportional);
     fonts.families.insert(FontFamily::Name("semibold".into()), semibold_family);
-    ctx.set_fonts(fonts);
+    if cjk.is_some() && fonts.font_data.contains_key("cjk") {
+        fonts.families.entry(FontFamily::Monospace).or_default().push("cjk".into());
+    }
+    fonts
 }
