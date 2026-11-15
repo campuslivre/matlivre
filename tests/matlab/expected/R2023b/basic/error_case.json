@@ -1,0 +1,41 @@
+{
+  "header": {
+    "release": "2023b",
+    "version": "23.2.0.2409890 (R2023b) Update 3",
+    "computer": "PCWIN64",
+    "recorded": "2026-11-08"
+  },
+  "log": "\nx =\n\n     5\n\n",
+  "error": {
+    "identifier": "MATLAB:innerdim",
+    "message": "Incorrect dimensions for matrix multiplication. Check that the number of columns in the first matrix matches the number of rows in the second matrix. To operate on each element of the matrix individually, use TIMES (.*) for elementwise multiplication."
+  },
+  "lastwarn": {
+    "message": "",
+    "identifier": ""
+  },
+  "variables": {
+    "x": {
+      "class": "double",
+      "size": [
+        1,
+        1
+      ],
+      "value": {
+        "kind": "numeric",
+        "class": "double",
+        "sparse": false,
+        "size": [
+          1,
+          1
+        ],
+        "real": [
+          "4014000000000000"
+        ]
+      },
+      "display": "\nx =\n\n     5\n\n"
+    }
+  },
+  "figures": [],
+  "nfigures": 0
+}
