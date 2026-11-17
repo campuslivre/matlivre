@@ -1,0 +1,20 @@
+{
+  "header": {
+    "release": "2023b",
+    "version": "23.2.0.2409890 (R2023b) Update 3",
+    "computer": "PCWIN64",
+    "recorded": "2026-11-17"
+  },
+  "log": "class vis      | char     | [1 28] | 'matlab.lang.OnOffSwitchState'\nclass box      | char     | [1 28] | 'matlab.lang.OnOffSwitchState'\nstrcmp         | logical  | [1 1] | 1\nstrcmpi        | logical  | [1 1] | 1\nstrncmp        | logical  | [1 1] | 1\nisequal text   | logical  | [1 1] | 1\nisequal self   | logical  | [1 1] | 1\nisequal true   | logical  | [1 1] | 1\nismember yes   | logical  | [1 1] | 1\nismember no    | logical  | [1 1] | 0\n== text        | logical  | [1 1] | 1\n== other text  | logical  | [1 1] | 0\n~= text        | logical  | [1 1] | 1\nswitch vis     | char     | [1 9] | 'on branch'\nswitch box     | char     | [1 16] | 'otherwise branch'\nsprintf s      | char     | [1 2] | 'on'\nsprintf d      | char     | [1 1] | '0'\nsprintf mixed  | char     | [1 4] | 'on=0'\nconcat before  | char     | [1 4] | 'v=on'\nconcat after   | char     | [1 3] | 'onx'\nchar           | char     | [1 2] | 'on'\nstring         | string   | [1 1] | 'on'\ncellstr        | cell     | [1 1] | 'on'\nmat2str        | char     | [1 31] | 'matlab.lang.OnOffSwitchState.on'\n    on\n\non\n== true        | logical  | [1 1] | 1\nbox == true    | logical  | [1 1] | 0\nbox == 1       | logical  | [1 1] | 0\n~box           | logical  | [1 1] | 1\nbox & true     | logical  | [1 1] | 0\nbox && true    | logical  | [1 1] | 0\nvis || false   | logical  | [1 1] | 1\ndouble         | double   | [1 1] | 0\nlogical        | logical  | [1 1] | 0\nint8           | int8     | [1 1] | 1\nnum2str        | char     | [1 1] | 48\nbox + 1        | double   | [1 1] | 1\nany            | logical  | [1 1] | 0\nxor            | logical  | [1 1] | 1\nislogical      | logical  | [1 1] | 1\nisnumeric      | logical  | [1 1] | 0\nischar         | logical  | [1 1] | 0\nisa            | logical  | [1 1] | 1\nisempty        | logical  | [1 1] | 0\nsize           | double   | [1 2] | [1 1]\nif box         | char     | [1 3] | 'off'\nif vis         | char     | [1 2] | 'on'\nbox after      | matlab.lang.OnOffSwitchState | [1 1] | 1\noff state      | matlab.lang.OnOffSwitchState | [1 1] | 'off'\noff is off     | logical  | [1 1] | 1\n",
+  "error": {
+    "identifier": "",
+    "message": ""
+  },
+  "lastwarn": {
+    "message": "",
+    "identifier": ""
+  },
+  "variables": {},
+  "figures": [],
+  "nfigures": 0
+}

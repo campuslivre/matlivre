@@ -355,7 +355,7 @@ fn save(it: &mut Interpreter, name: &str, a: &[Value]) -> R<()> {
     let Some(&id) = ids.first() else {
         return rt(format!("Invalid figure handle passed to {name}."));
     };
-    if gfx::get_prop(it, id, "Type").ok().and_then(|t| t.text().ok()).as_deref() != Some("figure") {
+    if gfx::get_prop_raw(it, id, "Type").ok().and_then(|t| t.text().ok()).as_deref() != Some("figure") {
         return rt(format!("Invalid figure handle passed to {name}."));
     }
     let tree = figure_node(it, id)?;
@@ -393,11 +393,11 @@ fn node(t: &str, handle: f64, props: Vec<(String, Value)>, kids: Vec<StructArray
 
 /// The listed properties of object `id` that it has.
 fn read_props(it: &mut Interpreter, id: u64, names: &[&str]) -> Vec<(String, Value)> {
-    names.iter().filter_map(|&n| gfx::get_prop(it, id, n).ok().map(|v| (n.to_string(), v))).collect()
+    names.iter().filter_map(|&n| gfx::get_prop_raw(it, id, n).ok().map(|v| (n.to_string(), v))).collect()
 }
 
 fn on_off(it: &mut Interpreter, id: u64, n: &str) -> Option<(String, Value)> {
-    let v = gfx::get_prop(it, id, n).ok()?;
+    let v = gfx::get_prop_raw(it, id, n).ok()?;
     let t = v.text().ok().or_else(|| match &v {
         Value::Num(m) if m.data.len() == 1 => Some(if m.data[0] != 0.0 { "on".into() } else { "off".into() }),
         _ => None,
@@ -438,7 +438,7 @@ fn figure_node(it: &mut Interpreter, fid: u64) -> R<StructArray> {
         let h = 0.815 / (rows as f64 + (rows as f64 - 1.0) * sh);
         let pos = [0.13 + c as f64 * w * (1.0 + sw), 0.11 + (rows - 1 - r) as f64 * h * (1.0 + sh), w, h];
         kids.push(axes_node(it, id, pos)?);
-        if let Ok(leg) = gfx::get_prop(it, id, "Legend") {
+        if let Ok(leg) = gfx::get_prop_raw(it, id, "Legend") {
             if let Some(&lid) = gfx::ids_of(&leg).and_then(|v| v.first().copied()).as_ref() {
                 // MATLAB needs the legend's layout fields and the handles of its entries.
                 let entries: Vec<f64> = it.figures[f].axes[a]
@@ -478,7 +478,7 @@ fn figure_node(it: &mut Interpreter, fid: u64) -> R<StructArray> {
             }
         }
         if it.figures[f].axes[a].colorbar {
-            let (c0, c1) = match gfx::get_prop(it, id, "CLim") {
+            let (c0, c1) = match gfx::get_prop_raw(it, id, "CLim") {
                 Ok(Value::Num(m)) if m.data.len() == 2 => (m.data[0], m.data[1]),
                 _ => (0.0, 1.0),
             };
@@ -510,8 +510,8 @@ fn figure_node(it: &mut Interpreter, fid: u64) -> R<StructArray> {
 fn axes_node(it: &mut Interpreter, id: u64, pos: [f64; 4]) -> R<StructArray> {
     let mut props = vec![("Position".to_string(), Value::Num(Matrix::row(pos.to_vec())))];
     for n in ["XLim", "YLim", "ZLim", "CLim", "XTick", "YTick", "ZTick"] {
-        let mode = gfx::get_prop(it, id, &format!("{n}Mode")).ok().and_then(|v| v.text().ok()).unwrap_or_else(|| "auto".into());
-        if let Ok(v) = gfx::get_prop(it, id, n) {
+        let mode = gfx::get_prop_raw(it, id, &format!("{n}Mode")).ok().and_then(|v| v.text().ok()).unwrap_or_else(|| "auto".into());
+        if let Ok(v) = gfx::get_prop_raw(it, id, n) {
             props.push((n.to_string(), v));
             props.push((format!("{n}Mode"), Value::chars(&mode)));
         }
@@ -520,10 +520,10 @@ fn axes_node(it: &mut Interpreter, id: u64, pos: [f64; 4]) -> R<StructArray> {
     for n in ["XGrid", "YGrid", "Box"] {
         props.extend(on_off(it, id, n));
     }
-    if gfx::get_prop(it, id, "NextPlot").ok().and_then(|v| v.text().ok()).as_deref() == Some("add") {
+    if gfx::get_prop_raw(it, id, "NextPlot").ok().and_then(|v| v.text().ok()).as_deref() == Some("add") {
         props.push(("NextPlot".to_string(), Value::chars("add")));
     }
-    let kid_ids = gfx::get_prop(it, id, "Children").ok().and_then(|v| gfx::ids_of(&v)).unwrap_or_default();
+    let kid_ids = gfx::get_prop_raw(it, id, "Children").ok().and_then(|v| gfx::ids_of(&v)).unwrap_or_default();
     let mut kids: Vec<StructArray> = Vec::new();
     // Bars refer to a baseline object, which MATLAB needs to rebuild them.
     let baseline = hv(id) + 2e-5;
@@ -562,8 +562,8 @@ fn axes_node(it: &mut Interpreter, id: u64, pos: [f64; 4]) -> R<StructArray> {
     }
     let mut special = vec![0.0; 4];
     for (s, part) in ["Title", "XLabel", "YLabel", "ZLabel"].iter().enumerate() {
-        let Some(h) = gfx::get_prop(it, id, part).ok().and_then(|v| gfx::ids_of(&v)).and_then(|v| v.first().copied()) else { continue };
-        let text = gfx::get_prop(it, h, "String").ok().and_then(|v| v.text().ok()).unwrap_or_default();
+        let Some(h) = gfx::get_prop_raw(it, id, part).ok().and_then(|v| gfx::ids_of(&v)).and_then(|v| v.first().copied()) else { continue };
+        let text = gfx::get_prop_raw(it, h, "String").ok().and_then(|v| v.text().ok()).unwrap_or_default();
         if text.is_empty() {
             continue;
         }
@@ -575,7 +575,7 @@ fn axes_node(it: &mut Interpreter, id: u64, pos: [f64; 4]) -> R<StructArray> {
 }
 
 fn object_node(it: &mut Interpreter, id: u64) -> Option<StructArray> {
-    let ty = gfx::get_prop(it, id, "Type").ok()?.text().ok()?;
+    let ty = gfx::get_prop_raw(it, id, "Type").ok()?.text().ok()?;
     let (t, names): (&str, &[&str]) = match ty.as_str() {
         "line" => ("graph2d.lineseries", &["XData", "YData", "ZData", "Color", "LineStyle", "LineWidth", "Marker", "MarkerSize", "MarkerFaceColor", "MarkerEdgeColor", "DisplayName"]),
         "scatter" => ("specgraph.scattergroup", &["XData", "YData", "ZData", "SizeData", "CData", "Marker", "MarkerFaceColor", "MarkerEdgeColor", "LineWidth", "DisplayName"]),

@@ -292,7 +292,7 @@ fn put(it: &mut Interpreter, id: u64, props: Vec<(&str, Value)>) {
 }
 
 fn get(it: &mut Interpreter, id: u64, name: &str) -> Value {
-    gfx::get_prop(it, id, name).unwrap_or_else(|_| Value::empty())
+    gfx::get_prop_raw(it, id, name).unwrap_or_else(|_| Value::empty())
 }
 
 fn prop_texts(it: &mut Interpreter, id: u64, name: &str) -> R<Vec<String>> {

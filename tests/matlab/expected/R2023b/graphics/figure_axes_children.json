@@ -1,0 +1,20 @@
+{
+  "header": {
+    "release": "2023b",
+    "version": "23.2.0.2409890 (R2023b) Update 3",
+    "computer": "PCWIN64",
+    "recorded": "2026-11-17"
+  },
+  "log": "new children       | double   | [1 1] | 0\nnew findobj        | double   | [1 1] | 0\nnew CurrentAxes    | logical  | [1 1] | 1\nnew Visible        | matlab.lang.OnOffSwitchState | [1 1] | 'on'\naxes children      | double   | [1 1] | 1\naxes findobj       | double   | [1 1] | 1\naxes is child      | logical  | [1 1] | 1\npos children       | double   | [1 1] | 1\npos                | double   | [1 4] | [0.1 0.1 0.5 0.5]\nplot               | double   | [1 1] | 1\nhold on            | double   | [1 1] | 1\nxlim               | double   | [1 1] | 1\ntitle              | double   | [1 1] | 1\ngca                | double   | [1 1] | 1\naxes(fig)          | double   | [1 1] | 1\naxes(fig) findobj  | double   | [1 1] | 1\n",
+  "error": {
+    "identifier": "",
+    "message": ""
+  },
+  "lastwarn": {
+    "message": "",
+    "identifier": ""
+  },
+  "variables": {},
+  "figures": [],
+  "nfigures": 0
+}

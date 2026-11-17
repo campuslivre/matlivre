@@ -83,7 +83,7 @@ fn axes_formatting_functions() {
         "xtickangle(45); ang = ax.XTickLabelRotation; xlim([0 20]); lim = xlim;\n",
         "t = text(2, 50, 'note'); ts = t.String; l = xline(3, '--r', 'limit'); ll = l.Label; lc = l.Color;\n",
         "e = errorbar(1:3, [2 3 4], [0.5 0.5 0.5]); ec = class(e); p = fill([0 1 1], [0 0 1], 'g'); pc = p.FaceColor;\n",
-        "b = barh([3 1 2]); bh = b.Horizontal; semilogy(1:3, [10 100 1000]); sc = get(gca, 'YScale');\n",
+        "b = barh([3 1 2]); bh = char(b.Horizontal); semilogy(1:3, [10 100 1000]); sc = get(gca, 'YScale');\n",
         "try, saveas(gcf, 'x.png'), catch err, msg = err.message; end\n",
     ));
     assert!(!out.iter().any(|o| o.starts_with("Error")), "{out:?}");

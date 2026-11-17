@@ -242,6 +242,10 @@ pub fn vconcat(items: Vec<Value>) -> R<Value> {
 
 /// Concatenates along 0-based `dim` with MATLAB's class precedence.
 pub fn concat(items: Vec<Value>, dim: usize) -> R<Value> {
+    // ['v=' ax.Visible]: next to text, an OnOffSwitchState value is the text on / off.
+    if items.iter().any(crate::class::is_on_off) && items.iter().any(Value::is_text) {
+        return concat(items.into_iter().map(crate::class::on_off_as_text).collect(), dim);
+    }
     if items.len() == 1 && dim < 2 {
         return Ok(items.into_iter().next().unwrap());
     }

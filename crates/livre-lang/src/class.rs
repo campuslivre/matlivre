@@ -197,6 +197,117 @@ pub fn on_off_text(o: &Object) -> Option<String> {
     if o.class.name == ON_OFF_CLASS { enum_name(o) } else { None }
 }
 
+/// The state of an `OnOffSwitchState` value (`true` for `on`); `None` for any other value.
+pub fn on_off_state(v: &Value) -> Option<bool> {
+    match v {
+        Value::Object(o) => on_off_text(o).map(|t| t == "on"),
+        _ => None,
+    }
+}
+
+pub fn is_on_off(v: &Value) -> bool {
+    on_off_state(v).is_some()
+}
+
+/// An `OnOffSwitchState` value as the text `on` / `off`; other values unchanged.
+pub fn on_off_as_text(v: Value) -> Value {
+    match on_off_state(&v) {
+        Some(on) => Value::chars(if on { "on" } else { "off" }),
+        None => v,
+    }
+}
+
+/// An `OnOffSwitchState` value as a logical scalar; other values unchanged.
+pub fn on_off_as_logical(v: Value) -> Value {
+    match on_off_state(&v) {
+        Some(on) => Value::bool(on),
+        None => v,
+    }
+}
+
+/// `==` and `~=` between an `OnOffSwitchState` value and text compare the state with the text
+/// (`ax.Visible == 'on'` is one logical value, not a character-wise comparison).
+pub fn on_off_text_compare(op: crate::ast::BinOp, l: &Value, r: &Value) -> Option<Value> {
+    use crate::ast::BinOp;
+    if !matches!(op, BinOp::Eq | BinOp::Ne) {
+        return None;
+    }
+    let (state, other) = match (on_off_state(l), on_off_state(r)) {
+        (Some(s), None) if r.is_text() => (s, r),
+        (None, Some(s)) if l.is_text() => (s, l),
+        _ => return None,
+    };
+    let same = other.text().ok().is_some_and(|t| t == if state { "on" } else { "off" });
+    Some(Value::bool(same == (op == BinOp::Eq)))
+}
+
+/// Builtins that read an `OnOffSwitchState` argument as the text `on` / `off`.
+const READ_AS_TEXT: &[&str] = &["strcmp", "strcmpi", "strncmp", "strncmpi", "string", "cellstr"];
+/// Builtins that read it as a logical value (`double(ax.Box)`, `any(ax.Box)`, ...).
+const READ_AS_LOGICAL: &[&str] = &[
+    "double", "single", "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64", "logical", "num2str", "islogical",
+    "any", "all", "xor", "not", "and", "or", "plus", "minus", "times", "eq", "ne", "lt", "le", "gt", "ge",
+];
+/// Builtins that compare it with their other arguments: as text if one of them is text.
+const READ_BY_PEER: &[&str] = &["isequal", "ismember"];
+
+/// The arguments of builtin `name` with its `OnOffSwitchState` values replaced by what the
+/// builtin reads them as, or `None` when the builtin takes them as they are.
+pub fn on_off_args(name: &str, args: &[Value]) -> Option<Vec<Value>> {
+    if !args.iter().any(is_on_off) {
+        return None;
+    }
+    let as_text = if READ_AS_TEXT.contains(&name) {
+        true
+    } else if READ_BY_PEER.contains(&name) {
+        args.iter().any(|a| !is_on_off(a) && (a.is_text() || matches!(a, Value::Cell(_))))
+    } else if READ_AS_LOGICAL.contains(&name) {
+        false
+    } else if matches!(name, "sprintf" | "fprintf") {
+        return Some(on_off_format_args(args));
+    } else {
+        return None;
+    };
+    Some(args.iter().cloned().map(if as_text { on_off_as_text } else { on_off_as_logical }).collect())
+}
+
+/// `sprintf` / `fprintf`: an `OnOffSwitchState` argument prints as text under `%s` and `%c`
+/// and as its logical value under the other conversions.
+fn on_off_format_args(args: &[Value]) -> Vec<Value> {
+    let Some(fmt_at) = args.iter().position(|a| a.is_text()) else {
+        return args.iter().cloned().map(on_off_as_logical).collect();
+    };
+    let fmt = args[fmt_at].text().unwrap_or_default();
+    let mut convs = Vec::new();
+    let mut chars = fmt.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c != '%' {
+            continue;
+        }
+        if chars.peek() == Some(&'%') {
+            chars.next();
+            continue;
+        }
+        while let Some(&d) = chars.peek() {
+            chars.next();
+            if d.is_ascii_alphabetic() {
+                convs.push(d);
+                break;
+            }
+        }
+    }
+    args.iter()
+        .enumerate()
+        .map(|(i, a)| {
+            if i <= fmt_at {
+                return a.clone();
+            }
+            let conv = if convs.is_empty() { 's' } else { convs[(i - fmt_at - 1) % convs.len()] };
+            if matches!(conv, 's' | 'c') { on_off_as_text(a.clone()) } else { on_off_as_logical(a.clone()) }
+        })
+        .collect()
+}
+
 /// The member name of an enumeration value.
 pub fn enum_name(o: &Object) -> Option<String> {
     if o.class.enums.is_empty() {

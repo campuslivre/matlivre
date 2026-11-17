@@ -787,6 +787,16 @@ pub fn call_ref(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize
     // rows; products and solves pass their own parallelism explicitly.
     static FAER_INIT: std::sync::Once = std::sync::Once::new();
     FAER_INIT.call_once(|| faer::set_global_parallelism(faer::Par::Seq));
+    // matlab.lang.OnOffSwitchState arguments: each builtin reads them as text or as a logical value.
+    if args.iter().any(crate::class::is_on_off) {
+        if name == "mat2str" && args.len() == 1 {
+            let state = if crate::class::on_off_state(&args[0]) == Some(true) { "on" } else { "off" };
+            return Ok(Some(vec![Value::chars(&format!("{}.{state}", crate::class::ON_OFF_CLASS))]));
+        }
+        if let Some(converted) = crate::class::on_off_args(name, args) {
+            return call_ref(it, name, &converted, nargout);
+        }
+    }
     // Sparse matrices held as compressed columns: native builders and operations first, then the
     // expanded array for everything else (the result is compressed again if it is sparse).
     if matches!(name, "sparse" | "speye" | "spdiags" | "kron") {
@@ -3124,6 +3134,13 @@ fn call_dense(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize) 
             let v = arg(a, 0, name)?;
             if let Some(text) = crate::containers::cat_disp(v) {
                 it.emit(OutputKind::Text(text + "\n"));
+                return none();
+            }
+            if let Some(state) = crate::class::on_off_state(v) {
+                // An enumeration member shows indented, with a blank line after it.
+                it.emit(OutputKind::Text(format!("    {}
+
+", if state { "on" } else { "off" })));
                 return none();
             }
             if let Value::Object(o) = v {

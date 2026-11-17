@@ -62,3 +62,4 @@
 - Windows is the main platform. Linux builds and runs (tested on Ubuntu 24.04, GNOME/Wayland),
   but the benchmarks and most testing are on Windows.
 - `line(x,y,z)` does not store `ZData` (MATLAB keeps it and draws in 3-D), and `line([],[])` returns a 0x0 placeholder where MATLAB returns a 0x1 `Line` array: the graphics model has no z series data and no empty arrays of graphics objects.
+- The on/off graphics properties (`Visible`, `Box`, `XGrid`, ...) return `matlab.lang.OnOffSwitchState` scalars. Arrays of them (`[ax.Box true]`), `upper` and `strrep` on them (MATLAB returns the enumeration), `display(ax.Visible)` and the wording of the errors from `strcat`, `contains` or `strtrim` given one differ from MATLAB. A figure holds one grid of axes: a second `axes(fig)` returns the same axes, `subplot(1,2,1)` makes the whole grid at once (MATLAB makes one axes), and `isequal` of two handles read from `Children` or `gca` is false.

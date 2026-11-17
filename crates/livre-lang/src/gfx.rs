@@ -721,7 +721,7 @@ pub(crate) fn get_prop(it: &mut Interpreter, id: u64, name: &str) -> R<Value> {
     Ok(v)
 }
 
-fn get_prop_raw(it: &mut Interpreter, id: u64, name: &str) -> R<Value> {
+pub(crate) fn get_prop_raw(it: &mut Interpreter, id: u64, name: &str) -> R<Value> {
     let t = resolve(it, id).ok_or_else(|| LangError::new("Invalid or deleted object.", 0))?;
     let class = class_of(it, t);
     // Charts keep their own properties; their drawn parts are rebuilt from them.
@@ -1768,7 +1768,8 @@ pub(crate) fn descendants(it: &mut Interpreter, id: u64, out: &mut Vec<u64>) {
             }
         }
         Some(Target::Figure(f)) => {
-            for a in 0..it.figures[f].axes.len() {
+            let n = if it.figures[f].has_axes() { it.figures[f].axes.len() } else { 0 };
+            for a in 0..n {
                 let ax = axes_id(it, f, a);
                 out.push(ax);
                 descendants(it, ax, out);
@@ -2121,6 +2122,7 @@ pub fn call(it: &mut Interpreter, name: &str, a: &[Value], _nargout: usize) -> R
                 }
             }
             let f = it.current_figure_index();
+            it.figures[f].axes_made = true;
             let ax = it.figures[f].current_axes;
             let id = axes_id(it, f, ax);
             let start = if a.first().is_some_and(is_gfx) { 1 } else { 0 };

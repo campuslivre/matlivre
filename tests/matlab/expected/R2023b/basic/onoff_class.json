@@ -1,0 +1,20 @@
+{
+  "header": {
+    "release": "2023b",
+    "version": "23.2.0.2409890 (R2023b) Update 3",
+    "computer": "PCWIN64",
+    "recorded": "2026-11-17"
+  },
+  "log": "matlab.lang.OnOffSwitchState 0\n    on\n\non\n",
+  "error": {
+    "identifier": "",
+    "message": ""
+  },
+  "lastwarn": {
+    "message": "",
+    "identifier": ""
+  },
+  "variables": {},
+  "figures": [],
+  "nfigures": 0
+}

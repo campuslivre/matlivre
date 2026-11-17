@@ -1543,6 +1543,7 @@ If you want to design a new filter with different specifications, use the design
             }
             Expr::Unary(op, x) => {
                 let v = self.eval(x)?;
+                let v = crate::class::on_off_as_logical(v);
                 if let Value::Object(o) = &v {
                     let name = match op {
                         UnOp::Neg => "uminus",
@@ -1674,6 +1675,12 @@ If you want to design a new filter with different specifications, use the design
     }
 
     pub(crate) fn binary(&mut self, op: BinOp, l: Value, r: Value) -> R<Value> {
+        if crate::class::is_on_off(&l) || crate::class::is_on_off(&r) {
+            if let Some(v) = crate::class::on_off_text_compare(op, &l, &r) {
+                return Ok(v);
+            }
+            return self.binary(op, crate::class::on_off_as_logical(l), crate::class::on_off_as_logical(r));
+        }
         if matches!(l, Value::Object(_)) || matches!(r, Value::Object(_)) {
             let name = match op {
                 BinOp::Add => "plus",
@@ -3071,11 +3078,20 @@ fn scalar_truth(v: &Value, op: &str) -> R<bool> {
     match v {
         Value::Num(m) if m.numel() == 1 => Ok(m.data[0] != 0.0 || m.im_at(0) != 0.0),
         Value::Sym(_) if v.numel() == 1 => v.is_true(),
+        _ if crate::class::is_on_off(v) => v.is_true(),
         _ => rt(format!("Operands to the {op} operator must be convertible to logical scalar values.")),
     }
 }
 
 fn switch_match(subject: &Value, case: &Value) -> bool {
+    if crate::class::is_on_off(subject) || crate::class::is_on_off(case) {
+        let (s, c) = if subject.is_text() || case.is_text() {
+            (crate::class::on_off_as_text(subject.clone()), crate::class::on_off_as_text(case.clone()))
+        } else {
+            (crate::class::on_off_as_logical(subject.clone()), crate::class::on_off_as_logical(case.clone()))
+        };
+        return switch_match(&s, &c);
+    }
     if subject.is_text() && case.is_text() {
         return subject.text().ok() == case.text().ok();
     }
