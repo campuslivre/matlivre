@@ -243,6 +243,46 @@
               "linear"
             ]
           },
+          "XGrid": {
+            "kind": "char",
+            "size": [
+              1,
+              3
+            ],
+            "rows": [
+              "off"
+            ]
+          },
+          "YGrid": {
+            "kind": "char",
+            "size": [
+              1,
+              3
+            ],
+            "rows": [
+              "off"
+            ]
+          },
+          "ZGrid": {
+            "kind": "char",
+            "size": [
+              1,
+              3
+            ],
+            "rows": [
+              "off"
+            ]
+          },
+          "Box": {
+            "kind": "char",
+            "size": [
+              1,
+              2
+            ],
+            "rows": [
+              "on"
+            ]
+          },
           "Visible": {
             "kind": "char",
             "size": [

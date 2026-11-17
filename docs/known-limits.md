@@ -63,3 +63,4 @@
   but the benchmarks and most testing are on Windows.
 - `line(x,y,z)` does not store `ZData` (MATLAB keeps it and draws in 3-D), and `line([],[])` returns a 0x0 placeholder where MATLAB returns a 0x1 `Line` array: the graphics model has no z series data and no empty arrays of graphics objects.
 - The on/off graphics properties (`Visible`, `Box`, `XGrid`, ...) return `matlab.lang.OnOffSwitchState` scalars. Arrays of them (`[ax.Box true]`), `display(ax.Visible)` and the wording of the errors from `strcat`, `contains` or `strtrim` given one differ from MATLAB. A figure holds one grid of axes: a second `axes(fig)` returns the same axes, `subplot(1,2,1)` makes the whole grid at once (MATLAB makes one axes).
+- `legend` does not take a vector of plotted objects (`legend([p2 p1], 'B', 'A')`), `legend hide` is read as a label, and a vector `SizeData` in `scatter` keeps only its first element.

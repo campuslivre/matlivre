@@ -83,6 +83,8 @@ pub struct Series {
     pub marker: Option<Marker>,
     pub line_width: f32,
     pub marker_size: f32,
+    /// `SizeData` of a scatter as given (marker area, points squared); `marker_size` is its root.
+    pub size_data: Option<f64>,
     pub name: Option<String>,
     /// Bar width in x units (histograms); `None` = 0.8 of the spacing.
     pub bar_width: Option<f64>,
@@ -146,6 +148,7 @@ impl Series {
             },
             line_width: 0.5,
             marker_size: 6.0,
+            size_data: None,
             name: None,
             bar_width: None,
             id: 0,

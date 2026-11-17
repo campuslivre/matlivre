@@ -780,7 +780,10 @@ fn computed(it: &mut Interpreter, id: u64, t: Target, name: &str) -> R<Option<Va
             "Colormap" => colormap_value(it.figures[f].colormap.clone().unwrap_or_else(|| graphics::colormap("parula", 256).unwrap_or_default())),
             "Children" => {
                 let n = if it.figures[f].has_axes() { it.figures[f].axes.len() } else { 0 };
-                let ids: Vec<u64> = (0..n).rev().map(|a| axes_id(it, f, a)).collect();
+                // A legend is a child of the figure, listed before its axes.
+                let with_legend: Vec<usize> = (0..n).rev().filter(|&a| it.figures[f].axes[a].legend.is_some()).collect();
+                let mut ids: Vec<u64> = with_legend.into_iter().map(|a| axes_id(it, f, a) + Part::Legend as u64).collect();
+                ids.extend((0..n).rev().map(|a| axes_id(it, f, a)));
                 handles(it, &ids)
             }
             "CurrentAxes" if !it.figures[f].has_axes() => handles(it, &[]),
@@ -856,7 +859,7 @@ fn computed(it: &mut Interpreter, id: u64, t: Target, name: &str) -> R<Option<Va
                 "XScale" => Value::chars(if ax.xlog { "log" } else { "linear" }),
                 "YScale" => Value::chars(if ax.ylog { "log" } else { "linear" }),
                 "YDir" => Value::chars(if ax.y_reverse { "reverse" } else { "normal" }),
-                "XGrid" | "YGrid" => on_off_value(ax.grid),
+                "XGrid" | "YGrid" | "ZGrid" => on_off_value(ax.grid),
                 "XTick" => row(&tick_values(&ax.xticks, x0, x1)),
                 "YTick" => row(&tick_values(&ax.yticks, y0, y1)),
                 "XTickLabel" => label_value(&ax.xticks, &tick_labels(&ax.xticks, &tick_values(&ax.xticks, x0, x1))),
@@ -964,6 +967,7 @@ fn computed(it: &mut Interpreter, id: u64, t: Target, name: &str) -> R<Option<Va
                 "LineWidth" => Value::num(s.line_width as f64),
                 "Marker" => Value::chars(marker_name(s.marker)),
                 "MarkerSize" => Value::num(s.marker_size as f64),
+                "SizeData" if s.size_data.is_some() => Value::num(s.size_data.unwrap_or(36.0)),
                 "DisplayName" => Value::chars(s.name.as_deref().unwrap_or("")),
                 "Visible" => on_off_value(s.visible),
                 "String" if s.kind == SeriesKind::Text => Value::chars(&s.label),
@@ -1329,7 +1333,10 @@ pub(crate) fn set_prop(it: &mut Interpreter, id: u64, name: &str, v: Value) -> R
                 "LineWidth" => s.line_width = v.scalar()? as f32,
                 "Marker" => s.marker = parse_marker(&v.text()?),
                 "MarkerSize" => s.marker_size = v.scalar()? as f32,
-                "SizeData" => s.marker_size = (v.scalar()?.sqrt() as f32).max(2.0),
+                "SizeData" => {
+                    s.marker_size = (v.scalar()?.sqrt() as f32).max(2.0);
+                    s.size_data = Some(v.scalar()?);
+                }
                 "DisplayName" => s.name = Some(v.text()?),
                 "Visible" => s.visible = on_off(&v)?,
                 "String" | "Label" => s.label = texts(&v)?.join("\n"),
@@ -1600,6 +1607,7 @@ fn object_title(it: &mut Interpreter, id: u64, t: Target) -> String {
     let class = class_of(it, t);
     match t {
         Target::Root => "Graphics Root".to_string(),
+        Target::Part(f, a, Part::Legend) => format!("Legend ({})", it.figures[f].axes[a].legend.clone().unwrap_or_default().join(", ")),
         Target::Figure(f) => {
             let n = it.figures[f].id;
             match stored(it, id, "Name").map(|v| v.text().unwrap_or_default()).filter(|s| !s.is_empty()) {
@@ -1614,12 +1622,41 @@ fn object_title(it: &mut Interpreter, id: u64, t: Target) -> String {
         }
         // MATLAB names the object by its Tag, else its DisplayName: `Line (data1)`.
         _ => {
-            let label = ["Tag", "DisplayName"].iter().find_map(|p| get_prop(it, id, p).ok().and_then(|v| v.text().ok()).filter(|s| !s.is_empty()));
+            // The command window names an axes by its title: `Axes (Squares)`.
+            let titled = if it.command_window && class.ends_with(".Axes") {
+                get_prop(it, id + Part::Title as u64, "String").ok().and_then(|v| v.text().ok()).filter(|s| !s.is_empty())
+            } else {
+                None
+            };
+            let label = titled.or_else(|| ["Tag", "DisplayName"].iter().find_map(|p| get_prop(it, id, p).ok().and_then(|v| v.text().ok()).filter(|s| !s.is_empty())));
             match label {
                 Some(l) => format!("{} ({l})", short(class)),
                 None => short(class).to_string(),
             }
         }
+    }
+}
+
+/// The plotting commands that replace the contents of the current axes (hold off) reset its `Box`
+/// to their own default in R2023b: on for these, off for `UNBOXED_PLOTS`. With hold on, or for
+/// commands that only add to the axes (`line`, `xline`, `text`, `title`, `xlim`, ...), it stays.
+pub(crate) const BOXED_PLOTS: &[&str] = &[
+    "plot", "semilogx", "semilogy", "loglog", "bar", "barh", "stairs", "stem", "area", "errorbar", "histogram", "histogram2", "fill",
+    "imagesc", "image", "contour", "quiver", "pcolor", "fplot", "polarplot",
+];
+pub(crate) const UNBOXED_PLOTS: &[&str] = &["scatter", "plot3", "surf", "mesh"];
+
+/// Whether the current axes hold their contents (`hold on`); false when there are no axes yet.
+pub(crate) fn current_axes_hold(it: &Interpreter) -> bool {
+    it.current_figure.filter(|&f| f < it.figures.len() && it.figures[f].has_axes()).is_some_and(|f| it.figures[f].axes[it.figures[f].current_axes].hold)
+}
+
+/// Sets `Box` of the current axes after a plotting command that replaced their contents.
+pub(crate) fn set_box_after_plot(it: &mut Interpreter, on: bool) {
+    if let Some(f) = it.current_figure.filter(|&f| f < it.figures.len() && it.figures[f].has_axes()) {
+        let a = it.figures[f].current_axes;
+        let id = axes_id(it, f, a);
+        store(it, id, "Box", Value::chars(if on { "on" } else { "off" }));
     }
 }
 
@@ -1675,6 +1712,12 @@ pub fn display(it: &mut Interpreter, name: &str, v: &Value) -> R<String> {
         s.set(p, v);
     }
     let body = crate::display::struct_fields_body(&s, it.format);
+    if it.command_window {
+        // The command window: a blank line before the heading and after the properties. The last
+        // line is plain text in the batch log and a link in what `evalc` captures.
+        let more = if it.capturing > 0 { "Show all properties" } else { "Use GET to show all properties" };
+        return Ok(format!("\n{name} = \n\n  {title} with properties:\n\n{body}\n  {more}\n"));
+    }
     Ok(format!("{name} = \n  {title} with properties:\n\n{body}\n  Use GET to show all properties"))
 }
 
@@ -1776,6 +1819,12 @@ pub(crate) fn descendants(it: &mut Interpreter, id: u64, out: &mut Vec<u64>) {
         }
         Some(Target::Figure(f)) => {
             let n = if it.figures[f].has_axes() { it.figures[f].axes.len() } else { 0 };
+            // The legends are children of the figure, listed before the axes.
+            let with_legend: Vec<usize> = (0..n).rev().filter(|&a| it.figures[f].axes[a].legend.is_some()).collect();
+            for a in with_legend {
+                let legend = axes_id(it, f, a) + Part::Legend as u64;
+                out.push(legend);
+            }
             for a in 0..n {
                 let ax = axes_id(it, f, a);
                 out.push(ax);
