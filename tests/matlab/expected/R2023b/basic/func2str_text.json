@@ -1,0 +1,61 @@
+{
+  "header": {
+    "release": "2023b",
+    "version": "23.2.0.2409890 (R2023b) Update 3",
+    "computer": "PCWIN64",
+    "recorded": "2026-11-17"
+  },
+  "log": "@(t)2e-3*t\n@(x)1.50*x\n@(x)0.5*x\n@(x).5*x\n@(x)1e3+x\n@(x)1E5*x\n@(x)3i*x\n@(x)2.5j+x\n@(x)10*x\n@(x)1.0*x\n@(x)x.^2+1\n@(t)(t.^2)+1\n@(a,b)a*b-sin(a)\n@(a,b)(a*b)-sin(a)\n@(x)x(1:2:end)\n@(x)[1,2.50,3e0]\n@(x){1.0,'a'}\n@(x)0.10*x\n@(x)1e-10\n@(x)5.0e+2*x\n@(x)1e0*x\n@(x)100000*x\n@(x)-(x+1)*2\n@(x)(x)'\n@(x)((x+1))*2\n@(x)a.b(1.0)\n@(x)x.^-2.0\n@(x)1.0:2:x\n@(x)1.50*(x+1)\n",
+  "error": {
+    "identifier": "",
+    "message": ""
+  },
+  "lastwarn": {
+    "message": "",
+    "identifier": ""
+  },
+  "variables": {
+    "i": {
+      "class": "double",
+      "size": [
+        1,
+        1
+      ],
+      "value": {
+        "kind": "numeric",
+        "class": "double",
+        "sparse": false,
+        "size": [
+          1,
+          1
+        ],
+        "real": [
+          "403c000000000000"
+        ]
+      },
+      "display": "\ni =\n\n    28\n\n"
+    },
+    "r": {
+      "class": "double",
+      "size": [
+        1,
+        1
+      ],
+      "value": {
+        "kind": "numeric",
+        "class": "double",
+        "sparse": false,
+        "size": [
+          1,
+          1
+        ],
+        "real": [
+          "4000000000000000"
+        ]
+      },
+      "display": "\nr =\n\n     2\n\n"
+    }
+  },
+  "figures": [],
+  "nfigures": 0
+}

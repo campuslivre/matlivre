@@ -105,6 +105,9 @@ pub struct Interpreter {
     /// Class whose method is executing (for `obj@Super` and `method@Super`).
     class_stack: Vec<Rc<ClassDef>>,
     pub format: NumFormat,
+    /// > 0 while `evalc` captures output: MATLAB's captured text has the hyperlinks of an
+    /// interactive session (`Show all properties`), where the batch log has plain text.
+    pub(crate) capturing: u32,
     /// Show statement results the way MATLAB's command window does (`x =`, blank line, value)
     /// instead of the Live Editor style (`x = 5`). Used to compare with `matlab -batch`.
     pub command_window: bool,
@@ -187,6 +190,7 @@ impl Interpreter {
             not_on_path: HashSet::new(),
             class_stack: Vec::new(),
             format: NumFormat::Short,
+            capturing: 0,
             command_window: false,
             figures: Vec::new(),
             current_figure: None,
@@ -741,7 +745,9 @@ impl Interpreter {
         let diary_on = self.diary.0;
         self.diary.0 = false;
         let start = self.pending.len();
+        self.capturing += 1;
         let r = f(self);
+        self.capturing -= 1;
         self.diary.0 = diary_on;
         let produced: Vec<Output> = self.pending.drain(start..).collect();
         self.flush = flush;
@@ -1769,6 +1775,7 @@ If you want to design a new filter with different specifications, use the design
             },
             Expr::Colon => Ok(Value::chars(":")),
             Expr::Tilde => rt("'~' is only valid on the left side of an assignment."),
+            Expr::Paren(e) | Expr::Lit(e, _) => self.eval(e),
             Expr::Matrix(rows) => self.eval_matrix(rows),
             Expr::Cell(rows) => self.eval_cell(rows),
             Expr::AnonFn(f) => {

@@ -844,6 +844,18 @@ pub fn call_ref(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize
 }
 
 fn call_dense(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize) -> Ret {
+    if it.command_window && (crate::gfx::BOXED_PLOTS.contains(&name) || crate::gfx::UNBOXED_PLOTS.contains(&name)) {
+        let held = crate::gfx::current_axes_hold(it);
+        let r = call_dense_inner(it, name, args, nargout);
+        if !held {
+            crate::gfx::set_box_after_plot(it, crate::gfx::BOXED_PLOTS.contains(&name));
+        }
+        return r;
+    }
+    call_dense_inner(it, name, args, nargout)
+}
+
+fn call_dense_inner(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize) -> Ret {
     // patch with faces and vertices.
     if name == "patch" {
         if let Some(r) = crate::volume::patch_fv(it, &args, nargout)? {
@@ -3179,6 +3191,10 @@ fn call_dense(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize) 
             }
             let mut s = disp_value(v, it.format);
             if !(v.numel() == 0 && matches!(v, Value::Num(_))) {
+                s.push('\n');
+            }
+            // The command window ends the display of a number or matrix with a blank line.
+            if it.command_window && matches!(v, Value::Num(m) if m.kind != crate::value::Kind::Char && !m.is_empty()) {
                 s.push('\n');
             }
             it.emit(OutputKind::Text(s));

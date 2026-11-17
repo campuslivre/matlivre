@@ -1,0 +1,796 @@
+{
+  "header": {
+    "release": "2023b",
+    "version": "23.2.0.2409890 (R2023b) Update 3",
+    "computer": "PCWIN64",
+    "recorded": "2026-11-17"
+  },
+  "log": "     5\n\n     1     2     3\n\n    1.5000    2.5000\n    3.5000    4.5000\n\ntext\n   1\n\n",
+  "error": {
+    "identifier": "",
+    "message": ""
+  },
+  "lastwarn": {
+    "message": "",
+    "identifier": ""
+  },
+  "variables": {
+    "a": {
+      "class": "int8",
+      "size": [
+        1,
+        3
+      ],
+      "value": {
+        "kind": "numeric",
+        "class": "int8",
+        "sparse": false,
+        "size": [
+          1,
+          3
+        ],
+        "real": [
+          "1",
+          "2",
+          "3"
+        ]
+      },
+      "display": "\na =\n\n  1x3 <a href=\"matlab:helpPopup int8\" style=\"font-weight:bold\">int8</a> row vector\n\n   1   2   3\n\n"
+    },
+    "b": {
+      "class": "int32",
+      "size": [
+        1,
+        1
+      ],
+      "value": {
+        "kind": "numeric",
+        "class": "int32",
+        "sparse": false,
+        "size": [
+          1,
+          1
+        ],
+        "real": [
+          "7"
+        ]
+      },
+      "display": "\nb =\n\n  <a href=\"matlab:helpPopup int32\" style=\"font-weight:bold\">int32</a>\n\n   7\n\n"
+    },
+    "c": {
+      "class": "uint8",
+      "size": [
+        2,
+        2
+      ],
+      "value": {
+        "kind": "numeric",
+        "class": "uint8",
+        "sparse": false,
+        "size": [
+          2,
+          2
+        ],
+        "real": [
+          "1",
+          "3",
+          "2",
+          "4"
+        ]
+      },
+      "display": "\nc =\n\n  2x2 <a href=\"matlab:helpPopup uint8\" style=\"font-weight:bold\">uint8</a> matrix\n\n   1   2\n   3   4\n\n"
+    },
+    "c1": {
+      "class": "cell",
+      "size": [
+        1,
+        3
+      ],
+      "value": {
+        "kind": "cell",
+        "size": [
+          1,
+          3
+        ],
+        "items": [
+          {
+            "kind": "numeric",
+            "class": "double",
+            "sparse": false,
+            "size": [
+              1,
+              1
+            ],
+            "real": [
+              "3ff0000000000000"
+            ]
+          },
+          {
+            "kind": "char",
+            "size": [
+              1,
+              3
+            ],
+            "rows": [
+              "two"
+            ]
+          },
+          {
+            "kind": "numeric",
+            "class": "double",
+            "sparse": false,
+            "size": [
+              1,
+              3
+            ],
+            "real": [
+              "4008000000000000",
+              "4010000000000000",
+              "4014000000000000"
+            ]
+          }
+        ]
+      },
+      "display": "\nc1 =\n\n  1x3 <a href=\"matlab:helpPopup cell\" style=\"font-weight:bold\">cell</a> array\n\n    {[1]}    {'two'}    {[3 4 5]}\n\n"
+    },
+    "c2": {
+      "class": "cell",
+      "size": [
+        2,
+        2
+      ],
+      "value": {
+        "kind": "cell",
+        "size": [
+          2,
+          2
+        ],
+        "items": [
+          {
+            "kind": "numeric",
+            "class": "double",
+            "sparse": false,
+            "size": [
+              1,
+              1
+            ],
+            "real": [
+              "3ff0000000000000"
+            ]
+          },
+          {
+            "kind": "char",
+            "size": [
+              1,
+              1
+            ],
+            "rows": [
+              "y"
+            ]
+          },
+          {
+            "kind": "cell",
+            "size": [
+              1,
+              2
+            ],
+            "items": [
+              {
+                "kind": "numeric",
+                "class": "double",
+                "sparse": false,
+                "size": [
+                  1,
+                  1
+                ],
+                "real": [
+                  "4000000000000000"
+                ]
+              },
+              {
+                "kind": "char",
+                "size": [
+                  1,
+                  1
+                ],
+                "rows": [
+                  "x"
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "numeric",
+            "class": "double",
+            "sparse": false,
+            "size": [
+              0,
+              0
+            ],
+            "real": []
+          }
+        ]
+      },
+      "display": "\nc2 =\n\n  2x2 <a href=\"matlab:helpPopup cell\" style=\"font-weight:bold\">cell</a> array\n\n    {[1]}    {1x2 cell  }\n    {'y'}    {0x0 double}\n\n"
+    },
+    "d": {
+      "class": "single",
+      "size": [
+        1,
+        1
+      ],
+      "value": {
+        "kind": "numeric",
+        "class": "single",
+        "sparse": false,
+        "size": [
+          1,
+          1
+        ],
+        "real": [
+          "40200000"
+        ]
+      },
+      "display": "\nd =\n\n  <a href=\"matlab:helpPopup single\" style=\"font-weight:bold\">single</a>\n\n    2.5000\n\n"
+    },
+    "e": {
+      "class": "single",
+      "size": [
+        1,
+        2
+      ],
+      "value": {
+        "kind": "numeric",
+        "class": "single",
+        "sparse": false,
+        "size": [
+          1,
+          2
+        ],
+        "real": [
+          "3fc00000",
+          "40200000"
+        ]
+      },
+      "display": "\ne =\n\n  1x2 <a href=\"matlab:helpPopup single\" style=\"font-weight:bold\">single</a> row vector\n\n    1.5000    2.5000\n\n"
+    },
+    "e1": {
+      "class": "double",
+      "size": [
+        0,
+        0
+      ],
+      "value": {
+        "kind": "numeric",
+        "class": "double",
+        "sparse": false,
+        "size": [
+          0,
+          0
+        ],
+        "real": []
+      },
+      "display": "\ne1 =\n\n     []\n\n"
+    },
+    "e2": {
+      "class": "double",
+      "size": [
+        0,
+        3
+      ],
+      "value": {
+        "kind": "numeric",
+        "class": "double",
+        "sparse": false,
+        "size": [
+          0,
+          3
+        ],
+        "real": []
+      },
+      "display": "\ne2 =\n\n  0x3 empty <a href=\"matlab:helpPopup double\" style=\"font-weight:bold\">double</a> matrix\n\n"
+    },
+    "f1": {
+      "class": "function_handle",
+      "size": [
+        1,
+        1
+      ],
+      "value": {
+        "kind": "function_handle",
+        "text": "sin"
+      },
+      "display": "\nf1 =\n\n  <a href=\"matlab:helpPopup function_handle\" style=\"font-weight:bold\">function_handle</a> with value:\n\n    @sin\n\n"
+    },
+    "f2": {
+      "class": "function_handle",
+      "size": [
+        1,
+        1
+      ],
+      "value": {
+        "kind": "function_handle",
+        "text": "@(x)x+1"
+      },
+      "display": "\nf2 =\n\n  <a href=\"matlab:helpPopup function_handle\" style=\"font-weight:bold\">function_handle</a> with value:\n\n    @(x)x+1\n\n"
+    },
+    "i1": {
+      "class": "int16",
+      "size": [
+        1,
+        3
+      ],
+      "value": {
+        "kind": "numeric",
+        "class": "int16",
+        "sparse": false,
+        "size": [
+          1,
+          3
+        ],
+        "real": [
+          "-5",
+          "10",
+          "300"
+        ]
+      },
+      "display": "\ni1 =\n\n  1x3 <a href=\"matlab:helpPopup int16\" style=\"font-weight:bold\">int16</a> row vector\n\n     -5     10    300\n\n"
+    },
+    "l1": {
+      "class": "logical",
+      "size": [
+        1,
+        1
+      ],
+      "value": {
+        "kind": "logical",
+        "size": [
+          1,
+          1
+        ],
+        "data": 1
+      },
+      "display": "\nl1 =\n\n  <a href=\"matlab:helpPopup logical\" style=\"font-weight:bold\">logical</a>\n\n   1\n\n"
+    },
+    "l2": {
+      "class": "logical",
+      "size": [
+        1,
+        3
+      ],
+      "value": {
+        "kind": "logical",
+        "size": [
+          1,
+          3
+        ],
+        "data": [
+          1,
+          0,
+          1
+        ]
+      },
+      "display": "\nl2 =\n\n  1x3 <a href=\"matlab:helpPopup logical\" style=\"font-weight:bold\">logical</a> array\n\n   1   0   1\n\n"
+    },
+    "l3": {
+      "class": "logical",
+      "size": [
+        2,
+        2
+      ],
+      "value": {
+        "kind": "logical",
+        "size": [
+          2,
+          2
+        ],
+        "data": [
+          1,
+          0,
+          0,
+          1
+        ]
+      },
+      "display": "\nl3 =\n\n  2x2 <a href=\"matlab:helpPopup logical\" style=\"font-weight:bold\">logical</a> array\n\n   1   0\n   0   1\n\n"
+    },
+    "n1": {
+      "class": "double",
+      "size": [
+        1,
+        1
+      ],
+      "value": {
+        "kind": "numeric",
+        "class": "double",
+        "sparse": false,
+        "size": [
+          1,
+          1
+        ],
+        "real": [
+          "c014000000000000"
+        ]
+      },
+      "display": "\nn1 =\n\n    -5\n\n"
+    },
+    "n2": {
+      "class": "double",
+      "size": [
+        2,
+        2
+      ],
+      "value": {
+        "kind": "numeric",
+        "class": "double",
+        "sparse": false,
+        "size": [
+          2,
+          2
+        ],
+        "real": [
+          "3ff8000000000000",
+          "4059000000000000",
+          "c004000000000000",
+          "3f50624dd2f1a9fc"
+        ]
+      },
+      "display": "\nn2 =\n\n    1.5000   -2.5000\n  100.0000    0.0010\n\n"
+    },
+    "n3": {
+      "class": "double",
+      "size": [
+        1,
+        1
+      ],
+      "value": {
+        "kind": "numeric",
+        "class": "double",
+        "sparse": false,
+        "size": [
+          1,
+          1
+        ],
+        "real": [
+          "4202a05f20000000"
+        ]
+      },
+      "display": "\nn3 =\n\n   1.0000e+10\n\n"
+    },
+    "n4": {
+      "class": "double",
+      "size": [
+        1,
+        2
+      ],
+      "value": {
+        "kind": "numeric",
+        "class": "double",
+        "sparse": false,
+        "size": [
+          1,
+          2
+        ],
+        "real": [
+          "3ff0000000000000",
+          "412e848000000000"
+        ]
+      },
+      "display": "\nn4 =\n\n           1     1000000\n\n"
+    },
+    "n6": {
+      "class": "double",
+      "size": [
+        1,
+        3
+      ],
+      "value": {
+        "kind": "numeric",
+        "class": "double",
+        "sparse": false,
+        "size": [
+          1,
+          3
+        ],
+        "real": [
+          "3ff0000000000000",
+          "7ff0000000000000",
+          "fff0000000000000"
+        ]
+      },
+      "display": "\nn6 =\n\n     1   Inf  -Inf\n\n"
+    },
+    "s1": {
+      "class": "char",
+      "size": [
+        1,
+        5
+      ],
+      "value": {
+        "kind": "char",
+        "size": [
+          1,
+          5
+        ],
+        "rows": [
+          "hello"
+        ]
+      },
+      "display": "\ns1 =\n\n    'hello'\n\n"
+    },
+    "s2": {
+      "class": "char",
+      "size": [
+        0,
+        0
+      ],
+      "value": {
+        "kind": "char",
+        "size": [
+          0,
+          0
+        ],
+        "rows": [
+          ""
+        ]
+      },
+      "display": "\ns2 =\n\n  0x0 empty <a href=\"matlab:helpPopup char\" style=\"font-weight:bold\">char</a> array\n\n"
+    },
+    "sa": {
+      "class": "struct",
+      "size": [
+        1,
+        3
+      ],
+      "value": {
+        "kind": "struct",
+        "size": [
+          1,
+          3
+        ],
+        "fields": [
+          "p"
+        ],
+        "elements": [
+          {
+            "p": {
+              "kind": "numeric",
+              "class": "double",
+              "sparse": false,
+              "size": [
+                1,
+                1
+              ],
+              "real": [
+                "3ff0000000000000"
+              ]
+            }
+          },
+          {
+            "p": {
+              "kind": "numeric",
+              "class": "double",
+              "sparse": false,
+              "size": [
+                1,
+                1
+              ],
+              "real": [
+                "4000000000000000"
+              ]
+            }
+          },
+          {
+            "p": {
+              "kind": "numeric",
+              "class": "double",
+              "sparse": false,
+              "size": [
+                1,
+                1
+              ],
+              "real": [
+                "4008000000000000"
+              ]
+            }
+          }
+        ]
+      },
+      "display": "\nsa = \n\n  1x3 <a href=\"matlab:helpPopup struct\" style=\"font-weight:bold\">struct</a> array with fields:\n\n    p\n\n"
+    },
+    "st": {
+      "class": "struct",
+      "size": [
+        1,
+        1
+      ],
+      "value": {
+        "kind": "struct",
+        "size": [
+          1,
+          1
+        ],
+        "fields": [
+          "x",
+          "y",
+          "z"
+        ],
+        "elements": [
+          {
+            "x": {
+              "kind": "numeric",
+              "class": "double",
+              "sparse": false,
+              "size": [
+                1,
+                1
+              ],
+              "real": [
+                "3ff0000000000000"
+              ]
+            },
+            "y": {
+              "kind": "char",
+              "size": [
+                1,
+                3
+              ],
+              "rows": [
+                "abc"
+              ]
+            },
+            "z": {
+              "kind": "cell",
+              "size": [
+                1,
+                2
+              ],
+              "items": [
+                {
+                  "kind": "numeric",
+                  "class": "double",
+                  "sparse": false,
+                  "size": [
+                    1,
+                    1
+                  ],
+                  "real": [
+                    "3ff0000000000000"
+                  ]
+                },
+                {
+                  "kind": "numeric",
+                  "class": "double",
+                  "sparse": false,
+                  "size": [
+                    1,
+                    1
+                  ],
+                  "real": [
+                    "4000000000000000"
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "display": "\nst = \n\n  <a href=\"matlab:helpPopup struct\" style=\"font-weight:bold\">struct</a> with fields:\n\n    x: 1\n    y: 'abc'\n    z: {[1]  [2]}\n\n"
+    },
+    "t1": {
+      "class": "string",
+      "size": [
+        1,
+        1
+      ],
+      "value": {
+        "kind": "string",
+        "size": [
+          1,
+          1
+        ],
+        "missing": 0,
+        "data": [
+          "text"
+        ]
+      },
+      "display": "\nt1 = \n\n    \"text\"\n\n"
+    },
+    "t2": {
+      "class": "string",
+      "size": [
+        2,
+        2
+      ],
+      "value": {
+        "kind": "string",
+        "size": [
+          2,
+          2
+        ],
+        "missing": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "data": [
+          "a",
+          "def",
+          "bc",
+          "g"
+        ]
+      },
+      "display": "\nt2 = \n\n  2x2 <a href=\"matlab:helpPopup string\" style=\"font-weight:bold\">string</a> array\n\n    \"a\"      \"bc\"\n    \"def\"    \"g\" \n\n"
+    },
+    "u1": {
+      "class": "uint8",
+      "size": [
+        1,
+        1
+      ],
+      "value": {
+        "kind": "numeric",
+        "class": "uint8",
+        "sparse": false,
+        "size": [
+          1,
+          1
+        ],
+        "real": [
+          "200"
+        ]
+      },
+      "display": "\nu1 =\n\n  <a href=\"matlab:helpPopup uint8\" style=\"font-weight:bold\">uint8</a>\n\n   200\n\n"
+    },
+    "z1": {
+      "class": "double",
+      "size": [
+        1,
+        1
+      ],
+      "value": {
+        "kind": "numeric",
+        "class": "double",
+        "sparse": false,
+        "size": [
+          1,
+          1
+        ],
+        "real": [
+          "4008000000000000"
+        ],
+        "imag": [
+          "4010000000000000"
+        ]
+      },
+      "display": "\nz1 =\n\n   3.0000 + 4.0000i\n\n"
+    },
+    "z2": {
+      "class": "double",
+      "size": [
+        1,
+        2
+      ],
+      "value": {
+        "kind": "numeric",
+        "class": "double",
+        "sparse": false,
+        "size": [
+          1,
+          2
+        ],
+        "real": [
+          "3ff0000000000000",
+          "4008000000000000"
+        ],
+        "imag": [
+          "4000000000000000",
+          "c010000000000000"
+        ]
+      },
+      "display": "\nz2 =\n\n   1.0000 + 2.0000i   3.0000 - 4.0000i\n\n"
+    }
+  },
+  "figures": [],
+  "nfigures": 0
+}

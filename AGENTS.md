@@ -46,6 +46,8 @@ runs each case in MatLivre and diffs it against them.
   the release you named.
 - `MATLIVRE_TARGET_RELEASE` picks the release compared against (default `R2023b`). A case with no
   snapshot for it is listed as not recorded, not failed.
+- `MATLIVRE_DIFFTEST_ALL=1` makes a failing run list every difference in full instead of the
+  first twelve cut to 140 characters.
 - **Any difference from MATLAB fails the test.** There is no pending or skip marker: a failing
   case is behaviour still to implement. Do not weaken a case, the harness or the comparison to
   make it pass; fix MatLivre.
@@ -54,6 +56,9 @@ runs each case in MatLivre and diffs it against them.
   does (`x =`, blank line, `     5`, blank line) instead of the Live Editor style (`x = 5`) the
   app uses. Types `display_value_cw` (`display.rs`) does not cover yet fall back to the Live
   Editor style and so fail until they are added.
+- `command_window` also selects the batch behaviour of the axes `Box`: a plotting command that
+  replaces the axes' contents sets it (on for those in `BOXED_PLOTS`, off for `UNBOXED_PLOTS`, in
+  `gfx.rs`), as `matlab -batch` does. The app keeps the Live Editor's (off).
 - The comparer drops only what is not behaviour: line endings, MATLAB's `<a href>` link markup
   and warning bold markers, call-stack lines (`> In name (line N)` only, not any output that
   starts with "In "), trailing blanks. Figure windows' display is left
