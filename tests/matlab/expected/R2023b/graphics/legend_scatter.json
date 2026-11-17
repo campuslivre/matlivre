@@ -1,0 +1,20 @@
+{
+  "header": {
+    "release": "2023b",
+    "version": "23.2.0.2409890 (R2023b) Update 3",
+    "computer": "PCWIN64",
+    "recorded": "2026-11-17"
+  },
+  "log": "before legend: children=1\nafter legend: children=2, class(1)=matlab.graphics.illustration.Legend, class(2)=matlab.graphics.axis.Axes\nDisplayName: first | second\nString: first,second\nLocation: northeast  Orientation: vertical  Box: on  Visible: on\nax.Legend empty: 0\nfindobj legend: 1\naxes children: 2\nsame object: 1  Location: northwest\nLocation: southeast Orientation: horizontal\nafter off: children=1\nafter show: children=2\nlegend() call: class=matlab.graphics.illustration.Legend\nString from DisplayName: dn\nDisplayName after: x y\nscatter default SizeData=36\nscatter SizeData=50\nset SizeData=100\nSizeData=64 MarkerSize? n/a\n",
+  "error": {
+    "identifier": "",
+    "message": ""
+  },
+  "lastwarn": {
+    "message": "",
+    "identifier": ""
+  },
+  "variables": {},
+  "figures": [],
+  "nfigures": 0
+}
