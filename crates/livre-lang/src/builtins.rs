@@ -3221,6 +3221,10 @@ fn call_dense(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize) 
             if !(v.numel() == 0 && matches!(v, Value::Num(_))) {
                 s.push('\n');
             }
+            // The command window ends the display of a number or matrix with a blank line.
+            if it.command_window && matches!(v, Value::Num(m) if m.kind != crate::value::Kind::Char && !m.is_empty()) {
+                s.push('\n');
+            }
             it.emit(OutputKind::Text(s));
             none()
         }

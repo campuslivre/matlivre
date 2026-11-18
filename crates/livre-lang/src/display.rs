@@ -196,7 +196,10 @@ fn page_body(m: &Matrix, page: usize, rows: usize, cols: usize, f: NumFormat) ->
             return out;
         }
         Kind::Int(_) => {
-            let w = data.iter().map(|&v| format!("{}", v as i64).len()).max().unwrap_or(1) + 3;
+            // Three spaces, then the digits of the largest magnitude, and a place for the minus
+            // sign if any element has one.
+            let digits = data.iter().map(|&v| format!("{}", (v as i64).unsigned_abs()).len()).max().unwrap_or(1);
+            let w = digits + usize::from(data.iter().any(|&v| v < 0.0)) + 3;
             for r in 0..rows {
                 for c in 0..cols {
                     out.push_str(&format!("{:>w$}", m.data[at(r, c)] as i64));
@@ -586,12 +589,64 @@ pub fn display_value(name: &str, v: &Value, f: NumFormat) -> String {
 /// newline). The bodies are the ones `disp` shows. `None` for the types not covered yet, which
 /// then show in the Live Editor style.
 pub fn display_value_cw(name: &str, v: &Value, f: NumFormat) -> Option<String> {
+    let ascii = |dims: &[usize]| nd::size_text(dims).replace('\u{d7}', "x");
+    let block = |head: &str, body: String| format!("\n{name} ={head}\n\n{}\n", body.trim_end_matches('\n'));
     match v {
         Value::Num(m) if !m.sparse && m.kind == Kind::Double && m.is_2d() && !m.is_empty() && !m.is_complex() => {
             let body = disp_value(v, f);
             Some(format!("\n{name} =\n\n{}\n", wrap_columns(body.trim_end_matches('\n'), m.cols())))
         }
-        Value::Num(m) if !m.sparse && m.kind == Kind::Logical && m.is_2d() && m.is_scalar() => Some(format!("\n{name} =\n\n  logical\n\n   {}\n", if m.data[0] != 0.0 { 1 } else { 0 })),
+        Value::Num(m) if !m.sparse => {
+            if m.kind == Kind::Char && !m.is_empty() {
+                if m.is_2d() && m.rows() == 1 && m.cols() > 0 && !m.to_string_lossy().contains('\n') {
+                    return Some(block("", format!("    '{}'", m.to_string_lossy())));
+                }
+                return None;
+            }
+            if m.is_empty() {
+                if m.dims == [0, 0] && m.kind == Kind::Double {
+                    return Some(block("", "     []".to_string()));
+                }
+                return match m.kind {
+                    Kind::Double if m.is_2d() => Some(block("", format!("  {} empty double matrix", ascii(&m.dims)))),
+                    Kind::Char if m.is_2d() => Some(block("", format!("  {} empty char array", ascii(&m.dims)))),
+                    _ => None,
+                };
+            }
+            if !m.is_2d() {
+                return None;
+            }
+            if m.is_scalar() {
+                let body = disp_value(v, f);
+                return Some(match m.kind {
+                    Kind::Double => block("", body),
+                    k => block("", format!("  {}\n\n{body}", if m.is_complex() { format!("{} complex", k.name()) } else { k.name().into() })),
+                });
+            }
+            let body = matrix_body(m, f, name);
+            Some(match m.kind {
+                Kind::Double => block("", body),
+                Kind::Logical | Kind::Char => block("", format!("  {} {} array\n\n{}", ascii(&m.dims), m.kind.name(), body.trim_end_matches('\n'))),
+                k => block("", format!("  {} {}{} {}\n\n{}", ascii(&m.dims), if m.is_complex() { "complex " } else { "" }, k.name(), shape_word(&m.dims), body.trim_end_matches('\n'))),
+            })
+        }
+        Value::Str(s) if s.dims.len() == 2 && !s.data.is_empty() => {
+            if s.data.len() == 1 {
+                return Some(block("", format!("    {}", summary(v, f))));
+            }
+            Some(block("", format!("  {} string array\n\n{}", ascii(&s.dims), str_body(s).trim_end_matches('\n'))))
+        }
+        Value::Cell(c) if c.dims.len() == 2 && !c.data.is_empty() => Some(block("", format!("  {} cell array\n\n{}", ascii(&c.dims), ascii_sizes(cell_body(c, f).trim_end_matches('\n'))))),
+        Value::Struct(s) if s.dims.len() == 2 && !s.fields.is_empty() => {
+            if s.elems.len() == 1 {
+                return Some(block(" ", format!("  struct with fields:\n\n{}", struct_fields_body(s, f).trim_end_matches('\n'))));
+            }
+            if s.elems.is_empty() {
+                return None;
+            }
+            Some(block(" ", format!("  {} struct array with fields:\n\n{}", ascii(&s.dims), struct_names_body(s).trim_end_matches('\n'))))
+        }
+        Value::Func(fv) => Some(block("", format!("  function_handle with value:\n\n    {}", func_text(fv)))),
         Value::Object(o) if o.class.name == "digitalFilter" => crate::signal::digfilt::object_text(o).map(|t| format!("
 {name} = 
 
@@ -599,6 +654,17 @@ pub fn display_value_cw(name: &str, v: &Value, f: NumFormat) -> Option<String> {
 ")),
         _ => None,
     }
+}
+
+/// The command window writes the sizes inside a cell's summaries with an ASCII `x` (`1x2 cell`),
+/// where the Live Editor writes the multiplication sign.
+fn ascii_sizes(text: &str) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    chars
+        .iter()
+        .enumerate()
+        .map(|(i, &c)| if c == '\u{d7}' && i > 0 && chars[i - 1].is_ascii_digit() && chars.get(i + 1).is_some_and(|d| d.is_ascii_digit()) { 'x' } else { c })
+        .collect()
 }
 
 /// The command window is 180 characters wide: wider matrices are shown in blocks of columns,
