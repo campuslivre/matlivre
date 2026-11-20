@@ -89,6 +89,11 @@ pub enum Expr {
     DynField(Box<Expr>, Box<Expr>),
     Matrix(Vec<Vec<Expr>>),
     Cell(Vec<Vec<Expr>>),
+    /// A parenthesized sub-expression. Only present while an anonymous function's text is built
+    /// (so `func2str` keeps the parentheses that were typed); stripped from the stored body.
+    Paren(Box<Expr>),
+    /// A number literal with its source text (`2e-3`); like `Paren`, only while the text is built.
+    Lit(Box<Expr>, String),
     AnonFn(Rc<AnonFn>),
     FuncHandle(String),
 }
