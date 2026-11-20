@@ -24,6 +24,27 @@ fn chevron_right(p: &egui::Painter, c: Pos2, color: Color32) {
     p.add(Shape::line(vec![pos2(c.x - 2.0, c.y - 4.0), pos2(c.x + 2.0, c.y), pos2(c.x - 2.0, c.y + 4.0)], Stroke::new(1.0_f32, color)));
 }
 
+/// Native menu-ribbon button: text-first, borderless and without a regular-button drop shadow.
+pub fn ribbon_button(ui: &mut Ui, skin: &Skin, text: &str, selected: bool) -> Response {
+    let galley = ui.painter().layout_no_wrap(text.to_string(), FontId::proportional(14.0), Color32::PLACEHOLDER);
+    let (rect, resp) = ui.allocate_exact_size(vec2(galley.size().x + 20.0, 32.0), Sense::click());
+    if ui.is_rect_visible(rect) {
+        let p = ui.painter();
+        let fill = if resp.is_pointer_button_down_on() {
+            skin.subtle_pressed
+        } else if selected {
+            skin.selected
+        } else if resp.hovered() {
+            skin.subtle_hover
+        } else {
+            Color32::TRANSPARENT
+        };
+        p.rect_filled(rect, Rounding::same(RADIUS), fill);
+        p.text(rect.center(), Align2::CENTER_CENTER, text, FontId::proportional(14.0), skin.text);
+    }
+    resp
+}
+
 /// A transparent (subtle) ModernButton, 32 px tall: optional colour icon, label and drop-down
 /// chevron. `selected` keeps the `--sel` fill (a panel toggle whose panel is open).
 pub fn cmd_button(ui: &mut Ui, skin: &Skin, icon: Option<Ic>, text: &str, enabled: bool, dropdown: bool, selected: bool) -> Response {
@@ -279,6 +300,9 @@ pub struct MenuEntry<'a> {
 impl<'a> MenuEntry<'a> {
     pub fn new(icon: Ic, label: &'a str) -> Self {
         Self { icon: Some(icon), label, shortcut: "", checked: false, enabled: true, submenu: false }
+    }
+    pub fn text(label: &'a str) -> Self {
+        Self { icon: None, label, shortcut: "", checked: false, enabled: true, submenu: false }
     }
     pub fn shortcut(mut self, s: &'a str) -> Self {
         self.shortcut = s;
