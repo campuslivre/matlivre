@@ -1,0 +1,20 @@
+{
+  "header": {
+    "release": "2023b",
+    "version": "23.2.0.2409890 (R2023b) Update 3",
+    "computer": "PCWIN64",
+    "recorded": "2026-11-17"
+  },
+  "log": "plot      Box=on\nsemilogx  Box=on\nsemilogy  Box=on\nloglog    Box=on\nbar       Box=on\nbarh      Box=on\nstairs    Box=on\nstem      Box=on\narea      Box=on\nerrorbar  Box=on\nhistogram Box=on\nfill      Box=on\nimagesc   Box=on\nimage     Box=on\ncontour   Box=on\nquiver    Box=on\nscatter   Box=off\nplot3     Box=off\nsurf      Box=off\nmesh      Box=off\nline      Box=off\nxline     Box=off\nhold      Box=off\ngca       Box=off\naxes      Box=off\nsubplot   Box=off\ntitle     Box=off\nxlim      Box=off\nbox off   Box=off\nbox on    Box=on\nbox       Box=off\nbox       Box=on\nset off   Box=off\nset on    Box=on\ncla       Box=on\nreplot    Box=on\n2 plots   Box=on\nclf+plot  Box=on\ngrid off  X=off Y=off Z=off\ngrid on   X=on Y=on Z=on\naxes; plot            Box=on\nplot; box off; plot   Box=on\nhold on; plot         Box=off\nbox off; hold; plot   Box=off\naxes; bar             Box=on\nplot; scatter        Box=off\nplot; surf           Box=off\nplot; plot3          Box=off\nplot; line          Box=on\nplot; hold; scatter  Box=on\nscatter; plot        Box=on\nbox off; cla; plot   Box=on\nsubplot; plot       Box=on\n",
+  "error": {
+    "identifier": "",
+    "message": ""
+  },
+  "lastwarn": {
+    "message": "",
+    "identifier": ""
+  },
+  "variables": {},
+  "figures": [],
+  "nfigures": 0
+}

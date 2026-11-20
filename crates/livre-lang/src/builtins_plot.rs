@@ -339,7 +339,23 @@ pub fn call(it: &mut Interpreter, name: &str, args: &[Value], nargout: usize) ->
             one(crate::gfx::handle(it, id as u64))
         }
         "gca" => one(it.current_axes_handle()),
-        "box" => none(),
+        "box" => {
+            // `box on`, `box off`, or `box` to toggle the current axes.
+            let f = it.current_figure_index();
+            it.figures[f].axes_made = true;
+            let id = crate::gfx::axes_id(it, f, it.figures[f].current_axes);
+            let now = crate::gfx::get_prop_raw(it, id, "Box").ok().and_then(|v| v.text().ok()).is_some_and(|t| t == "on");
+            let on = match a.first() {
+                Some(v) => match v.text()?.to_lowercase().as_str() {
+                    "on" => true,
+                    "off" => false,
+                    _ => return rt("Invalid argument. Value must be 'on' or 'off'."),
+                },
+                None => !now,
+            };
+            crate::gfx::store(it, id, "Box", Value::chars(if on { "on" } else { "off" }));
+            none()
+        }
         "close" => {
             let all = a.iter().any(|v| v.text().map(|s| s == "all").unwrap_or(false));
             if all {

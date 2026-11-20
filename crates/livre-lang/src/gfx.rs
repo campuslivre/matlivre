@@ -858,7 +858,7 @@ fn computed(it: &mut Interpreter, id: u64, t: Target, name: &str) -> R<Option<Va
                 "XScale" => Value::chars(if ax.xlog { "log" } else { "linear" }),
                 "YScale" => Value::chars(if ax.ylog { "log" } else { "linear" }),
                 "YDir" => Value::chars(if ax.y_reverse { "reverse" } else { "normal" }),
-                "XGrid" | "YGrid" => on_off_value(ax.grid),
+                "XGrid" | "YGrid" | "ZGrid" => on_off_value(ax.grid),
                 "XTick" => row(&tick_values(&ax.xticks, x0, x1)),
                 "YTick" => row(&tick_values(&ax.yticks, y0, y1)),
                 "XTickLabel" => label_value(&ax.xticks, &tick_labels(&ax.xticks, &tick_values(&ax.xticks, x0, x1))),
@@ -1630,12 +1630,41 @@ fn object_title(it: &mut Interpreter, id: u64, t: Target) -> String {
         }
         // MATLAB names the object by its Tag, else its DisplayName: `Line (data1)`.
         _ => {
-            let label = ["Tag", "DisplayName"].iter().find_map(|p| get_prop(it, id, p).ok().and_then(|v| v.text().ok()).filter(|s| !s.is_empty()));
+            // The command window names an axes by its title: `Axes (Squares)`.
+            let titled = if it.command_window && class.ends_with(".Axes") {
+                get_prop(it, id + Part::Title as u64, "String").ok().and_then(|v| v.text().ok()).filter(|s| !s.is_empty())
+            } else {
+                None
+            };
+            let label = titled.or_else(|| ["Tag", "DisplayName"].iter().find_map(|p| get_prop(it, id, p).ok().and_then(|v| v.text().ok()).filter(|s| !s.is_empty())));
             match label {
                 Some(l) => format!("{} ({l})", short(class)),
                 None => short(class).to_string(),
             }
         }
+    }
+}
+
+/// The plotting commands that replace the contents of the current axes (hold off) reset its `Box`
+/// to their own default in R2023b: on for these, off for `UNBOXED_PLOTS`. With hold on, or for
+/// commands that only add to the axes (`line`, `xline`, `text`, `title`, `xlim`, ...), it stays.
+pub(crate) const BOXED_PLOTS: &[&str] = &[
+    "plot", "semilogx", "semilogy", "loglog", "bar", "barh", "stairs", "stem", "area", "errorbar", "histogram", "histogram2", "fill",
+    "imagesc", "image", "contour", "quiver", "pcolor", "fplot", "polarplot",
+];
+pub(crate) const UNBOXED_PLOTS: &[&str] = &["scatter", "plot3", "surf", "mesh"];
+
+/// Whether the current axes hold their contents (`hold on`); false when there are no axes yet.
+pub(crate) fn current_axes_hold(it: &Interpreter) -> bool {
+    it.current_figure.filter(|&f| f < it.figures.len() && it.figures[f].has_axes()).is_some_and(|f| it.figures[f].axes[it.figures[f].current_axes].hold)
+}
+
+/// Sets `Box` of the current axes after a plotting command that replaced their contents.
+pub(crate) fn set_box_after_plot(it: &mut Interpreter, on: bool) {
+    if let Some(f) = it.current_figure.filter(|&f| f < it.figures.len() && it.figures[f].has_axes()) {
+        let a = it.figures[f].current_axes;
+        let id = axes_id(it, f, a);
+        store(it, id, "Box", Value::chars(if on { "on" } else { "off" }));
     }
 }
 
@@ -1691,6 +1720,12 @@ pub fn display(it: &mut Interpreter, name: &str, v: &Value) -> R<String> {
         s.set(p, v);
     }
     let body = crate::display::struct_fields_body(&s, it.format);
+    if it.command_window {
+        // The command window: a blank line before the heading and after the properties. The last
+        // line is plain text in the batch log and a link in what `evalc` captures.
+        let more = if it.capturing > 0 { "Show all properties" } else { "Use GET to show all properties" };
+        return Ok(format!("\n{name} = \n\n  {title} with properties:\n\n{body}\n  {more}\n"));
+    }
     Ok(format!("{name} = \n  {title} with properties:\n\n{body}\n  Use GET to show all properties"))
 }
 
