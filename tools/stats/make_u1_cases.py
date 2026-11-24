@@ -604,6 +604,197 @@ for c in ["training(cvpartition(10,'KFold',3))", "training(cvpartition(10,'KFold
     L22.append(P12 + ("rng(%d); r = {double({c})};" % sd).replace("{c}", c))
 L += L22
 
+# crossval
+P13 = "bd=x(1:25)'; bd2=[x(1:25)' y(1:25)']; bz=y(1:25)'; q12=(1:12)'; yq=[2.1 3.9 6.2 7.8 10.1 12.2 13.8 16.1 18.0 19.9 22.2 23.8]'; gq=[1 1 1 2 2 2 1 1 2 2 1 2]'; lb=double(bd>median(bd)); lb(3)=1-lb(3); lb(17)=1-lb(17); lc=repmat({'lo'},25,1); lc(bd>median(bd))={'hi'}; "
+L23 = []
+sd = 0
+fm = "rng(%d); r = {crossval(%s)};"
+fun_cases = [
+    "@(a,b) mean(b), bd",
+    "@(a,b) mean(b), bd, 'KFold', 5",
+    "@(a,b) mean(b), bd, 'KFold', 3",
+    "@(a,b) mean(b), bd, 'kf', 4",
+    "@(a,b) mean(b), bd, 'KFold', 25",
+    "@(a,b) mean(b), bd, 'KFold', 30",
+    "@(a,b) numel(b), bd, 'KFold', 4",
+    "@(a,b) [mean(b) std(b)], bd, 'KFold', 4",
+    "@(a,b) [mean(b); std(b)], bd, 'KFold', 4",
+    "@(a,b) mean(b), bd, 'HoldOut', 0.3",
+    "@(a,b) mean(b), bd, 'HoldOut', 5",
+    "@(a,b) mean(b), bd, 'Ho', 0.2",
+    "@(a,b) mean(b), bd, 'LeaveOut', 1",
+    "@(a,b) mean(b), q12, 'LeaveOut', 1",
+    "@(a,b) mean(b), bd, 'MCReps', 3, 'KFold', 4",
+    "@(a,b) mean(b), bd, 'MCReps', 2, 'HoldOut', 0.4",
+    "@(a,b) mean(b), bd, 'MCReps', 1",
+    "@(a,b) mean(b), bd, 'KFold', 3, 'Stratify', lb",
+    "@(a,b) mean(b), bd, 'HoldOut', 0.3, 'Stratify', lb",
+    "@(a,b) mean(b), bd, 'Stratify', lb",
+    "@(a,b) mean(b), bd, 'Strat', lc, 'KFold', 4",
+    "@(a,b) mean(b), q12, 'KFold', 3, 'Stratify', gq",
+    "@(a,b) mean(b), q12, 'MCReps', 2, 'KFold', 3, 'Stratify', gq",
+    "@(a,b,c,d) mean((d - polyval(polyfit(a,c,1),b)).^2), bd, bz, 'KFold', 5",
+    "@(xtr,ytr,xte,yte) mean((yte - polyval(polyfit(xtr,ytr,2),xte)).^2), q12, yq, 'KFold', 3",
+    "@(xtr,ytr,xte,yte) sum(abs(yte - mean(ytr))), q12, yq, 'HoldOut', 0.25",
+    "@(a,b,c,d,e,f) [mean(d) mean(e) mean(f)], q12, yq, gq, 'KFold', 4",
+    "@(a,b,c,d) numel(c), bd2, bz, 'KFold', 5",
+    "@(a,b) size(b,1), bd2, 'KFold', 4",
+    "@(a,b) mean(b(:,1)), bd2, 'KFold', 4",
+    "@(a,b) int8(numel(b)), bd, 'KFold', 4",
+    "@(a,b) numel(b) > 5, bd, 'KFold', 4",
+    "@(a,b) single(mean(b)), bd, 'KFold', 4",
+    "@(a,b) uint16(numel(a)), bd, 'KFold', 3",
+    "@(a,b) rand, bd, 'KFold', 3",
+    "@(a,b) rand, bd, 'KFold', 3, 'MCReps', 2",
+    "@(a,b) numel(b), {'a';'b';'c';'d';'e';'f';'g';'h'}, 'KFold', 4",
+    "@(a,b,c,d) [numel(b) numel(d)], bd(1:8), {'a';'b';'c';'d';'e';'f';'g';'h'}, 'KFold', 4",
+    "@(a,b) numel(b), ['ab';'cd';'ef';'gh';'ij';'kl'], 'KFold', 3",
+    "@(a,b) numel(b), string({'a';'b';'c';'d';'e';'f'}), 'KFold', 3",
+    "@(a,b) mean(b), bd, \"KFold\", 3",
+    "@(a,b) mean(b), bd, \"holdout\", 0.3",
+    "@(a,b) mean(b), bd, 'Options', statset('UseParallel',false), 'KFold', 3",
+    "@(a,b) mean(b), bd, 'KFold', [], 'HoldOut', 0.3",
+    "@(a,b) mean(b), bd, 'KFold', 3, 'HoldOut', []",
+    "@(a,b) mean(b), bd, 'KFold', 3, 'KFold', 5",
+    "@(a,b) mean(b), bd, 'k', 3",
+    "@(a,b) mean(b), bd, 'h', 0.3",
+    "@(a,b) mean(b), bd, 'l', 1",
+    "@(a,b) mean(b), bd, 'mc', 2, 'KFold', 3",
+    "@(a,b) mean(b), bd, 'KFold', 2",
+    "@(a,b) a(1), q12, 'KFold', 3",
+    "@(a,b) b(end), q12, 'LeaveOut', 1",
+    "@max, bd, 'KFold', 4",
+    "@numel, bd, 'KFold', 4",
+    "@(a,b) mean(b), bd, 'KFold', 3, 'MCReps', 4",
+    "@(a,b) mean(b), bd, 'HoldOut', 0.2, 'MCReps', 3",
+    "@(a,b) numel(b), bd, 'HoldOut', 3, 'Stratify', lb, 'MCReps', 2",
+]
+for c in fun_cases:
+    sd += 1
+    L23.append(P13 + fm % (sd, c))
+# a given partition: the fold sets are those of the partition, MCReps repartitions
+for c in [
+    "@(a,b) mean(b), bd, 'Partition', cvpartition(25,'KFold',4)",
+    "@(a,b) mean(b), bd, 'Partition', cvpartition(25,'HoldOut',0.3)",
+    "@(a,b) mean(b), bd, 'Partition', cvpartition(25,'LeaveOut')",
+    "@(a,b) mean(b), bd, 'Partition', cvpartition(25,'Resubstitution')",
+    "@(a,b) mean(b), bd, 'Partition', cvpartition(lb,'KFold',3)",
+    "@(a,b) mean(b), bd, 'Partition', cvpartition(25,'KFold',4), 'MCReps', 3",
+    "@(a,b) mean(b), bd, 'Partition', cvpartition(lb,'HoldOut',0.3), 'MCReps', 2",
+    "@(a,b) mean(b), bd, 'Partition', cvpartition(25,'LeaveOut'), 'MCReps', 3",
+    "@(a,b) mean(b), bd, 'Partition', cvpartition(25,'Resubstitution'), 'MCReps', 2",
+    "@(a,b) mean(b), bd, 'Partition', cvpartition(25,'HoldOut',0.3), 'MCReps', 2",
+    "@(a,b) mean(b), bd, 'MCReps', 2, 'Partition', cvpartition(25,'KFold',3)",
+    "@(a,b) mean(b), bd, 'LeaveOut', 1, 'MCReps', 2",
+]:
+    sd += 1
+    L23.append(P13 + fm % (sd, c))
+# mean squared error with a prediction function
+mm = "rng(%d); r = {crossval('mse', %s)};"
+for c in [
+    "bd, bz, 'Predfun', @(xtr,ytr,xte) xte*(xtr\\ytr)",
+    "bd, bz, 'Predfun', @(xtr,ytr,xte) xte*(xtr\\ytr), 'KFold', 5",
+    "bd, bz, 'Predfun', @(xtr,ytr,xte) xte*(xtr\\ytr), 'KFold', 3",
+    "bd, bz, 'Predfun', @(xtr,ytr,xte) xte*(xtr\\ytr), 'HoldOut', 0.3",
+    "bd, bz, 'Predfun', @(xtr,ytr,xte) xte*(xtr\\ytr), 'LeaveOut', 1",
+    "bd, bz, 'Predfun', @(xtr,ytr,xte) xte*(xtr\\ytr), 'MCReps', 3, 'KFold', 4",
+    "bd, bz, 'Predfun', @(xtr,ytr,xte) xte*(xtr\\ytr), 'MCReps', 2, 'HoldOut', 0.3",
+    "bd, bz, 'Predfun', @(xtr,ytr,xte) xte*(xtr\\ytr), 'Partition', cvpartition(25,'KFold',5)",
+    "bd, bz, 'Predfun', @(xtr,ytr,xte) xte*(xtr\\ytr), 'Partition', cvpartition(25,'Resubstitution')",
+    "bd, bz, 'Predfun', @(xtr,ytr,xte) xte*(xtr\\ytr), 'Partition', cvpartition(25,'LeaveOut'), 'MCReps', 3",
+    "bd, bz, 'Predfun', @(xtr,ytr,xte) xte*(xtr\\ytr), 'Stratify', lb, 'KFold', 4",
+    "bd, bz, 'Predfun', @(xtr,ytr,xte) xte*(xtr\\ytr), 'Stratify', lb, 'HoldOut', 0.3",
+    "bd2, bz, 'Predfun', @(xtr,ytr,xte) xte*(xtr\\ytr), 'KFold', 5",
+    "[bd ones(25,1)], bz, 'Predfun', @(xtr,ytr,xte) xte*(xtr\\ytr), 'KFold', 5",
+    "[bd ones(25,1)], bz, 'Predfun', @(xtr,ytr,xte) xte*regress(ytr,xtr), 'KFold', 5",
+    "q12, yq, 'Predfun', @(xtr,ytr,xte) polyval(polyfit(xtr,ytr,1),xte), 'KFold', 4",
+    "q12, yq, 'Predfun', @(xtr,ytr,xte) repmat(mean(ytr),size(xte,1),1), 'KFold', 3",
+    "q12, yq, 'Predfun', @(xtr,ytr,xte) repmat(mean(ytr),size(xte,1),1), 'LeaveOut', 1",
+    "q12, gq, yq, 'Predfun', @(x1,x2,ytr,x1te,x2te) x1te + x2te, 'KFold', 4",
+    "q12, gq, yq, 'Predfun', @(x1,x2,ytr,x1te,x2te) 2*x1te, 'HoldOut', 0.25",
+    "q12, single(yq), 'Predfun', @(xtr,ytr,xte) double(xte), 'KFold', 3",
+    "q12, yq', 'Predfun', @(xtr,ytr,xte) xte, 'KFold', 3",
+    "'q', 'y'",
+    "q12, yq, 'Predfun', @(xtr,ytr,xte) polyval(polyfit(xtr,ytr,1),xte), 'Predfun', @(xtr,ytr,xte) xte, 'KFold', 3",
+    "q12, yq, 'pred', @(xtr,ytr,xte) xte, 'k', 3",
+    "q12, yq, 'Predfun', @(xtr,ytr,xte) xte, 'Options', statset('UseParallel',false), 'k', 3",
+]:
+    sd += 1
+    L23.append(P13 + mm % (sd, c))
+L23.append(P13 + "rng(1); r = {crossval('MSE', bd, bz, 'Predfun', @(xtr,ytr,xte) xte*(xtr\\ytr), 'KFold', 3)};")
+L23.append(P13 + "rng(1); r = {crossval(\"mse\", bd, bz, 'Predfun', @(xtr,ytr,xte) xte*(xtr\\ytr), 'KFold', 3)};")
+L23.append(P13 + "rng(1); r = {crossval('mse', bd, bz, 'Predfun', @(xtr,ytr,xte) xte*(xtr\\ytr), 'KFold', 3), rand(1,2)};")
+L23.append(P13 + "rng(1); r = {crossval('mse', bd, bz, 'Predfun', @(xtr,ytr,xte) xte*(xtr\\ytr), 'KFold', 3, 'MCReps', 2), rand(1,2)};")
+L23.append(P13 + "rng(1); r = {crossval(@(a,b) mean(b), bd, 'KFold', 3), rand(1,2)};")
+L23.append(P13 + "rng(1); r = {crossval(@(a,b) mean(b), bd, 'HoldOut', 0.3, 'Stratify', lb), rand(1,2)};")
+# misclassification rate
+mc = "rng(%d); r = {crossval('mcr', %s)};"
+thr = "@(xtr,ytr,xte) double(xte > mean(xtr))"
+for c in [
+    "bd, lb, 'Predfun', " + thr,
+    "bd, lb, 'Predfun', " + thr + ", 'KFold', 5",
+    "bd, lb, 'Predfun', " + thr + ", 'KFold', 3",
+    "bd, lb, 'Predfun', " + thr + ", 'HoldOut', 0.3",
+    "bd, lb, 'Predfun', " + thr + ", 'LeaveOut', 1",
+    "bd, lb, 'Predfun', " + thr + ", 'MCReps', 3, 'KFold', 4",
+    "bd, lb, 'Predfun', " + thr + ", 'Partition', cvpartition(25,'KFold',4)",
+    "bd, lb, 'Predfun', " + thr + ", 'Partition', cvpartition(lb,'KFold',4)",
+    "bd, lb, 'Predfun', " + thr + ", 'Stratify', lb, 'KFold', 4",
+    "bd, lb, 'Predfun', " + thr + ", 'Partition', cvpartition(25,'Resubstitution')",
+    "bd, lb, 'Predfun', " + thr + ", 'Partition', cvpartition(25,'LeaveOut'), 'MCReps', 2",
+    "bd, logical(lb), 'Predfun', @(xtr,ytr,xte) xte > mean(xtr), 'KFold', 4",
+    "bd, lb, 'Predfun', @(xtr,ytr,xte) logical(xte > mean(xtr)), 'KFold', 4",
+    "bd, int8(lb), 'Predfun', @(xtr,ytr,xte) int8(xte > mean(xtr)), 'KFold', 4",
+    "bd, single(lb), 'Predfun', @(xtr,ytr,xte) single(xte > mean(xtr)), 'KFold', 4",
+    "bd, lb+1, 'Predfun', @(xtr,ytr,xte) 1 + double(xte > mean(xtr)), 'KFold', 4",
+    "bd, lc, 'Predfun', @(xtr,ytr,xte) repmat({'lo'},size(xte,1),1), 'KFold', 4",
+    "bd, lc, 'Predfun', @(xtr,ytr,xte) repmat({'hi'},size(xte,1),1), 'KFold', 4",
+    "bd, string(lc), 'Predfun', @(xtr,ytr,xte) repmat(\"lo\",size(xte,1),1), 'KFold', 4",
+    "bd, categorical(lc), 'Predfun', @(xtr,ytr,xte) repmat(categorical({'lo'}),size(xte,1),1), 'KFold', 4",
+    "bd, lc, 'Predfun', @(xtr,ytr,xte) categorical(repmat({'lo'},size(xte,1),1)), 'KFold', 4",
+    "bd, lc, 'Predfun', @(xtr,ytr,xte) ytr(1:size(xte,1)), 'KFold', 4",
+    "bd, lb, 'Predfun', @(xtr,ytr,xte) repmat(mode(ytr),size(xte,1),1), 'KFold', 4",
+    "bd, lb, 'Predfun', @(xtr,ytr,xte) repmat(mode(ytr),size(xte,1),1), 'HoldOut', 0.4",
+    "bd, lb, 'Predfun', @(xtr,ytr,xte) repmat(7,size(xte,1),1), 'KFold', 4",
+    "bd, lb, 'Predfun', @(xtr,ytr,xte) NaN(size(xte,1),1), 'KFold', 4",
+    "bd, ['a';'b';'a';'b';'a';'b';'a';'b';'a';'b';'a';'b';'a';'b';'a';'b';'a';'b';'a';'b';'a';'b';'a';'b';'a'], 'Predfun', @(xtr,ytr,xte) repmat('a',size(xte,1),1), 'KFold', 4",
+    "bd, ['aa';'bb';'aa';'bb';'aa';'bb';'aa';'bb';'aa';'bb';'aa';'bb';'aa';'bb';'aa';'bb';'aa';'bb';'aa';'bb';'aa';'bb';'aa';'bb';'aa'], 'Predfun', @(xtr,ytr,xte) repmat('aa',size(xte,1),1), 'KFold', 4",
+    "q12, gq, 'Predfun', @(xtr,ytr,xte) classify(xte,xtr,ytr), 'KFold', 3",
+    "bd2, lb, 'Predfun', @(xtr,ytr,xte) classify(xte,xtr,ytr), 'KFold', 5",
+    "bd2, lb, 'Predfun', @(xtr,ytr,xte) classify(xte,xtr,ytr,'quadratic'), 'KFold', 5",
+    "bd2, lb, 'Predfun', @(xtr,ytr,xte) classify(xte,xtr,ytr), 'HoldOut', 0.3",
+    "bd2, lb, 'Predfun', @(xtr,ytr,xte) classify(xte,xtr,ytr), 'LeaveOut', 1",
+    "bd2, lc, 'Predfun', @(xtr,ytr,xte) classify(xte,xtr,ytr), 'KFold', 5",
+    "q12, bd2(1:12,:), gq, 'Predfun', @(x1,x2,ytr,x1te,x2te) double(x1te > 6), 'KFold', 4",
+]:
+    sd += 1
+    L23.append(P13 + mc % (sd, c))
+# errors and warnings
+er = "rng(%d); r = {crossval(%s)};"
+for c in [
+    "", "@(a,b) 1", "@(a,b) 1, bd, 'bogus', 1", "@(a,b) 1, bd, 'KFold'", "@(a,b) 1, bd, 5, 6", "@(a,b) 1, bd, 'KFold', 3, 4, 5", "@(a,b) 1, bd, {1}, 3",
+    "@(a,b) 1, bd, 'p', 1", "@(a,b) 1, bd, '', 1", "@(a,b) mean(b), bd, 'K', 3", "@(a,b) 1, bd, 'o', 1",
+    "'foo', bd, bz", "3, bd, bz", "{1}, bd, bz", "'mse'", "'mse', bd", "'mse', bd, bz", "'mcr', bd, lb", "'mcr', bd, lb, 'KFold', 3",
+    "@(a,b) 1, 5", "@(a,b) 1, bd(1)", "@(a,b) 1, bd, bz(1:5)", "@(a,b) 1, bd, bz(1:5), 'KFold', 3", "@(a,b) 1, bd, 'KFold', 1", "@(a,b) 1, bd, 'KFold', 2.5", "@(a,b) 1, bd, 'HoldOut', 0", "@(a,b) 1, bd, 'HoldOut', 25",
+    "@(a,b) mean(b), bd, 'KFold', 3, 'HoldOut', 0.3", "@(a,b) mean(b), bd, 'KFold', 3, 'LeaveOut', 1", "@(a,b) mean(b), bd, 'HoldOut', 0.3, 'LeaveOut', 1",
+    "@(a,b) mean(b), bd, 'LeaveOut', 2", "@(a,b) mean(b), bd, 'LeaveOut', 0", "@(a,b) mean(b), bd, 'LeaveOut', [1 1]",
+    "@(a,b) mean(b), bd, 'MCReps', 0", "@(a,b) mean(b), bd, 'MCReps', 1.5", "@(a,b) mean(b), bd, 'MCReps', -1", "@(a,b) mean(b), bd, 'MCReps', [1 2]", "@(a,b) mean(b), bd, 'MCReps', 'a'", "@(a,b) mean(b), bd, 'MCReps', true", "@(a,b) mean(b), bd, 'MCReps', NaN", "@(a,b) mean(b), bd, 'MCReps', int8(2), 'KFold', 3",
+    "@(a,b) mean(b), bd, 'Partition', 5", "@(a,b) mean(b), bd, 'Partition', cvpartition(10,'KFold',2)", "@(a,b) mean(b), bd, 'Partition', cvpartition(25,'KFold',2), 'KFold', 3", "@(a,b) mean(b), bd, 'Partition', cvpartition(25,'KFold',2), 'Stratify', lb",
+    "@(a,b) mean(b), bd, 'Partition', cvpartition(25,'KFold',2), 'LeaveOut', 1", "@(a,b) mean(b), bd, 'Partition', cvpartition(25,'KFold',2), 'HoldOut', 0.2",
+    "@(a,b) mean(b), bd, 'Stratify', lb(1:5)", "@(a,b) mean(b), bd, 'Stratify', {1,2}",
+    "@(a,b) mean(b), bd, 'KFold', 3, 'Predfun', @(a,b,c) a",
+    "@nosuchfun, bd", "@(a,b) a(100), bd", "@(a,b) ones(1,numel(b)), bd", "@(a,b) ones(1,numel(b)), bd, 'KFold', 3", "@(a,b) ones(2,numel(b)), bd, 'KFold', 3", "@(a,b) disp(1), bd, 'KFold', 3", "@(a,b) {1}, bd, 'KFold', 3", "@(a,b) 'ab', bd, 'KFold', 3", "@(a,b) [], bd, 'KFold', 3",
+    "@(a) 1, bd", "@(a,b,c) 1, bd", "@() 1, bd", "@(varargin) numel(varargin), bd, 'KFold', 3",
+    "'mse', bd, int8(bz), 'Predfun', @(xtr,ytr,xte) xte", "'mse', bd, bz(1:5), 'Predfun', @(xtr,ytr,xte) xte", "'mse', bd, [bz bz], 'Predfun', @(xtr,ytr,xte) xte", "'mse', bd, bz', 'Predfun', @(xtr,ytr,xte) xte", "'mse', bd, {1}, 'Predfun', @(xtr,ytr,xte) xte",
+    "'mse', bd, bz, 'Predfun', @(xtr,ytr,xte) xte(1:2), 'KFold', 3", "'mse', bd, bz, 'Predfun', @(xtr,ytr,xte) xte', 'KFold', 3", "'mse', bd, bz, 'Predfun', @(xtr,ytr,xte) [xte xte], 'KFold', 3", "'mse', bd, bz, 'Predfun', @(xtr,ytr,xte) {1}, 'KFold', 3",
+    "'mse', bd, bz, 'Predfun', @(xtr,ytr,xte) error('boom'), 'KFold', 3", "'mse', bd, bz, 'Predfun', @nosuchfun, 'KFold', 3",
+    "'mcr', bd, bd2, 'Predfun', @(xtr,ytr,xte) xte", "'mcr', bd, {1,2}, 'Predfun', @(xtr,ytr,xte) xte", "'mcr', bd, struct('a',1), 'Predfun', @(xtr,ytr,xte) xte", "'mcr', bd, lb, 'Predfun', @(xtr,ytr,xte) double(xte)'", "'mcr', bd, lb, 'Predfun', @(xtr,ytr,xte) double(xte(1:2))",
+    "'mcr', bd, bd2, 'Predfun', @(xtr,ytr,xte) xte, 'KFold', 3",
+]:
+    sd += 1
+    L23.append(P13 + er % (sd, c))
+L += L23
+
 with open(os.path.join(here, "cases_u1.txt"), "w", encoding="utf-8", newline="\n") as f:
     f.write("\n".join(L) + "\n")
 print(len(L) - 1)

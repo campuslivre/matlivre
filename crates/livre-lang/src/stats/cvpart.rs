@@ -525,6 +525,14 @@ fn from_object(o: &Object) -> Option<Cv> {
     })
 }
 
+/// What `crossval` needs of a partition: the number of observations, the number of test sets, its
+/// `Type` and the size of each test set; `None` when the value is not a partition.
+pub fn describe(v: &Value) -> Option<(usize, usize, String, Vec<f64>)> {
+    let Value::Object(o) = v else { return None };
+    let cv = from_object(o)?;
+    Some((cv.n, cv.k, cv.kind.name().to_string(), cv.test))
+}
+
 /// `num2str` of a vector of integers: each in a column of width digits + 2, trimmed on the left.
 fn num2str_ints(v: &[f64]) -> String {
     let digits = v.iter().map(|x| format!("{}", *x as i64).len()).max().unwrap_or(1);

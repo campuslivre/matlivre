@@ -426,7 +426,7 @@ pub(crate) fn labels_of(v: &Value) -> Res<Labels> {
             for e in &c.data {
                 match e {
                     Value::Num(m) if m.kind == Kind::Char => out.push(if m.is_empty() { None } else { Some(m.to_string_lossy()) }),
-                    _ => return bad(),
+                    _ => return rt("Grouping variable must be a categorical, numeric, logical, datetime or duration vector, character array, string array, or cell vector of character vectors."),
                 }
             }
             Ok(Labels::Text(out, true))
