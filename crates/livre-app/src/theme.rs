@@ -381,8 +381,11 @@ pub fn use_cjk(ctx: &egui::Context, japanese: Option<bool>) {
     static CURRENT: std::sync::Mutex<Option<bool>> = std::sync::Mutex::new(None);
     let mut current = CURRENT.lock().unwrap();
     let want = match (japanese, *current) {
-        (None, Some(_)) => return,
-        (None, None) => false,
+        (None, _) => {
+            *current = None;
+            ctx.set_fonts(definitions(None));
+            return;
+        }
         (Some(j), Some(c)) if j == c => return,
         (Some(j), _) => j,
     };
@@ -429,6 +432,16 @@ fn definitions(cjk: Option<bool>) -> FontDefinitions {
     if let Some((bytes, index)) = cjk.and_then(cjk_font) {
         fonts.font_data.insert("cjk".into(), FontData { font: std::borrow::Cow::Borrowed(&bytes[..]), index: *index, tweak: Default::default() });
         fonts.families.entry(FontFamily::Proportional).or_default().push("cjk".into());
+    }
+    if cjk.is_none() {
+        if let Some((bytes, index)) = cjk_font(false) {
+            fonts.font_data.insert("cjk-zh".into(), FontData { font: std::borrow::Cow::Borrowed(&bytes[..]), index: *index, tweak: Default::default() });
+            fonts.families.entry(FontFamily::Proportional).or_default().push("cjk-zh".into());
+        }
+        if let Some((bytes, index)) = cjk_font(true) {
+            fonts.font_data.insert("cjk-ja".into(), FontData { font: std::borrow::Cow::Borrowed(&bytes[..]), index: *index, tweak: Default::default() });
+            fonts.families.entry(FontFamily::Proportional).or_default().push("cjk-ja".into());
+        }
     }
     if let Some(mono) = load(&["consola.ttf", "CascadiaMono.ttf"]) {
         fonts.font_data.insert("code".into(), FontData::from_owned(mono));
